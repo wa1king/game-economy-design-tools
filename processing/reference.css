@@ -1,0 +1,126 @@
+.phase-reference{border:1px solid #dce5d4;background:#fff;border-radius:10px;margin:0 0 18px;overflow:hidden;font-size:12px}.phase-reference[hidden]{display:none}.phase-heading{display:flex;align-items:center;gap:14px;padding:10px 16px;background:#f4f8ef}.phase-heading>span{color:#85957b;font-size:11px}.phase-heading #phaseSource{margin-left:auto;color:#809277;font-size:11px}.phase-heading #phaseFold{font-size:14px;color:#3c6543;font-weight:600}.phase-controls{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:12px 18px}.phase-tabs{display:flex;border:1px solid #dce5d4;border-radius:6px;overflow:hidden}.phase-tabs button{border:0;border-radius:0;padding:7px 16px;font-size:12px}.phase-tabs button+button{border-left:1px solid #e6edde}.phase-tabs .active{background:#e5eedc;color:#375e3b;font-weight:600}.phase-options{display:flex;gap:8px;align-items:center}.phase-options select{font-size:12px;padding:7px 8px;min-width:0}.phase-options button{font-size:11px;color:#7d9174}.phase-table-scroll{overflow:auto}.phase-table{width:100%;min-width:920px;table-layout:fixed;border-collapse:collapse;font-variant-numeric:tabular-nums}.phase-table th,.phase-table td{padding:9px 8px;text-align:right;border-bottom:1px solid #edf1e8}.phase-table th:first-child{text-align:left;width:148px;padding-left:22px}.phase-table th:nth-child(2){width:70px}.phase-table thead th{background:#fafcf7;color:#849675;font-weight:500;font-size:11px}.phase-table small{display:block;font-size:10px;font-weight:400;color:#99a68e;margin-top:3px}.phase-table tbody th{color:#607a55;font-weight:500}.phase-table tbody tr:first-child td{color:#325c44;font-size:15px;font-weight:600}.phase-table tbody tr:nth-child(2) td{color:#8b977e}.phase-table .phase-delta th,.phase-table .phase-delta td{font-size:11px;color:#9aa38e;background:#fcfdfb;border-bottom:0}.phase-table .pending{font-size:11px;font-weight:400}.phase-foot{display:flex;justify-content:space-between;gap:15px;padding:9px 20px;border-top:1px solid #edf1e8;color:#94a08b;font-size:10px}.unit-matrix .tao-time-row>*{background:#f6f9f1!important;border-bottom:1px solid #dbe5cf;height:43px!important}.unit-matrix .tao-time-row .product-col{color:#8a9e79;font-size:11px}.tao-time-row button{border:0;background:transparent;padding:3px 8px;font-size:12px;color:#7c9368;width:100%;font-variant-numeric:tabular-nums}.tao-time-row button:hover{background:#eaf1e1}.tao-time-row button small{display:block;font-size:9px;color:#9aa98d;margin-top:3px}.unit-matrix .tao-time-row .group-left{border-left:2px solid var(--group)}#referenceDialog{width:min(1120px,95vw);max-width:1120px;max-height:85vh;padding:22px;overflow:auto}#referenceDialogBody{font-size:12px;line-height:1.7;color:#607452}.ref-dialog-note{font-size:11px;color:#899b7a}.ref-dialog-scroll{overflow:auto;max-height:62vh}.ref-products{width:100%;min-width:960px;white-space:nowrap;border-collapse:collapse;font-variant-numeric:tabular-nums}.ref-products th,.ref-products td{padding:8px 10px;border-bottom:1px solid #e7eddc;text-align:right}.ref-products th:first-child{text-align:left}.ref-products thead th{position:sticky;top:0;background:#f0f5e9;color:#778d67;font-size:11px;font-weight:500}.ref-products small{display:block;font-size:9px;color:#99a78b}.ref-products tbody th{font-weight:500}.reference-path{overflow-wrap:anywhere;font-size:10px;color:#94a087}@media(max-width:1000px){.phase-controls,.phase-foot{flex-wrap:wrap}.phase-controls{gap:9px}.phase-tabs button{padding:7px 10px}.phase-options{flex-wrap:wrap}.phase-heading{gap:8px}.phase-heading>span{display:none}.phase-heading #phaseSource{font-size:10px}.phase-table-scroll{max-width:100%}}
+.stage-goals{border:1px solid #cfdeed;border-radius:9px;background:white;margin:0 0 12px;overflow:hidden}.stage-goals[hidden]{display:none}.goals-heading{display:flex;align-items:center;gap:14px;padding:9px 16px;background:#f3f7fb}.goals-heading #goalsFold{font-size:13px;color:#3e6481;font-weight:600}.goals-heading>span{font-size:11px;color:#8a9ba7}.goal-audit-button{margin-left:auto;border:0;font-size:11px;background:none;color:#7d8c98;padding:5px}.goal-audit-button.has-issues{color:#b15b40}.goals-table-scroll{overflow:auto}.goals-table{width:100%;min-width:1050px;table-layout:fixed;border-collapse:collapse;font-size:12px}.goals-table th,.goals-table td{text-align:center;padding:7px;border:1px solid #e5ebf1}.goals-table th:first-child{width:100px}.goals-table th{color:#607785;font-weight:500;background:#f7f9fc}.goals-table thead small{display:block;font-size:9px;font-weight:400;color:#99a7b2;margin-top:4px}.goals-table input{width:75px;max-width:100%;padding:5px;text-align:center;background:#edf5ff;border-color:#cbdcea;color:#426a87;font-size:12px;font-variant-numeric:tabular-nums}.goals-table td>small{display:block;color:#99a5af;font-size:10px;margin-top:4px}.goals-table .goal-over>small{color:#b55f45;font-weight:600}.goals-foot{display:flex;align-items:center;justify-content:space-between;padding:7px 16px;color:#96a3ad;font-size:10px}.goals-foot button{font-size:10px;color:#7b93a6}.stage-input-hint{padding:9px 16px;background:#f2f7fc;border-top:1px solid #e3ebf3;display:flex;align-items:center;gap:15px;flex-wrap:wrap;font-size:11px;color:#7a90a0}.stage-input-hint[hidden]{display:none}.stage-input-hint b{font-weight:500;color:#456b86}.unit-matrix .goal-time-row>*{background:#f2f7fc!important;height:40px!important;color:#6a8ca6;font-size:11px}.unit-matrix .goal-time-row small{display:block;font-size:9px;color:#a0b0bd;margin-top:3px}.unit-matrix .goal-time-row .group-left{border-left:2px solid var(--group)}.unit-matrix .goal-input-over{background:#fff0e9!important;border-color:#d89981!important;color:#ac533c!important}.unit-matrix .goal-value-over{background:#fff0e9!important;color:#ad5039!important;font-weight:600}.stage-limit-notice{display:flex;gap:12px;align-items:center;border:1px solid #ecd3c5;border-radius:7px;padding:10px 14px;margin-bottom:12px;background:#fff6ef;color:#b1664d;font-size:12px}.stage-limit-notice[hidden]{display:none}.stage-limit-notice>span{flex:1}.stage-limit-notice>span b{font-weight:600}.stage-limit-notice .text-button{white-space:nowrap;font-size:11px;color:#b1664d}.stage-limit-notice #goalNoticeClose{border:0;background:none;color:#ba8978;font-size:17px;padding:2px 5px}.goal-over-text{color:#b55a40}@media(max-width:800px){.goals-heading{gap:7px}.goals-heading>span{display:none}.stage-input-hint{gap:8px;font-size:10px}.stage-limit-notice{flex-wrap:wrap}.goals-foot{gap:8px;flex-wrap:wrap}}
+#stageGoalsDialog{width:min(1180px,95vw);max-width:1180px;max-height:85vh;overflow:auto;padding:22px}#stageGoalsDialog .stage-goals{margin-bottom:0}#goalsOpen{font-size:12px;color:#7b91a1}
+.value-unit{display:inline!important;font-size:.78em!important;font-weight:400!important;margin-left:2px!important;color:inherit;opacity:.78;white-space:nowrap}.phase-table .metric-stat{display:inline;margin-left:3px;font-weight:400;color:#78906b;font-size:10px}.phase-table th,.phase-table td{white-space:nowrap}.time-input-wrap,.goal-input-wrap{display:inline-flex;align-items:center;gap:2px;white-space:nowrap;vertical-align:middle}.time-input-wrap .input-unit,.goal-input-wrap .input-unit{font-size:9px;color:#9a9a7f;margin-left:1px}.time-arrows{display:inline-flex;flex-direction:column;width:14px;margin-left:1px;align-self:center}.time-arrows button{border:0;border-radius:2px;background:#fff5d6;color:#9e9e86;font-size:10px;line-height:12px;height:13px;width:14px;padding:0;cursor:pointer}.time-arrows button:hover{background:#ebdba5;color:#6e795c}.time-arrows button:active{background:#decd96}.time-input-wrap input::-webkit-inner-spin-button,.time-input-wrap input::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}.time-input-wrap input{appearance:textfield;-moz-appearance:textfield}.unit-matrix .time-input-wrap input{width:48px!important;padding:5px 2px!important}.unit-matrix .time-row .time-input-wrap{max-width:100%}.goals-table .goal-input-wrap input{width:48px;padding:5px 2px}.goals-table .goal-input-wrap .input-unit{color:#8ba0b2}.goals-table .time-arrows button{background:#edf5ff;color:#7f9ab0}.goals-table .time-arrows button:hover{background:#cbdff0}.unit-matrix .goal-time-row .value-unit,.tao-time-row .value-unit{font-size:9px!important}.metric-value{white-space:nowrap}
+
+/* Stable workspace: feedback never pushes the table or changes column widths. */
+html{scrollbar-gutter:stable both-edges}
+.table-scroll{height:max(350px,calc(100vh - 330px));max-height:none;overflow-anchor:none;scrollbar-gutter:stable}
+#dataTable.matrix{table-layout:fixed}
+#dataTable.matrix th,#dataTable.matrix td{width:92px;min-width:92px;max-width:92px;overflow:hidden}
+#dataTable.matrix .product-col{width:148px!important;min-width:148px!important;max-width:148px!important}
+.phase-table tbody tr{height:44px}
+.phase-table tbody th,.phase-table tbody td{height:44px;line-height:22px}
+.phase-table .pending small{display:inline;margin-left:4px;line-height:22px}
+.phase-foot{height:34px;flex-wrap:nowrap;white-space:nowrap;overflow:hidden}
+.phase-foot>span{overflow:hidden;text-overflow:ellipsis}
+.stage-input-hint{height:36px;min-height:36px;flex-wrap:nowrap;white-space:nowrap;overflow-x:auto;overflow-y:hidden;padding:7px 16px}
+.stage-input-hint>*{flex-shrink:0}
+.stage-limit-notice{position:fixed;bottom:80px;left:24px;right:24px;z-index:29;margin:0;min-height:46px;max-height:90px;overflow:auto;box-shadow:0 4px 20px #24352e20;flex-wrap:nowrap}
+.stage-limit-notice>span{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.error{position:fixed;bottom:136px;left:24px;right:24px;z-index:29;margin:0;max-height:90px;overflow:auto;box-shadow:0 4px 20px #24352e20}
+.status{width:166px;min-width:166px;max-width:166px;flex-shrink:0;white-space:nowrap;overflow:hidden}
+.status:before{flex-shrink:0}
+#exportBtn{width:128px;min-width:128px}
+@media(max-width:900px){.table-scroll{height:560px}.status{width:115px;min-width:115px;max-width:115px}.stage-limit-notice,.error{left:14px;right:14px}}
+.modelbar{height:44px;flex-wrap:nowrap;white-space:nowrap;overflow-x:auto;overflow-y:hidden}
+.modelbar>span{flex-shrink:0}
+.goals-table tbody tr{height:68px}
+.goals-table td>small{height:16px;line-height:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.goals-heading .goal-audit-button{width:165px;overflow:hidden;text-overflow:ellipsis;flex-shrink:0}
+
+/* Recipe review keeps the selected unlock levels and all original quantities. */
+.error{display:flex;align-items:center;gap:12px}.error>span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.error .text-button{color:#a44939;flex-shrink:0}
+.recipe-blocked{color:#b1664d!important}
+.unit-matrix input.recipe-conflict{background:#fff0e9!important;border-color:#cf8770!important;color:#a74f37!important}
+
+/* Equal permanent side gutters center the workspace and keep feedback outside it. */
+:root{--feedback-width:clamp(140px,12.5vw,240px);--feedback-gap:clamp(12px,1vw,20px);--feedback-edge:clamp(14px,1.25vw,24px)}
+main{padding-left:calc(var(--feedback-width) + var(--feedback-gap) + var(--feedback-edge));padding-right:calc(var(--feedback-width) + var(--feedback-gap) + var(--feedback-edge));max-width:none}
+.phase-controls,.phase-options{flex-wrap:wrap}
+.viewbar{position:sticky;top:0;z-index:20;background:#f4f6f2;border-bottom:1px solid #dee5df;box-shadow:0 3px 7px #24352e08}
+.feedback-rail{position:fixed;top:84px;right:var(--feedback-edge);bottom:20px;width:var(--feedback-width);z-index:29;display:flex;flex-direction:column;gap:12px;overflow:auto;overscroll-behavior:contain;scrollbar-width:thin;pointer-events:none;padding:2px}
+.feedback-rail>*{pointer-events:auto;flex-shrink:0}
+.feedback-rail .stage-limit-notice,.feedback-rail .error,.feedback-rail .toast{position:static;inset:auto;transform:none;max-width:100%;max-height:none;width:100%;margin:0;overflow:visible;white-space:normal;overflow-wrap:anywhere;box-shadow:0 3px 12px #24352e12;font-size:12px;line-height:1.7}
+.feedback-rail .stage-limit-notice,.feedback-rail .error{display:flex;flex-wrap:wrap;align-items:flex-start;gap:6px;padding:12px}
+.feedback-rail .stage-limit-notice>span,.feedback-rail .error>span{flex:1 0 100%;white-space:normal;overflow:visible;text-overflow:clip}
+.feedback-rail .stage-limit-notice>span b{display:block;margin-bottom:4px}
+.feedback-rail #goalNoticeClose{margin-left:auto}
+.feedback-rail .toast{padding:12px}
+@media(max-width:1100px){:root{--feedback-width:140px;--feedback-gap:12px;--feedback-edge:14px}}
+@media(max-width:700px){:root{--feedback-width:110px;--feedback-gap:10px;--feedback-edge:10px}.viewbar{flex-wrap:nowrap;align-items:center;gap:8px}.viewbar nav{width:auto;min-width:0;overflow-x:auto;flex:1}.viewbar>div{flex-shrink:0}.viewbar #goalsOpen,.viewbar #helpBtn{font-size:10px;padding:4px}.feedback-rail{top:78px}.feedback-rail .stage-limit-notice,.feedback-rail .error,.feedback-rail .toast{padding:9px;font-size:11px}}
+
+/* Compact cells retain fixed widths while values and feedback update. */
+#dataTable.matrix th{padding-left:5px;padding-right:5px}
+#dataTable.matrix .product-col{padding-left:10px!important;padding-right:10px!important}
+#dataTable.matrix .column-name{font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#dataTable.matrix .product-col>span{display:block;overflow:hidden;text-overflow:ellipsis}
+#dataTable.unit-matrix select{width:80px;max-width:80px;padding-left:2px;padding-right:1px}
+#dataTable.unit-matrix .time-input-wrap input{width:42px!important}
+#dataTable.unit-matrix .time-input-wrap{gap:1px}
+#dataTable.unit-matrix .time-arrows{margin-left:0}
+#dataTable.unit-matrix .quantity.has-value{width:56px}
+.tao-time-row button{padding-left:2px;padding-right:2px}
+.table-scroll.pan-dragging,.table-scroll.pan-dragging *{cursor:grabbing!important;user-select:none!important}
+
+#generateChainBtn{width:96px;min-width:96px}#viewChainBtn{width:104px;min-width:104px}.actions{flex-shrink:0}@media(max-width:1200px){.topbar{height:auto;min-height:93px;padding-top:14px;padding-bottom:14px;flex-wrap:wrap}.topbar .actions{margin-left:auto;flex-wrap:wrap;justify-content:flex-end}.topbar .actions button{font-size:12px;padding-left:10px;padding-right:10px}}
+
+#dataTable.channel-minutes th{height:68px!important}#dataTable.channel-minutes td{height:38px!important;padding-top:4px!important;padding-bottom:4px!important}#dataTable.channel-minutes .channel-unused{color:#a1aaa2}#dataTable.channel-minutes .channel-total-row>*{background:#f0f6f3;font-weight:600}#dataTable.channel-minutes .channel-total{color:#315e48}.viewbar nav{min-width:0;overflow-x:auto;flex-shrink:1}.viewbar>div{flex-shrink:0}
+
+/* Turnover is direct recipe consumption, with independent SKU maxima. */
+.turnover-controls{display:flex;gap:10px;align-items:center;padding:0 18px 14px;font-size:11px;color:#849082;flex-wrap:wrap}.turnover-controls button{padding:6px 10px;font-size:12px}.turnover-controls span{flex:1;min-width:250px}.turnover-matrix .turnover-total,.turnover-matrix .turnover-total-head{background:#f0f6f3!important;color:#315e48;font-weight:600}.turnover-matrix td{height:38px!important}.turnover-matrix .locked{color:#a3ada4;background:#f5f7f2!important}.turnover-matrix .product-col small{font-size:9px;color:#b1664d}.turnover-matrix .column-name{cursor:default}#queueDialog{width:min(980px,94vw);max-width:980px;max-height:86vh;overflow:auto}.queue-convention{display:flex;align-items:center;gap:7px;font-size:12px}.queue-table-scroll{overflow:auto;max-height:52vh}#queueTable{width:100%;font-size:12px;table-layout:fixed}#queueTable th,#queueTable td{text-align:center;padding:6px;border-bottom:1px solid #e5ece3;height:39px}#queueTable thead th{position:sticky;top:0;z-index:2;background:#f2f6ef;font-weight:500}#queueTable thead th small{display:block;font-size:10px;color:#86927c;margin-top:3px}#queueTable th:first-child{width:68px}#queueTable input{width:65px;padding:5px;text-align:center;background:#fff4d4;border-color:#e6d6a0;color:#775e25}.queue-locked{color:#a1a99d;background:#f7f9f4}
+
+/* Differences stay attached to their actual values, with neutral reference colors. */
+/* An inset wash marks the whole column without moving cells or replacing group colors. */
+#dataTable.matrix .phase-column-highlight{background-image:linear-gradient(#54896517,#54896517)!important;box-shadow:inset 1px 0 #54896566,inset -1px 0 #54896566}
+#dataTable.matrix thead .phase-column-highlight{box-shadow:inset 1px 0 #54896599,inset -1px 0 #54896599,inset 0 -3px #548965}
+.phase-table tbody tr.phase-goals th,.phase-table tbody tr.phase-goals td{background:#f3f7fb;color:#60829b;font-weight:400;font-size:12px}.phase-table .phase-goals th small{display:inline;margin-left:5px;color:#8fa4b4}.phase-table tbody tr:last-child td{color:#8b977e}
+.phase-table{min-width:1120px}.phase-table th:nth-child(2){width:100px}.phase-table .phase-inline-delta{display:inline!important;font-size:10px!important;font-weight:400!important;line-height:inherit;margin:0 0 0 5px!important;white-space:nowrap}.phase-table .phase-inline-delta.higher{color:#a4774b}.phase-table .phase-inline-delta.lower{color:#567d99}.phase-table .phase-inline-delta.equal{color:#95a18d}.phase-table .phase-actual-value{display:inline;white-space:nowrap}.phase-heading .phase-delta-note{font-size:10px;color:#8a9980}
+
+/* Keep the workspace on its tables; fit width needs no permanent controls. */
+.topbar{height:68px;min-height:68px;padding-top:10px;padding-bottom:10px}
+.brandmark{width:34px;height:34px;border-radius:8px}.brandmark svg{width:23px}h1{font-size:19px}
+.modelbar{height:36px;padding-top:7px;padding-bottom:7px}
+.viewbar{height:54px}.toolbar{padding:10px 14px;min-height:52px;justify-content:flex-end}
+.phase-controls{padding:9px 14px}.phase-reference{margin-bottom:12px}.phase-foot{height:28px;padding-top:5px;padding-bottom:5px}
+.goals-heading .goal-audit-button{width:auto;min-width:100px}
+.phase-table-scroll,.goals-table-scroll{overflow-anchor:none}
+.table-footer{padding-top:7px;padding-bottom:7px}
+
+/* Preserve the original right edge; annotations never reserve value space. */
+.phase-table tbody td{position:relative}
+.phase-table .phase-inline-delta{position:absolute;left:calc(100% - 3px);top:50%;transform:translateY(-50%);max-width:47px;overflow:hidden;text-overflow:ellipsis;text-align:left;margin:0!important}
+.phase-table .phase-actual-value{display:inline-block}
+.phase-table .phase-actual-value:has(.pending){position:absolute;left:8px;right:8px;top:50%;transform:translateY(-50%);text-align:center}
+.phase-reference,.phase-table-scroll{overflow:visible}
+.phase-heading{border-radius:9px 9px 0 0}
+#priceDialog{max-width:820px;max-height:88vh;overflow:auto;padding:24px}
+#priceDialog .price-formula{color:#486858;margin:0 0 18px;font-size:13px}
+.price-config-grid{display:grid;grid-template-columns:1fr 1fr;gap:28px;align-items:start}
+.price-config-grid h3{margin:0 0 10px;font-size:14px;font-weight:600}
+.price-config-grid h3 small{font-size:10px;color:#8b9b90;font-weight:400;margin-left:8px}
+.price-config-scroll{max-height:370px;overflow:auto;border:1px solid #dbe5dc;border-radius:7px}
+.price-config-table{width:100%;table-layout:fixed;font-size:12px}
+.price-config-table th,.price-config-table td{text-align:center;padding:6px;border-bottom:1px solid #e7ede7;height:42px}
+.price-config-table thead th{position:sticky;top:0;background:#f2f6f1;color:#718675;font-weight:500;z-index:1}
+.price-config-table tbody th{text-align:left;padding-left:16px;font-weight:400;overflow-wrap:anywhere}
+#priceTimesTable th:last-child{width:35px}
+.price-config-table input{width:100%;max-width:112px;min-width:0;padding:6px;text-align:right;background:#edf5ff;color:#426a87;border-color:#cbdcea}
+.price-config-table button{font-size:16px;padding:2px 6px}
+#priceConfigError{min-height:20px;margin:8px 0 0;color:#b45d43}
+#priceDialog .price-method{color:#859283;margin:2px 0 16px;font-size:11px}
+#pricePreview{border-top:1px solid #e1e8df;padding-top:14px;font-size:13px}
+#pricePreview summary{cursor:pointer;color:#54735c}
+#priceSummary{font-size:11px;color:#ab7c57;margin-left:5px}
+.price-preview-scroll{max-height:300px;overflow:auto;margin-top:12px}
+.price-preview-table{width:100%;font-size:12px}
+.price-preview-table th,.price-preview-table td{padding:9px 7px;text-align:right;border-bottom:1px solid #e7ede7;white-space:nowrap}
+.price-preview-table th:first-child{text-align:left;font-weight:500}
+.price-preview-table thead th{position:sticky;top:0;background:#f2f6f1;font-weight:500;color:#718675}
+.price-estimated{color:#ac7449}.price-invalid{color:#b45d43}
+.feedback-rail .price-notice{border:1px solid #ecd3c5;border-radius:7px;padding:12px;background:#fff6ef;color:#b1664d;font-size:12px;line-height:1.7;box-shadow:0 3px 12px #24352e12;overflow-wrap:anywhere}
+.price-notice>b,.price-notice>span,.price-notice>small{display:block;margin-bottom:6px}.price-notice small{font-size:11px;color:#aa8570}
+.price-notice>div{display:flex;gap:3px;flex-wrap:wrap;align-items:center}.price-notice .text-button{font-size:11px;color:#b1664d}
+.price-notice .notice-close{margin-left:auto;padding:1px 5px;border:0;background:none;color:#ba8978;font-size:17px}
+#priceExportContinue{font-size:11px;padding:5px 8px;color:#a86343;border-color:#dfbaa5}
+@media(max-width:640px){.price-config-grid{grid-template-columns:1fr;gap:18px}.price-config-scroll{max-height:260px}#priceDialog{padding:18px}.viewbar #priceOpen{font-size:10px;padding:4px}}

@@ -1,0 +1,794 @@
+{
+  "buildings": [
+    {
+      "color": "#DDEBF7",
+      "id": 501,
+      "level": 2,
+      "name": "研磨机"
+    },
+    {
+      "color": "#FFF2CC",
+      "id": 502,
+      "level": 4,
+      "name": "切割机"
+    },
+    {
+      "color": "#F2DCDB",
+      "id": 503,
+      "level": 6,
+      "name": "纺织机"
+    },
+    {
+      "color": "#FCE4D6",
+      "id": 504,
+      "level": 8,
+      "name": "萃取机"
+    },
+    {
+      "color": "#E4DFEC",
+      "id": 505,
+      "level": 10,
+      "name": "窑炉"
+    }
+  ],
+  "lands_by_level": {
+    "1": 6,
+    "2": 6,
+    "3": 6,
+    "4": 12,
+    "5": 12,
+    "6": 12,
+    "7": 18,
+    "8": 18,
+    "9": 18,
+    "10": 24,
+    "11": 24,
+    "12": 24,
+    "13": 24,
+    "14": 24,
+    "15": 30,
+    "16": 30,
+    "17": 30,
+    "18": 30,
+    "19": 30,
+    "20": 30
+  },
+  "products": [
+    {
+      "building": 0,
+      "buildingName": "农田",
+      "id": 1,
+      "inputs": [],
+      "level": 1,
+      "name": "芦苇草",
+      "time": 2,
+      "type": "作物",
+      "yield": 1
+    },
+    {
+      "building": 0,
+      "buildingName": "农田",
+      "id": 2,
+      "inputs": [],
+      "level": 2,
+      "name": "棉花",
+      "time": 5,
+      "type": "作物",
+      "yield": 1
+    },
+    {
+      "building": 0,
+      "buildingName": "农田",
+      "id": 5,
+      "inputs": [],
+      "level": 4,
+      "name": "竹子",
+      "time": 10,
+      "type": "作物",
+      "yield": 1
+    },
+    {
+      "building": 0,
+      "buildingName": "农田",
+      "id": 10,
+      "inputs": [],
+      "level": 7,
+      "name": "香绒草",
+      "time": 15,
+      "type": "作物",
+      "yield": 1
+    },
+    {
+      "building": 0,
+      "buildingName": "农田",
+      "id": 15,
+      "inputs": [],
+      "level": 8,
+      "name": "薰衣草",
+      "time": 20,
+      "type": "作物",
+      "yield": 1
+    },
+    {
+      "building": 0,
+      "buildingName": "农田",
+      "id": 17,
+      "inputs": [],
+      "level": 10,
+      "name": "芍药花",
+      "time": 30,
+      "type": "作物",
+      "yield": 1
+    },
+    {
+      "building": 0,
+      "buildingName": "农田",
+      "id": 24,
+      "inputs": [],
+      "level": 13,
+      "name": "墨水花",
+      "time": 60,
+      "type": "作物",
+      "yield": 1
+    },
+    {
+      "building": 0,
+      "buildingName": "农田",
+      "id": 30,
+      "inputs": [],
+      "level": 16,
+      "name": "蜡烛花",
+      "time": 90,
+      "type": "作物",
+      "yield": 1
+    },
+    {
+      "building": 0,
+      "buildingName": "农田",
+      "id": 35,
+      "inputs": [],
+      "level": 19,
+      "name": "浆果珍珠",
+      "time": 120,
+      "type": "作物",
+      "yield": 1
+    },
+    {
+      "building": 501,
+      "buildingName": "研磨机",
+      "id": 3,
+      "inputs": [
+        [
+          1,
+          2
+        ]
+      ],
+      "level": 2,
+      "name": "芦苇丝",
+      "time": 5,
+      "type": "加工品",
+      "yield": 1
+    },
+    {
+      "building": 501,
+      "buildingName": "研磨机",
+      "id": 4,
+      "inputs": [
+        [
+          1,
+          1
+        ],
+        [
+          2,
+          1
+        ]
+      ],
+      "level": 3,
+      "name": "棉绒团",
+      "time": 10,
+      "type": "加工品",
+      "yield": 1
+    },
+    {
+      "building": 501,
+      "buildingName": "研磨机",
+      "id": 12,
+      "inputs": [
+        [
+          10,
+          2
+        ]
+      ],
+      "level": 7,
+      "name": "绒香粉",
+      "time": 20,
+      "type": "加工品",
+      "yield": 1
+    },
+    {
+      "building": 501,
+      "buildingName": "研磨机",
+      "id": 22,
+      "inputs": [
+        [
+          2,
+          2
+        ],
+        [
+          10,
+          2
+        ]
+      ],
+      "level": 13,
+      "name": "云朵香粉",
+      "time": 30,
+      "type": "加工品",
+      "yield": 1
+    },
+    {
+      "building": 501,
+      "buildingName": "研磨机",
+      "id": 33,
+      "inputs": [
+        [
+          1,
+          2
+        ],
+        [
+          24,
+          2
+        ]
+      ],
+      "level": 18,
+      "name": "乌云绒团",
+      "time": 60,
+      "type": "加工品",
+      "yield": 1
+    },
+    {
+      "building": 502,
+      "buildingName": "切割机",
+      "id": 6,
+      "inputs": [
+        [
+          5,
+          2
+        ]
+      ],
+      "level": 4,
+      "name": "竹条",
+      "time": 10,
+      "type": "加工品",
+      "yield": 1
+    },
+    {
+      "building": 502,
+      "buildingName": "切割机",
+      "id": 7,
+      "inputs": [
+        [
+          5,
+          3
+        ]
+      ],
+      "level": 5,
+      "name": "薄竹片",
+      "time": 20,
+      "type": "加工品",
+      "yield": 1
+    },
+    {
+      "building": 502,
+      "buildingName": "切割机",
+      "id": 20,
+      "inputs": [
+        [
+          5,
+          4
+        ]
+      ],
+      "level": 11,
+      "name": "小竹框",
+      "time": 30,
+      "type": "加工品",
+      "yield": 1
+    },
+    {
+      "building": 502,
+      "buildingName": "切割机",
+      "id": 28,
+      "inputs": [
+        [
+          5,
+          2
+        ],
+        [
+          17,
+          2
+        ]
+      ],
+      "level": 15,
+      "name": "花瓣竹板",
+      "time": 45,
+      "type": "加工品",
+      "yield": 1
+    },
+    {
+      "building": 502,
+      "buildingName": "切割机",
+      "id": 36,
+      "inputs": [
+        [
+          5,
+          1
+        ],
+        [
+          35,
+          2
+        ]
+      ],
+      "level": 19,
+      "name": "珍珠衣帽架",
+      "time": 60,
+      "type": "加工品",
+      "yield": 1
+    },
+    {
+      "building": 503,
+      "buildingName": "纺织机",
+      "id": 14,
+      "inputs": [
+        [
+          3,
+          1
+        ],
+        [
+          6,
+          1
+        ]
+      ],
+      "level": 6,
+      "name": "竹编小垫",
+      "time": 30,
+      "type": "加工品",
+      "yield": 1
+    },
+    {
+      "building": 503,
+      "buildingName": "纺织机",
+      "id": 16,
+      "inputs": [
+        [
+          1,
+          2
+        ],
+        [
+          4,
+          1
+        ]
+      ],
+      "level": 9,
+      "name": "软棉布",
+      "time": 45,
+      "type": "加工品",
+      "yield": 1
+    },
+    {
+      "building": 503,
+      "buildingName": "纺织机",
+      "id": 21,
+      "inputs": [
+        [
+          2,
+          2
+        ],
+        [
+          7,
+          1
+        ]
+      ],
+      "level": 11,
+      "name": "竹帘",
+      "time": 60,
+      "type": "加工品",
+      "yield": 1
+    },
+    {
+      "building": 503,
+      "buildingName": "纺织机",
+      "id": 27,
+      "inputs": [
+        [
+          4,
+          1
+        ],
+        [
+          20,
+          1
+        ]
+      ],
+      "level": 15,
+      "name": "绒绒灯罩",
+      "time": 120,
+      "type": "加工品",
+      "yield": 1
+    },
+    {
+      "building": 503,
+      "buildingName": "纺织机",
+      "id": 32,
+      "inputs": [
+        [
+          2,
+          2
+        ],
+        [
+          3,
+          1
+        ],
+        [
+          7,
+          1
+        ]
+      ],
+      "level": 17,
+      "name": "软边小席",
+      "time": 150,
+      "type": "加工品",
+      "yield": 1
+    },
+    {
+      "building": 503,
+      "buildingName": "纺织机",
+      "id": 37,
+      "inputs": [
+        [
+          1,
+          1
+        ],
+        [
+          3,
+          1
+        ],
+        [
+          31,
+          1
+        ]
+      ],
+      "level": 19,
+      "name": "雨滴篮子",
+      "time": 180,
+      "type": "加工品",
+      "yield": 1
+    },
+    {
+      "building": 504,
+      "buildingName": "萃取机",
+      "id": 13,
+      "inputs": [
+        [
+          15,
+          2
+        ]
+      ],
+      "level": 8,
+      "name": "薰衣草精油",
+      "time": 20,
+      "type": "加工品",
+      "yield": 1
+    },
+    {
+      "building": 504,
+      "buildingName": "萃取机",
+      "id": 18,
+      "inputs": [
+        [
+          17,
+          3
+        ]
+      ],
+      "level": 10,
+      "name": "花瓣香水",
+      "time": 45,
+      "type": "加工品",
+      "yield": 1
+    },
+    {
+      "building": 504,
+      "buildingName": "萃取机",
+      "id": 25,
+      "inputs": [
+        [
+          24,
+          3
+        ]
+      ],
+      "level": 13,
+      "name": "墨汁",
+      "time": 60,
+      "type": "加工品",
+      "yield": 1
+    },
+    {
+      "building": 504,
+      "buildingName": "萃取机",
+      "id": 31,
+      "inputs": [
+        [
+          30,
+          3
+        ]
+      ],
+      "level": 16,
+      "name": "花蜡",
+      "time": 90,
+      "type": "加工品",
+      "yield": 1
+    },
+    {
+      "building": 505,
+      "buildingName": "窑炉",
+      "id": 19,
+      "inputs": [
+        [
+          6,
+          1
+        ],
+        [
+          12,
+          1
+        ]
+      ],
+      "level": 10,
+      "name": "竹炭画笔",
+      "time": 45,
+      "type": "加工品",
+      "yield": 1
+    },
+    {
+      "building": 505,
+      "buildingName": "窑炉",
+      "id": 23,
+      "inputs": [
+        [
+          12,
+          1
+        ],
+        [
+          13,
+          1
+        ]
+      ],
+      "level": 12,
+      "name": "薰衣草香棒",
+      "time": 60,
+      "type": "加工品",
+      "yield": 1
+    },
+    {
+      "building": 505,
+      "buildingName": "窑炉",
+      "id": 26,
+      "inputs": [
+        [
+          6,
+          1
+        ],
+        [
+          15,
+          2
+        ],
+        [
+          18,
+          1
+        ]
+      ],
+      "level": 14,
+      "name": "竹制盆景",
+      "time": 90,
+      "type": "加工品",
+      "yield": 1
+    },
+    {
+      "building": 505,
+      "buildingName": "窑炉",
+      "id": 29,
+      "inputs": [
+        [
+          10,
+          2
+        ],
+        [
+          22,
+          1
+        ],
+        [
+          25,
+          1
+        ]
+      ],
+      "level": 16,
+      "name": "圈圈蚊香",
+      "time": 120,
+      "type": "加工品",
+      "yield": 1
+    },
+    {
+      "building": 505,
+      "buildingName": "窑炉",
+      "id": 34,
+      "inputs": [
+        [
+          12,
+          1
+        ],
+        [
+          14,
+          1
+        ],
+        [
+          15,
+          2
+        ]
+      ],
+      "level": 18,
+      "name": "薰衣草软垫",
+      "time": 150,
+      "type": "加工品",
+      "yield": 1
+    },
+    {
+      "building": 505,
+      "buildingName": "窑炉",
+      "id": 38,
+      "inputs": [
+        [
+          27,
+          1
+        ],
+        [
+          28,
+          1
+        ],
+        [
+          30,
+          2
+        ]
+      ],
+      "level": 20,
+      "name": "花瓣小灯",
+      "time": 180,
+      "type": "加工品",
+      "yield": 1
+    }
+  ],
+  "pricing": {
+    "version": 1,
+    "timeValues": [
+      {
+        "seconds": 120,
+        "value": 1
+      },
+      {
+        "seconds": 300,
+        "value": 2
+      },
+      {
+        "seconds": 600,
+        "value": 3
+      },
+      {
+        "seconds": 1200,
+        "value": 4
+      },
+      {
+        "seconds": 1800,
+        "value": 5
+      },
+      {
+        "seconds": 3600,
+        "value": 6
+      },
+      {
+        "seconds": 7200,
+        "value": 7
+      },
+      {
+        "seconds": 10800,
+        "value": 8
+      },
+      {
+        "seconds": 14400,
+        "value": 9
+      },
+      {
+        "seconds": 18000,
+        "value": 10
+      },
+      {
+        "seconds": 21600,
+        "value": 11
+      },
+      {
+        "seconds": 25200,
+        "value": 12
+      },
+      {
+        "seconds": 28800,
+        "value": 13
+      },
+      {
+        "seconds": 32400,
+        "value": 14
+      },
+      {
+        "seconds": 36000,
+        "value": 15
+      },
+      {
+        "seconds": 39600,
+        "value": 16
+      },
+      {
+        "seconds": 43200,
+        "value": 17
+      },
+      {
+        "seconds": 46800,
+        "value": 18
+      },
+      {
+        "seconds": 50400,
+        "value": 19
+      },
+      {
+        "seconds": 54000,
+        "value": 20
+      },
+      {
+        "seconds": 57600,
+        "value": 21
+      },
+      {
+        "seconds": 61200,
+        "value": 22
+      },
+      {
+        "seconds": 64800,
+        "value": 23
+      },
+      {
+        "seconds": 68400,
+        "value": 24
+      },
+      {
+        "seconds": 72000,
+        "value": 25
+      },
+      {
+        "seconds": 75600,
+        "value": 26
+      },
+      {
+        "seconds": 79200,
+        "value": 27
+      },
+      {
+        "seconds": 82800,
+        "value": 28
+      },
+      {
+        "seconds": 86400,
+        "value": 29
+      }
+    ],
+    "sourceCoefficients": {
+      "0": 1,
+      "501": 2,
+      "502": 2,
+      "503": 2,
+      "504": 2,
+      "505": 2
+    }
+  }
+}

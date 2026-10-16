@@ -1,0 +1,55 @@
+/* Keep current-level outcomes together; editing controls have their own scroll. */
+.empty-project{max-width:620px;margin:10vh auto;padding:50px 30px;text-align:center;border:1px dashed #bccfc2;border-radius:16px;background:#fff}
+.empty-project-icon{width:48px;height:48px;margin:0 auto 16px;border-radius:12px;display:grid;place-items:center;color:var(--green);background:var(--pale);font-size:26px}
+.empty-project h1{font-size:24px;margin:0 0 8px}.empty-project p{color:var(--muted);font-size:13px;margin:0 0 24px}.empty-project .primary{padding:10px 24px;font-size:13px}
+#levelWorkspace.project-workspace{grid-template-columns:280px minmax(0,1fr);gap:18px}
+#levelWorkspace .controls{max-height:calc(100vh - 160px);overflow:auto;position:sticky;top:12px;scrollbar-gutter:stable}
+#levelWorkspace .metrics{grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-bottom:10px}
+#levelWorkspace .metrics>div{padding:10px 12px;display:flex;flex-direction:column;gap:4px}
+#levelWorkspace .metrics strong{font-size:23px;margin:0;line-height:1.2}
+#levelWorkspace .metrics small{font-size:10px;line-height:1.35}
+#levelWorkspace .metrics .sub{font-size:10px;line-height:1.35}
+#levelWorkspace .result-heading{margin-bottom:9px}
+#levelWorkspace .precision-report{padding:6px 11px;margin-bottom:10px}
+.result-focus-grid{display:grid;grid-template-columns:minmax(0,1.45fr) minmax(300px,1fr);gap:12px;align-items:stretch;margin-bottom:10px}
+.result-focus-grid .panel{margin:0;padding:13px 14px}
+.result-focus-grid .panel-heading{gap:8px;align-items:center}
+.result-focus-grid h3{font-size:13px;margin:0}
+.result-focus-grid .chart{min-height:0}
+.result-focus-grid .chart svg{margin:10px 0 0;max-height:225px}
+.result-focus-grid #curveNote{font-size:10px;margin:3px 0 0}
+#sourceComparisonPanel .panel-heading{display:block}
+#sourceComparisonPanel #sourceFitSummary{font-size:10px;margin-top:3px}
+#sourceResults.source-results{display:block;margin-top:7px;max-height:220px;overflow:auto;scrollbar-gutter:stable;outline-offset:2px}
+#sourceResults .compact-source-table{font-size:11px;border-collapse:separate;border-spacing:0;table-layout:fixed;width:100%}
+#sourceResults .compact-source-table th,#sourceResults .compact-source-table td{padding:5px 6px;height:28px;min-width:0;text-align:right;white-space:nowrap;font-size:11px;border-bottom:1px solid #edf1eb;font-variant-numeric:tabular-nums}
+#sourceResults .compact-source-table th:first-child{width:32%;text-align:left;overflow:hidden;text-overflow:ellipsis}
+#sourceResults .compact-source-table tbody th{background:white;color:var(--ink);font-weight:400}
+#sourceResults .compact-source-table thead th{position:sticky;top:0;z-index:1;background:#f0f5f0;color:var(--muted);font-size:10px}
+#sourceResults .compact-source-table .source-actual{background:linear-gradient(to right,#e6f1e9 var(--share),transparent var(--share));color:var(--green);font-weight:500}
+#sourceResults .compact-source-table .source-miss td:last-child{color:#ad6131;background:#fff3e6}
+#mixComparisonPanel{padding:10px 14px;margin-bottom:14px}
+#mixComparisonPanel .panel-heading{align-items:center}
+#mixComparisonPanel h3{font-size:12px}
+#mixResults{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px}
+#mixResults .mix-result{margin:5px 0 0}
+#mixResults .labels{font-size:11px}
+#mixResults .bar{height:4px;margin:5px 0 1px}
+#fitDiagnosticsPanel dl{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:0 20px}
+@media(max-height:800px) and (min-width:951px){#levelWorkspace .notice{padding:5px 10px;font-size:11px;margin-bottom:8px}.result-focus-grid .chart svg{max-height:190px}#sourceResults.source-results{max-height:205px}#sourceResults .compact-source-table th,#sourceResults .compact-source-table td{height:25px;padding:4px 6px}}
+@media(min-width:1550px){#levelWorkspace.project-workspace{grid-template-columns:300px minmax(0,1fr)}.result-focus-grid{grid-template-columns:minmax(0,1.7fr) minmax(340px,1fr)}}
+@media(max-width:1100px){#levelWorkspace.project-workspace{grid-template-columns:255px minmax(0,1fr);gap:12px}.result-focus-grid{grid-template-columns:minmax(0,1fr) minmax(245px,.9fr)}#levelWorkspace .metrics strong{font-size:19px}#levelWorkspace .metrics>div{padding:9px 8px}.result-focus-grid .panel{padding:11px 10px}}
+@media(max-width:950px){#levelWorkspace.project-workspace{display:grid;grid-template-columns:240px minmax(0,1fr)}.result-focus-grid{grid-template-columns:minmax(0,1fr)}#levelWorkspace .metrics{grid-template-columns:repeat(2,minmax(0,1fr))}#sourceResults.source-results{max-height:250px}#mixResults{gap:8px}}
+@media(max-width:700px){#levelWorkspace.project-workspace{display:flex;flex-direction:column}#levelWorkspace .controls{order:2;position:static;max-height:none;overflow:visible;width:100%}#levelWorkspace .results{order:1;width:100%}.result-focus-grid{grid-template-columns:minmax(0,1fr)}#fitDiagnosticsPanel dl{grid-template-columns:1fr 1fr}#mixResults{grid-template-columns:1fr;gap:3px}}
+
+.level-analysis-toolbar{grid-column:1/-1;display:flex;align-items:center;justify-content:space-between;gap:16px;min-width:0;padding:0 0 12px;border-bottom:1px solid var(--line)}
+.level-context{display:flex;align-items:center;gap:16px;min-width:0}
+.level-context #singleLevelSelect{font-size:16px;font-weight:650;padding:6px 10px;min-width:100px;border-color:#cfddd3;border-radius:7px;color:var(--green);cursor:pointer}
+.level-context #poolHint{font-size:12px;white-space:nowrap;color:var(--muted);border-left:1px solid var(--line);padding-left:16px}
+.level-toolbar-actions{display:flex;align-items:center;gap:16px;flex-shrink:0}
+.level-controls-toggle{display:inline-flex;align-items:center;gap:7px;white-space:nowrap;border:0;border-left:1px solid var(--line);border-radius:0;padding:4px 0 4px 16px;background:transparent;font-size:12px;color:var(--muted)}
+.level-controls-toggle svg circle{fill:var(--bg)}
+.level-controls-toggle:hover,.level-controls-toggle[aria-expanded=true]{color:var(--green)}
+#levelWorkspace.project-workspace.controls-collapsed{grid-template-columns:minmax(0,1fr)}
+#levelWorkspace .results{grid-column:auto}
+@media(max-width:700px){.level-analysis-toolbar{order:0;width:100%;gap:10px;flex-wrap:wrap}.level-context{gap:10px}.level-context #poolHint{font-size:10px;padding-left:10px}.level-context #singleLevelSelect{font-size:14px;min-width:86px}.level-toolbar-actions{gap:10px;margin-left:auto}.level-controls-toggle{padding-left:10px}#levelWorkspace .controls{order:1}#levelWorkspace .results{order:2}}

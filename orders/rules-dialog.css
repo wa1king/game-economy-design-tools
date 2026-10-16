@@ -1,0 +1,12 @@
+.rules-settings{display:inline-flex;align-items:center;justify-content:center;gap:5px;white-space:nowrap}.rules-settings span{font-size:15px;color:var(--green)}
+.rules-dialog{width:min(620px,calc(100vw - 32px));max-height:calc(100vh - 40px);margin:auto;padding:22px;border:1px solid #dce3dd;border-radius:14px;background:#fff;color:var(--ink);box-shadow:0 16px 65px #20332d30;overflow:auto}
+.rules-dialog::backdrop{background:#182b2466;backdrop-filter:blur(2px)}
+.rules-dialog-heading{display:flex;justify-content:space-between;align-items:center;gap:16px;padding-bottom:18px;border-bottom:1px solid var(--line)}
+.rules-dialog-heading h2{font-size:18px;margin:0}.rules-close{border:0;background:transparent;font-size:27px;line-height:1;padding:0 5px;color:var(--muted);border-radius:5px}.rules-close:hover{background:var(--pale);color:var(--green)}
+.rules-dialog .rules-panel{display:block;border:0;border-radius:0;margin:0;padding:20px 0 0;background:none}
+.rules-fields{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
+.rules-dialog .rules-fields label{display:flex;flex-direction:column;align-items:stretch;gap:8px;font-size:12px;color:var(--muted)}
+.rules-dialog .rules-fields input,.rules-dialog .rules-fields select{width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:7px;font-size:15px;color:var(--ink);background:white}
+.rules-fixed{display:flex;gap:7px;flex-wrap:wrap;margin-top:19px}.rules-dialog .rules-impact{margin:12px 0 0}.rules-dialog-footer{display:flex;justify-content:flex-end;align-items:center;gap:10px;margin-top:22px;padding-top:16px;border-top:1px solid var(--line)}
+.rules-dialog-footer #rulesPending{margin-right:auto}.rules-dialog-footer .primary{font-size:12px;padding:9px 14px}.rules-error{font-size:12px;color:#a85b35;background:#fff1e6;border-radius:6px;padding:8px 10px;margin:12px 0 0}
+@media(max-width:550px){.rules-dialog{padding:18px}.rules-fields{grid-template-columns:1fr;gap:13px}.rules-dialog .rules-fields label{flex-direction:row;justify-content:space-between;align-items:center}.rules-dialog .rules-fields input,.rules-dialog .rules-fields select{width:115px}.rules-dialog-footer{gap:7px;flex-wrap:wrap}.rules-dialog-footer #rulesPending{width:100%;margin:0}}
