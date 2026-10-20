@@ -9,3 +9,4 @@
 .matrix-fill-message{color:var(--green);font-size:12px}
 
 .all-config-tools{display:flex;align-items:center;justify-content:flex-end;gap:8px 14px;flex-wrap:wrap;max-width:100%}.global-precision{display:inline-flex;align-items:center;gap:8px;font-size:12px;white-space:nowrap}.global-precision select{font-size:12px;padding:6px 9px;min-width:100px}.all-config-tools .matrix-fill-message{flex-basis:100%;text-align:right}.all-config-tools .matrix-fill-message:empty{display:none}@media(max-width:760px){.all-config-tools{justify-content:flex-start}.all-config-tools .matrix-fill-message{text-align:left}}
+#allConfigTable .matrix-uniform-mean{display:block;margin-top:4px;font-size:10px;line-height:1.3;font-variant-numeric:tabular-nums;color:var(--muted)}

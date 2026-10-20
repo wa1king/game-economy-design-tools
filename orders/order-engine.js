@@ -56,8 +56,9 @@ export function buildCatalog(base,rules=DEFAULT_RULES){
 export function availableAt(order,level){return order.minimumLevel<=level&&(order.maximumLevel==null||order.maximumLevel>=level);}
 export function levelInfo(catalog,level){
   const orders=catalog.orders.filter(o=>availableAt(o,level)),counts=[0,0,0],active=catalog.sources.map(()=>false);
-  for(const o of orders){counts[o.itemTypes-1]++;o.sourceMinutes.forEach((v,j)=>{if(v>0)active[j]=true;});}
-  return {orders,counts,active,goods:catalog.products.filter(p=>p.level<=level).length};
+  let totalMinutes=0;
+  for(const o of orders){totalMinutes+=o.cumulativeMinutes;counts[o.itemTypes-1]++;o.sourceMinutes.forEach((v,j)=>{if(v>0)active[j]=true;});}
+  return {orders,counts,active,goods:catalog.products.filter(p=>p.level<=level).length,uniformMean:orders.length?totalMinutes/orders.length:null};
 }
 export function normalizedSourceWeights(weights,active){
   const total=weights.reduce((s,v,j)=>s+(active[j]?v:0),0);

@@ -133,7 +133,7 @@ function renderFloorHint(){
   $('floorHint').className='hint'+(c.minimumOrderWeight&&!plan.feasible?' error-text':'');$('fixFloorPrecision').hidden=!c.minimumOrderWeight||plan.feasible||!plan.recommendedScale;
   $('fixFloorPrecision').textContent=plan.recommendedScale?`全局改用 ${plan.recommendedScale.toLocaleString()} 分制`:'';
 }
-function renderSpreadPreview(){const c=settings(),range=spreadInterval(c);$('spreadMagnitude').textContent=`分散幅度 ±${fmt(c.mean*spreadPercent(c)/100)} 分钟`;$('spreadPreview').textContent=`约 68% 的正态参考：${fmt(range[0])}～${fmt(range[1])} 分钟`;}
+function renderSpreadPreview(){const c=settings(),range=spreadInterval(c),baseline=info(activeLevel).uniformMean;$('uniformMeanValue').textContent=Number.isFinite(baseline)?fmt(baseline,2)+' 分钟':'—';$('spreadMagnitude').textContent=`分散幅度 ±${fmt(c.mean*spreadPercent(c)/100)} 分钟`;$('spreadPreview').textContent=`约 68% 的正态参考：${fmt(range[0])}～${fmt(range[1])} 分钟`;}
 function validateConfig(c){
   if(!Number.isFinite(c.mean)||c.mean<=0||!Number.isFinite(c.spreadPercent)||c.spreadPercent<0||!Number.isFinite(c.variance)||c.variance<0)throw Error('均值必须大于 0，工时波动比例必须为非负数。');
   if(c.rawSourceWeights.some(v=>!Number.isFinite(v)||v<0))throw Error('来源权重必须是非负数。');
