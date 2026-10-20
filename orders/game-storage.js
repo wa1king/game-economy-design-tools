@@ -1,4 +1,4 @@
-const VERSION=1;
+const VERSIONS=new Set([1,2]);
 
 // Game saves use their own namespace; fitted projects are never read or written here.
 export function createGameStore(storage,signature){
@@ -12,7 +12,7 @@ export function createGameStore(storage,signature){
     try{storage.setItem(at,value);}catch{throw Error('经营存档未保存：本地存储空间不足或写入被禁止。');}
   }
   function validate(value){
-    if(!value||typeof value!=='object'||Array.isArray(value)||value.version!==VERSION||value.signature!==signature)throw Error('经营存档版本或项目标识不匹配，已保留原存档，请勿覆盖。');
+    if(!value||typeof value!=='object'||Array.isArray(value)||!VERSIONS.has(value.version)||value.signature!==signature)throw Error('经营存档版本或项目标识不匹配，已保留原存档，请勿覆盖。');
     return value;
   }
   function parse(raw){
