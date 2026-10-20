@@ -29,7 +29,7 @@ export function createGameMode(api){
   const dialog=$('managementGameDialog'),settingsDialog=$('gameSettingsDialog'),confirmDialog=$('gameConfirmDialog');
   let pendingMessage='',state,active,store,lastSavedAt=0,conflict=false,mode='production',view,confirmAction=null,boardStamp='',sourceStamp='',inventoryStamp='',logStamp='';
   const selection={};
-  let fieldTool=null,pickerPlot=null,pendingCrop=null,suppressClickUntil=0;
+  let pickerPlot=null,pendingCrop=null,suppressClickUntil=0;
   const stroke=createFieldStroke((index,tool,productId)=>{
     const plot=state.jobs.find(j=>j.sourceId==='__farm__'&&j.plotIndex===index);
     if(tool==='plant'&&!plot)game.plantPlot(state,active.catalog,productId,index);
@@ -62,7 +62,7 @@ export function createGameMode(api){
       $('gameSettingsButton').disabled=$('gameSkipHour').disabled=false;
       dialog.querySelectorAll('[data-game-tab]').forEach(button=>button.disabled=false);
       $('gameProjectMeta').textContent=`Lv ${active.level} · ${active.filename||'当前导入项目'}`;
-      fieldTool=null;closeCropPicker();mode='production';setMode();message(saved?'':'已发放全部商品的 2 倍订单需求备货。');
+      closeCropPicker();mode='production';setMode();message(saved?'':'已发放全部商品的 2 倍订单需求备货。');
       if($('orderSimulatorDialog').open)$('orderSimulatorDialog').close();
       render(true);dialog.showModal();save(true);
     }catch(error){
@@ -90,7 +90,7 @@ export function createGameMode(api){
       $('gameSources').innerHTML=view.sources.map(s=>{
         const goods=view.products.filter(p=>p.sourceId===s.id);if(!goods.some(p=>String(p.id)===String(selection[s.id])))selection[s.id]=goods[0]?.id;
         const choices=`<div class="game-product-choices" aria-label="${escape(s.name)}商品选择">${goods.map((p,i)=>`<button type="button" class="game-product-choice${String(p.id)===String(selection[s.id])?' selected':''}" data-game-choose="${escape(p.id)}" aria-pressed="${String(p.id)===String(selection[s.id])}"><span class="game-product-mark" aria-hidden="true" style="--crop-hue:${(i*39+75)%360}">${escape(p.name.slice(0,1))}</span><span class="game-choice-text"><b>${escape(p.name)}</b><small>${number(p.stepMinutes,2)}分钟</small></span><span class="game-choice-stock" data-game-choice-stock="${escape(p.id)}">${p.quantity}</span></button>`).join('')}</div>`;
-        return `<article class="game-source${s.isFarm?' farm':''}" data-game-source="${escape(s.id)}"><div class="game-source-title"><h4>${s.isFarm?'田间':escape(s.name)}</h4><div class="game-capacity"><small data-game-capacity="${escape(s.id)}"></small>${s.isFarm?'':`<button type="button" class="game-button game-upgrade" data-game-upgrade="${escape(s.id)}" title="增加一条并行生产线">+1并行 · ${number(s.upgradeCost)}金</button>`}</div></div>${s.isFarm?'<div class="game-field-toolbar"><span data-game-field-tool></span><div><button class="game-button" type="button" data-game-change-crop hidden>更换作物</button><button class="game-button" type="button" data-game-end-tool hidden>结束操作</button></div></div><div class="game-field-grid" data-game-plots role="group" aria-label="农田地块"></div>':`${choices}<div class="game-recipe" data-game-recipe="${escape(s.id)}"></div><div class="game-source-tools game-craft-action"><button class="game-button primary" type="button" data-game-enqueue="${escape(s.id)}">加入生产</button></div><div class="game-fixed-queue" data-game-jobs="${escape(s.id)}" aria-label="${escape(s.name)}生产队列"></div>`}</article>`;
+        return `<article class="game-source${s.isFarm?' farm':''}" data-game-source="${escape(s.id)}"><div class="game-source-title"><h4>${s.isFarm?'田间':escape(s.name)}</h4><div class="game-capacity"><small data-game-capacity="${escape(s.id)}"></small>${s.isFarm?'':`<button type="button" class="game-button game-upgrade" data-game-upgrade="${escape(s.id)}" title="增加一条并行生产线">+1并行 · ${number(s.upgradeCost)}金</button>`}</div></div>${s.isFarm?'<div class="game-field-toolbar"><span data-game-field-tool></span></div><div class="game-field-grid" data-game-plots role="group" aria-label="农田地块"></div>':`${choices}<div class="game-recipe" data-game-recipe="${escape(s.id)}"></div><div class="game-source-tools game-craft-action"><button class="game-button primary" type="button" data-game-enqueue="${escape(s.id)}">加入生产</button></div><div class="game-fixed-queue" data-game-jobs="${escape(s.id)}" aria-label="${escape(s.name)}生产队列"></div>`}</article>`;
       }).join('');
     }
     for(const s of view.sources){
@@ -103,8 +103,7 @@ export function createGameMode(api){
         grid.style.setProperty('--plot-cols',Math.min(10,s.capacity));
         if(grid.dataset.stamp!==gridStamp){grid.dataset.stamp=gridStamp;grid.innerHTML=view.plots.map(({index,job})=>`<button type="button" class="game-plot ${job?.status||'empty'}" data-game-plot="${index}" aria-label="地块${index+1}：${job?escape(job.name)+(job.status==='ready'?'，成熟可收获':'，生长中'):'空地，点击播种'}"><span class="game-plot-number">${index+1}</span>${job?`<span class="game-plot-sprout">${sprout}</span><b>${escape(job.name)}</b><small ${job.status==='running'?`data-game-end="${job.endAt}"`:''}>${job.status==='ready'?'点击收获':duration(job.remainingMs)}</small>${job.status==='running'?`<i class="game-plot-progress"><i data-game-start="${job.startedAt}" data-game-finish="${job.endAt}" style="width:${job.progress*100}%"></i></i>`:''}`:'<span class="game-plot-plus">＋</span><small>空地</small>'}</button>`).join('');}
         const selected=view.products.find(p=>String(p.id)===String(selection['__farm__']));
-        article.querySelector('[data-game-field-tool]').textContent=fieldTool==='plant'?`${selected?.name||'播种'} · 按住拖过空地播种`:fieldTool==='harvest'?'收割中 · 按住拖过成熟作物':'点击空地选作物 · 按住拖动连续操作';
-        article.querySelector('[data-game-change-crop]').hidden=fieldTool!=='plant';article.querySelector('[data-game-end-tool]').hidden=!fieldTool;
+        article.querySelector('[data-game-field-tool]').textContent=stroke.mode==='plant'?`${selected?.name||'播种'} · 按住拖过空地播种`:stroke.mode==='harvest'?'收割中 · 按住拖过成熟作物':'点击空地选作物 · 松开即结束';
         continue;
       }
       const recipe=article.querySelector('[data-game-recipe]'),recipeStamp=JSON.stringify([p?.id,p?.missing]);
@@ -140,21 +139,21 @@ export function createGameMode(api){
   }
   function locate(productId){
     const p=view.products.find(p=>String(p.id)===String(productId));if(!p)return;
-    selection[p.sourceId]=p.id;if(p.isCrop)fieldTool='plant';mode='production';setMode();renderSources(true);
+    selection[p.sourceId]=p.id;mode='production';setMode();renderSources(true);
     const article=[...$('gameSources').children].find(e=>e.dataset.gameSource===p.sourceId);article?.scrollIntoView({behavior:'smooth',block:'nearest'});[...article?.querySelectorAll('[data-game-choose]')||[]].find(e=>e.dataset.gameChoose===String(p.id))?.focus();
   }
   function closeCropPicker(){const picker=$('gameCropPicker');picker.hidden=true;pickerPlot=null;}
   function showCropPicker(index){
     finishFieldStroke();pickerPlot=index;
     const picker=$('gameCropPicker'),products=view.products.filter(p=>p.isCrop);
-    picker.innerHTML=`<div class="game-picker-heading"><strong>选择作物</strong><button type="button" data-game-picker-close aria-label="关闭作物选择">×</button></div><div class="game-crop-options">${products.map((p,i)=>`<button type="button" data-game-crop="${escape(p.id)}" class="game-crop-option" aria-label="选择${escape(p.name)}"><span class="game-product-mark" style="--crop-hue:${(i*39+75)%360}">${sprout}</span><b>${escape(p.name)}</b><small>${number(p.stepMinutes,2)}分钟</small></button>`).join('')}</div>`;
+    picker.innerHTML=`<div class="game-picker-heading"><strong>选择作物 <small>按住拖到空地</small></strong><button type="button" data-game-picker-close aria-label="关闭作物选择">×</button></div><div class="game-crop-options">${products.map((p,i)=>`<button type="button" data-game-crop="${escape(p.id)}" class="game-crop-option" aria-label="选择${escape(p.name)}"><span class="game-product-mark" style="--crop-hue:${(i*39+75)%360}">${sprout}</span><b>${escape(p.name)}</b><small>${number(p.stepMinutes,2)}分钟</small></button>`).join('')}</div>`;
     picker.hidden=false;
-    const anchor=index==null?dialog.querySelector('[data-game-change-crop]'):dialog.querySelector(`[data-game-plot="${index}"]`),rect=anchor.getBoundingClientRect();
+    const anchor=dialog.querySelector(`[data-game-plot="${index}"]`),rect=anchor.getBoundingClientRect();
     const box=picker.getBoundingClientRect(),bounds=dialog.getBoundingClientRect(),left=Math.max(bounds.left+16,Math.min(rect.left,bounds.right-box.width-16)),below=rect.bottom+8;
     picker.style.left=`${left}px`;picker.style.top=`${below+box.height<bounds.bottom-20?below:Math.max(bounds.top+16,rect.top-box.height-8)}px`;
   }
   function chooseCrop(productId){
-    const index=pickerPlot;selection['__farm__']=productId;fieldTool='plant';closeCropPicker();
+    const index=pickerPlot;selection['__farm__']=productId;closeCropPicker();
     if(index!=null&&!state.jobs.some(j=>j.sourceId==='__farm__'&&j.plotIndex===index))action(()=>game.plantPlot(state,active.catalog,productId,index));
     else renderSources(false);
   }
@@ -167,34 +166,41 @@ export function createGameMode(api){
   }
   dialog.addEventListener('pointerdown',event=>{
     if(event.button!==0||event.isPrimary===false||conflict)return;
+    suppressClickUntil=0;
     const crop=event.target.closest('[data-game-crop]');
     if(crop){pendingCrop={pointerId:event.pointerId,productId:crop.dataset.gameCrop,start:{x:event.clientX,y:event.clientY}};capturePointer(event);return;}
     const cell=event.target.closest('[data-game-plot]');
-    if(!cell){if(!$('gameCropPicker').contains(event.target)&&!event.target.closest('[data-game-change-crop]'))closeCropPicker();return;}
+    if(!cell){if(!$('gameCropPicker').contains(event.target))closeCropPicker();return;}
     const index=Number(cell.dataset.gamePlot),plot=view.plots[index];
-    const tool=plot.job?.status==='ready'?'harvest':!plot.job&&fieldTool==='plant'?'plant':null;
+    const tool=plot.job?.status==='ready'?'harvest':null;
     if(!tool)return;
-    event.preventDefault();closeCropPicker();fieldTool=tool;capturePointer(event);
+    event.preventDefault();closeCropPicker();capturePointer(event);
     fieldMutation(()=>stroke.begin({pointerId:event.pointerId,mode:tool,productId:selection['__farm__'],point:{x:event.clientX,y:event.clientY},index}));
   });
   dialog.addEventListener('pointermove',event=>{
-    if(conflict)return;const point={x:event.clientX,y:event.clientY};
+    if(conflict)return;
+    if(event.buttons===0&&(stroke.active||pendingCrop)){finishFieldStroke();render(false);return;}
+    const point={x:event.clientX,y:event.clientY};
     if(pendingCrop&&pendingCrop.pointerId===event.pointerId){
       if(Math.hypot(point.x-pendingCrop.start.x,point.y-pendingCrop.start.y)<6)return;
-      const pending=pendingCrop;pendingCrop=null;selection['__farm__']=pending.productId;fieldTool='plant';closeCropPicker();
+      const pending=pendingCrop;pendingCrop=null;selection['__farm__']=pending.productId;closeCropPicker();
       stroke.begin({pointerId:event.pointerId,mode:'plant',productId:pending.productId,point:pending.start});
     }
     if(!stroke.active)return;
     event.preventDefault();fieldMutation(()=>stroke.move(event.pointerId,point,plotAtPoint));
   });
   dialog.addEventListener('pointerup',event=>{
-    dialog.classList.remove('field-dragging');
-    if(pendingCrop?.pointerId===event.pointerId){const product=pendingCrop.productId;pendingCrop=null;suppressClickUntil=performance.now()+150;chooseCrop(product);}
-    else if(stroke.end(event.pointerId)){suppressClickUntil=performance.now()+150;save(true);}
+    let ended=false;
+    if(pendingCrop?.pointerId===event.pointerId){const product=pendingCrop.productId;pendingCrop=null;ended=true;chooseCrop(product);}
+    else if(stroke.end(event.pointerId)){ended=true;render(false);save(true);}
+    if(ended){dialog.classList.remove('field-dragging');suppressClickUntil=performance.now()+150;}
     if(dialog.hasPointerCapture(event.pointerId))dialog.releasePointerCapture(event.pointerId);
   });
-  dialog.addEventListener('pointercancel',finishFieldStroke);dialog.addEventListener('lostpointercapture',()=>{if(stroke.active||pendingCrop)finishFieldStroke();});
-  dialog.addEventListener('cancel',event=>{if(!$('gameCropPicker').hidden||fieldTool){event.preventDefault();fieldTool=null;closeCropPicker();finishFieldStroke();renderSources(false);}});
+  function cancelFieldStroke(){finishFieldStroke();if(state&&view)render(false);}
+  dialog.addEventListener('pointercancel',cancelFieldStroke);
+  dialog.addEventListener('lostpointercapture',()=>{if(stroke.active||pendingCrop)cancelFieldStroke();});
+  window.addEventListener('blur',()=>{if(stroke.active||pendingCrop)cancelFieldStroke();});
+  dialog.addEventListener('cancel',event=>{if(!$('gameCropPicker').hidden||stroke.active||pendingCrop){event.preventDefault();closeCropPicker();cancelFieldStroke();}});
   function showSettings(){
     if(conflict)return;const form=$('gameSettingsForm');for(const [name,value] of Object.entries(state.settings))if(name!=='channels'&&form.elements.namedItem(name))form.elements.namedItem(name).value=value;
     form.elements.namedItem('orderSlots').disabled=false;form.elements.namedItem('orderSlots').title='修改订单栏数量后，请使用重新开始应用';
@@ -229,14 +235,12 @@ export function createGameMode(api){
     else if(d.gameChoose!=null){const p=view.products.find(p=>String(p.id)===d.gameChoose);selection[p.sourceId]=p.id;renderSources(true);}
     else if(d.gamePlot!=null){
       const index=Number(d.gamePlot),plot=view.plots[index];
-      if(!plot.job){if(fieldTool==='plant')action(()=>game.plantPlot(state,active.catalog,selection['__farm__'],index));else showCropPicker(index);}
-      else if(plot.job.status==='ready'){fieldTool='harvest';action(()=>game.harvestPlot(state,active.catalog,index));}
+      if(!plot.job)showCropPicker(index);
+      else if(plot.job.status==='ready')action(()=>game.harvestPlot(state,active.catalog,index));
       else message(`${plot.job.name}还在生长，剩余${duration(plot.job.remainingMs)}。`);
     }
     else if(d.gameCrop!=null){chooseCrop(d.gameCrop);}
     else if(d.gamePickerClose!=null)closeCropPicker();
-    else if(d.gameChangeCrop!=null)showCropPicker(null);
-    else if(d.gameEndTool!=null){fieldTool=null;closeCropPicker();renderSources(false);}
     else if(d.gameEnqueue!=null)action(()=>game.enqueueProduction(state,active.catalog,selection[d.gameEnqueue],1));
     else if(d.gameCancel!=null)action(()=>game.cancelProduction(state,Number(d.gameCancel)));
     else if(d.gameDeliver!=null)action(()=>game.deliverGameOrder(state,active.catalog,active.result,Number(d.gameDeliver)),'订单已交付，新订单已补位。');

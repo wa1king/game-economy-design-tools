@@ -9,6 +9,7 @@ export function createFieldStroke(onVisit){
   function visit(index){if(index==null||stroke.seen.has(index))return;stroke.seen.add(index);onVisit(index,stroke.mode,stroke.productId);}
   return {
     get active(){return stroke!==null;},
+    get mode(){return stroke?.mode??null;},
     begin({pointerId,mode,productId,point,index}){stroke={pointerId,mode,productId,last:point,seen:new Set()};visit(index);},
     move(pointerId,point,hitTest){if(!stroke||stroke.pointerId!==pointerId)return;for(const p of fieldPath(stroke.last,point)){visit(hitTest(p));}stroke.last=point;},
     end(pointerId){if(stroke&&stroke.pointerId===pointerId){stroke=null;return true;}return false;},
