@@ -97,24 +97,16 @@ function outputs(p){
 }
 function readyInputs(state,p){return (p.inputs||[]).every(input=>stock(state,input.id)>=input.quantity);}
 
-// Finish first, then start FIFO work. Repeating also releases output blocked by full storage
-// when a newly started recipe frees warehouse space at this same instant.
+// Completed work keeps its shared queue slot until the player collects it, but frees
+// the production line immediately. Old v2 "blocked" jobs are the same unclaimed output.
 function settle(state,catalog){
   let again=true;
   while(again){
     again=false;
-    for(const job of state.jobs){if(job.status==='running'&&job.endAt<=state.elapsedMs){job.status=job.sourceId===FARM?'ready':'blocked';again=true;}}
-    for(const job of [...state.jobs]){
-      if(job.status!=='blocked')continue;
-      const p=getProduct(catalog,job.productId),out=outputs(p),amount=out.reduce((s,v)=>s+v.quantity,0);
-      if(inventoryUsed(state)+amount>state.settings.warehouseCapacity)continue;
-      for(const item of out)state.inventory[item.id]=stock(state,item.id)+item.quantity;
-      state.jobs.splice(state.jobs.indexOf(job),1);state.counters.produced+=amount;
-      note(state,`${p.name}生产完成，入库 ${amount} 件。`);again=true;
-    }
+    for(const job of state.jobs){if(job.status==='blocked'||job.status==='running'&&job.endAt<=state.elapsedMs){job.status='ready';again=true;}}
     const ids=new Set(state.jobs.map(j=>j.sourceId));
     for(const id of ids){
-      let free=capacity(state,catalog,id)-state.jobs.filter(j=>j.sourceId===id&&j.status!=='queued').length;
+      let free=capacity(state,catalog,id)-state.jobs.filter(j=>j.sourceId===id&&(j.status==='running'||id===FARM&&j.status==='ready')).length;
       for(const job of state.jobs.filter(j=>j.sourceId===id&&j.status==='queued')){
         if(free<=0)break;
         const p=getProduct(catalog,job.productId);
@@ -167,7 +159,6 @@ export function enqueueProduction(state,catalog,productId,batches=1){
   const next={...state,inventory:{...state.inventory},jobs:state.jobs.map(j=>({...j})),counters:{...state.counters},log:[...state.log]};
   for(let i=0;i<batches;i++)next.jobs.push({id:next.nextJobId++,productId:p.id,sourceId:id,status:'queued',enqueuedAt:state.elapsedMs});
   settle(next,catalog);
-  if(next.jobs.filter(j=>j.sourceId===id&&j.status==='queued').length>state.settings.queueLimit)throw Error(`该建筑最多等待 ${state.settings.queueLimit} 项任务；请先补足原料或等待生产。`);
   Object.assign(state,{inventory:next.inventory,jobs:next.jobs,counters:next.counters,log:next.log,nextJobId:next.nextJobId});
   note(state,`${p.name}加入生产，共 ${batches} 次。`);return state;
 }
@@ -206,6 +197,31 @@ export function harvestAll(state,catalog){
   return {harvested,remaining:plots.length-harvested};
 }
 
+export function harvestProduction(state,catalog,jobId){
+  const job=state.jobs.find(j=>j.id===Number(jobId));
+  if(!job||job.sourceId===FARM||!['ready','blocked'].includes(job.status))throw Error('这项加工还没有完成，请等待生产。');
+  const p=getProduct(catalog,job.productId),out=outputs(p),amount=out.reduce((sum,item)=>sum+item.quantity,0);
+  if(inventoryUsed(state)+amount>state.settings.warehouseCapacity)throw Error('仓库已满，请先交付订单或扩容。');
+  for(const item of out)state.inventory[item.id]=stock(state,item.id)+item.quantity;
+  state.jobs.splice(state.jobs.indexOf(job),1);state.counters.produced+=amount;
+  note(state,`收获 ${p.name} × ${amount}。`);settle(state,catalog);return state;
+}
+
+export function claimBuildingProducts(state,catalog,sourceId){
+  const id=String(sourceId);
+  if(!unlockedSources(catalog,state.level).some(s=>String(s.id)===id))throw Error('加工建筑不存在或尚未解锁。');
+  const completed=state.jobs.filter(j=>j.sourceId===id&&['ready','blocked'].includes(j.status));
+  if(!completed.length)throw Error('暂无完成的加工品。');
+  let harvested=0;
+  for(const job of completed){
+    const amount=outputs(getProduct(catalog,job.productId)).reduce((sum,item)=>sum+item.quantity,0);
+    if(inventoryUsed(state)+amount>state.settings.warehouseCapacity)continue;
+    harvestProduction(state,catalog,job.id);harvested++;
+  }
+  if(!harvested)throw Error('仓库已满，请先交付订单或扩容。');
+  return {harvested,remaining:completed.length-harvested};
+}
+
 export function cancelProduction(state,jobId){
   const index=state.jobs.findIndex(j=>j.id===Number(jobId));if(index<0)throw Error('生产任务不存在。');
   if(state.jobs[index].status!=='queued')throw Error('生产已经开始，只能取消尚未开始的任务。');
@@ -242,11 +258,11 @@ export function updateGameSettings(state,catalog,patch){
   if(settings.orderSlots!==state.settings.orderSlots)throw Error('订单栏数量请在新建游戏时设置。');
   if(settings.warehouseCapacity<inventoryUsed(state))throw Error('仓库容量不能小于现有库存。');
   for(const id of new Set(state.jobs.map(j=>j.sourceId))){
-    const occupied=state.jobs.filter(j=>j.sourceId===id&&j.status!=='queued').length;
+    const occupied=state.jobs.filter(j=>j.sourceId===id&&(j.status==='running'||id===FARM&&j.status==='ready')).length;
     const cap=id===FARM?(settings.landCapacity??landCount(catalog,state.level)):settings.channels[id];
     if(id===FARM&&state.jobs.some(j=>j.sourceId===FARM&&j.plotIndex>=cap))throw Error('正在生产或待收获的地块不能移除，请先收获。');
-    if(occupied>cap)throw Error('并行数不能低于正在生产或等待入库的任务数。');
-    if(state.jobs.filter(j=>j.sourceId===id&&j.status==='queued').length>settings.queueLimit)throw Error('等待队列上限不能小于当前任务数。');
+    if(occupied>cap)throw Error('并行数不能低于正在生产的任务数。');
+    if(id!==FARM&&state.jobs.filter(j=>j.sourceId===id).length>cap+settings.queueLimit)throw Error('队列总槽位不能小于现有任务数，请先收获完成品。');
   }
   state.settings=settings;note(state,'已更新模拟参数。');settle(state,catalog);return state;
 }
@@ -275,8 +291,11 @@ export function discardInventory(state,catalog,productId,quantity=1){
 export function gameView(state,catalog){
   const products=catalog.products.filter(p=>p.level<=state.level).map(p=>({...p,quantity:stock(state,p.id),sourceId:resource(p),isCrop:crop(p),outputQuantity:p.analysisBatchYield||1,
     missing:(p.inputs||[]).map(i=>({...i,name:getProduct(catalog,i.id)?.name||String(i.id),stock:stock(state,i.id),missing:Math.max(0,i.quantity-stock(state,i.id))}))}));
-  const sources=[...(products.some(crop)?[{id:FARM,name:'农田',isFarm:true}]:[]),...unlockedSources(catalog,state.level).map(s=>({...s,id:String(s.id),isFarm:false}))].map(s=>({...s,capacity:capacity(state,catalog,s.id),running:state.jobs.filter(j=>j.sourceId===s.id&&j.status==='running').length,blocked:state.jobs.filter(j=>j.sourceId===s.id&&j.status==='blocked').length,ready:state.jobs.filter(j=>j.sourceId===s.id&&j.status==='ready').length,queued:state.jobs.filter(j=>j.sourceId===s.id&&j.status==='queued').length,queueLimit:state.settings.queueLimit,upgradeCost:s.isFarm?null:buildingUpgradeCost(state,s.id)}));
-  const jobs=state.jobs.map(job=>{const p=getProduct(catalog,job.productId),missing=(p.inputs||[]).filter(i=>stock(state,i.id)<i.quantity).map(i=>({id:i.id,name:getProduct(catalog,i.id)?.name||String(i.id),quantity:i.quantity,stock:stock(state,i.id),missing:i.quantity-stock(state,i.id)}));return {...job,name:p.name,remainingMs:job.status==='running'?Math.max(0,job.endAt-state.elapsedMs):0,progress:job.status==='running'?Math.min(1,(state.elapsedMs-job.startedAt)/(job.endAt-job.startedAt)):['blocked','ready'].includes(job.status)?1:0,missing,waitingReason:job.status==='ready'?'已成熟，点击收获':job.status==='blocked'?'仓库已满，等待入库':job.status==='queued'?(missing.length?'缺少原料':'等待生产线'):''};});
+  const sources=[...(products.some(crop)?[{id:FARM,name:'农田',isFarm:true}]:[]),...unlockedSources(catalog,state.level).map(s=>({...s,id:String(s.id),isFarm:false}))].map(s=>{
+    const ownJobs=state.jobs.filter(j=>j.sourceId===s.id),ready=ownJobs.filter(j=>['ready','blocked'].includes(j.status)).length;
+    return {...s,capacity:capacity(state,catalog,s.id),totalSlots:capacity(state,catalog,s.id)+(s.isFarm?0:state.settings.queueLimit),running:ownJobs.filter(j=>j.status==='running').length,blocked:0,ready,collectable:s.isFarm?0:ready,queued:ownJobs.filter(j=>j.status==='queued').length,queueLimit:state.settings.queueLimit,upgradeCost:s.isFarm?null:buildingUpgradeCost(state,s.id)};
+  });
+  const jobs=state.jobs.map(job=>{const p=getProduct(catalog,job.productId),missing=(p.inputs||[]).filter(i=>stock(state,i.id)<i.quantity).map(i=>({id:i.id,name:getProduct(catalog,i.id)?.name||String(i.id),quantity:i.quantity,stock:stock(state,i.id),missing:i.quantity-stock(state,i.id)})),status=job.status==='blocked'?'ready':job.status;return {...job,status,name:p.name,remainingMs:status==='running'?Math.max(0,job.endAt-state.elapsedMs):0,progress:status==='running'?Math.min(1,(state.elapsedMs-job.startedAt)/(job.endAt-job.startedAt)):status==='ready'?1:0,missing,waitingReason:status==='ready'?(job.sourceId===FARM?'已成熟，点击收获':'生产完成，点击收获'):status==='queued'?(missing.length?'缺少原料':'等待生产线'):''};});
   const board=state.board.map((slot,index)=>{
     if(slot.status==='refreshing')return {...slot,index,remainingMs:Math.max(0,slot.readyAt-state.elapsedMs)};
     const order=catalog.orders.find(o=>o.id===slot.orderId),items=order.items.map(i=>({...i,name:getProduct(catalog,i.id)?.name||String(i.id),stock:stock(state,i.id),missing:Math.max(0,i.quantity-stock(state,i.id))}));
@@ -298,14 +317,14 @@ export function validateGameSave(state,catalog,result){
   for(const j of state.jobs){
     integer(j.id,1,state.nextJobId-1,'生产任务编号');if(jobIds.has(j.id))throw Error('生产任务编号重复。');jobIds.add(j.id);
     const p=getProduct(catalog,j.productId);if(!p||p.level>state.level||j.sourceId!==resource(p)||!['queued','running','blocked','ready'].includes(j.status))throw Error('生产任务存档无效。');
-    if(j.sourceId===FARM){integer(j.plotIndex,0,capacity(state,catalog,FARM)-1,'地块编号');if(plotIds.has(j.plotIndex)||!['running','ready'].includes(j.status))throw Error('田地存档无效。');plotIds.add(j.plotIndex);}else if(j.status==='ready'||j.plotIndex!==undefined)throw Error('建筑生产存档无效。');
+    if(j.sourceId===FARM){integer(j.plotIndex,0,capacity(state,catalog,FARM)-1,'地块编号');if(plotIds.has(j.plotIndex)||!['running','ready'].includes(j.status))throw Error('田地存档无效。');plotIds.add(j.plotIndex);}else if(j.plotIndex!==undefined)throw Error('建筑生产存档无效。');
     finite(j.enqueuedAt,0,state.elapsedMs,'排队时间');
     if(j.status!=='queued'){
       finite(j.startedAt,j.enqueuedAt,state.elapsedMs,'开工时间');finite(j.endAt,j.startedAt+0.000001,Number.MAX_SAFE_INTEGER,'完工时间');
       if(Math.abs(j.endAt-j.startedAt-p.stepMinutes*MINUTE)>0.01||j.status==='running'&&j.endAt<=state.elapsedMs||['blocked','ready'].includes(j.status)&&j.endAt>state.elapsedMs)throw Error('生产计时存档无效。');
     }
   }
-  for(const id of new Set(state.jobs.map(j=>j.sourceId))){const cap=capacity(state,catalog,id);if(state.jobs.filter(j=>j.sourceId===id&&j.status!=='queued').length>cap||state.jobs.filter(j=>j.sourceId===id&&j.status==='queued').length>state.settings.queueLimit)throw Error('生产队列超出容量。');}
+  for(const id of new Set(state.jobs.map(j=>j.sourceId))){const cap=capacity(state,catalog,id),jobs=state.jobs.filter(j=>j.sourceId===id),occupied=jobs.filter(j=>j.status==='running'||id===FARM&&j.status==='ready').length;if(occupied>cap||jobs.length>cap+(id===FARM?0:state.settings.queueLimit))throw Error('生产队列超出容量。');}
   const allowed=new Set(sampler(catalog,result).entries.map(e=>e.order.id));
   if(!Array.isArray(state.board)||state.board.length!==state.settings.orderSlots)throw Error('订单栏存档无效。');
   for(const slot of state.board){if(slot.status==='ready'){if(!allowed.has(slot.orderId))throw Error('订单已不在当前生成范围。');}else if(slot.status==='refreshing'){if(slot.orderId!==null)throw Error('刷新订单存档无效。');finite(slot.readyAt,state.elapsedMs,Number.MAX_SAFE_INTEGER,'刷新时间');}else throw Error('订单状态无效。');}

@@ -1,0 +1,1904 @@
+{
+  "schemaVersion": "order-session-snapshot-v1",
+  "createdAt": "2026-10-20T08:11:44.612Z",
+  "project": {
+    "schemaVersion": "order-project-v3",
+    "origin": "excel-import",
+    "filename": "加工链路数值设计表_2026-10-16 (1).xlsx",
+    "base": {
+      "schemaVersion": "order-lab-import-v1",
+      "filename": "加工链路数值设计表_2026-10-16 (1).xlsx",
+      "maxLevel": 20,
+      "landsByLevel": {
+        "1": 6,
+        "2": 6,
+        "3": 6,
+        "4": 12,
+        "5": 12,
+        "6": 12,
+        "7": 18,
+        "8": 18,
+        "9": 18,
+        "10": 24,
+        "11": 24,
+        "12": 24,
+        "13": 24,
+        "14": 24,
+        "15": 30,
+        "16": 30,
+        "17": 30,
+        "18": 30,
+        "19": 30,
+        "20": 30
+      },
+      "coinValues": {
+        "unit": "金币/件",
+        "total": 35,
+        "priced": 35,
+        "missing": 0,
+        "estimated": 16
+      },
+      "source": {
+        "filename": "加工链路数值设计表_2026-10-16 (1).xlsx",
+        "snapshot": "用户导入",
+        "sha256": "38c51c0baa2bc716c96a0ef739406e5e94ba5ce5d6acc124d5bc3b61bd40b4de"
+      },
+      "products": [
+        {
+          "id": 1,
+          "name": "芦苇草",
+          "level": 1,
+          "buildingId": 0,
+          "buildingName": "农田",
+          "category": "田地作物",
+          "sourceCategory": "田地",
+          "isCrop": true,
+          "stepMinutes": 2,
+          "originalBatchYield": 1,
+          "analysisBatchYield": 1,
+          "inputs": [],
+          "coproducts": [],
+          "coinValue": 1,
+          "coinValueStatus": "配置值",
+          "coinValueSource": "06_价格配置!I19"
+        },
+        {
+          "id": 2,
+          "name": "棉花",
+          "level": 2,
+          "buildingId": 0,
+          "buildingName": "农田",
+          "category": "田地作物",
+          "sourceCategory": "田地",
+          "isCrop": true,
+          "stepMinutes": 5,
+          "originalBatchYield": 1,
+          "analysisBatchYield": 1,
+          "inputs": [],
+          "coproducts": [],
+          "coinValue": 2,
+          "coinValueStatus": "配置值",
+          "coinValueSource": "06_价格配置!I20"
+        },
+        {
+          "id": 5,
+          "name": "竹子",
+          "level": 4,
+          "buildingId": 0,
+          "buildingName": "农田",
+          "category": "田地作物",
+          "sourceCategory": "田地",
+          "isCrop": true,
+          "stepMinutes": 10,
+          "originalBatchYield": 1,
+          "analysisBatchYield": 1,
+          "inputs": [],
+          "coproducts": [],
+          "coinValue": 3,
+          "coinValueStatus": "配置值",
+          "coinValueSource": "06_价格配置!I21"
+        },
+        {
+          "id": 10,
+          "name": "香绒草",
+          "level": 7,
+          "buildingId": 0,
+          "buildingName": "农田",
+          "category": "田地作物",
+          "sourceCategory": "田地",
+          "isCrop": true,
+          "stepMinutes": 15,
+          "originalBatchYield": 1,
+          "analysisBatchYield": 1,
+          "inputs": [],
+          "coproducts": [],
+          "coinValue": 3,
+          "coinValueStatus": "含估算",
+          "coinValueSource": "06_价格配置!I22"
+        },
+        {
+          "id": 15,
+          "name": "薰衣草",
+          "level": 8,
+          "buildingId": 0,
+          "buildingName": "农田",
+          "category": "田地作物",
+          "sourceCategory": "田地",
+          "isCrop": true,
+          "stepMinutes": 20,
+          "originalBatchYield": 1,
+          "analysisBatchYield": 1,
+          "inputs": [],
+          "coproducts": [],
+          "coinValue": 4,
+          "coinValueStatus": "配置值",
+          "coinValueSource": "06_价格配置!I23"
+        },
+        {
+          "id": 17,
+          "name": "芍药花",
+          "level": 10,
+          "buildingId": 0,
+          "buildingName": "农田",
+          "category": "田地作物",
+          "sourceCategory": "田地",
+          "isCrop": true,
+          "stepMinutes": 30,
+          "originalBatchYield": 1,
+          "analysisBatchYield": 1,
+          "inputs": [],
+          "coproducts": [],
+          "coinValue": 5,
+          "coinValueStatus": "配置值",
+          "coinValueSource": "06_价格配置!I24"
+        },
+        {
+          "id": 24,
+          "name": "墨水花",
+          "level": 13,
+          "buildingId": 0,
+          "buildingName": "农田",
+          "category": "田地作物",
+          "sourceCategory": "田地",
+          "isCrop": true,
+          "stepMinutes": 60,
+          "originalBatchYield": 1,
+          "analysisBatchYield": 1,
+          "inputs": [],
+          "coproducts": [],
+          "coinValue": 6,
+          "coinValueStatus": "配置值",
+          "coinValueSource": "06_价格配置!I25"
+        },
+        {
+          "id": 30,
+          "name": "蜡烛花",
+          "level": 16,
+          "buildingId": 0,
+          "buildingName": "农田",
+          "category": "田地作物",
+          "sourceCategory": "田地",
+          "isCrop": true,
+          "stepMinutes": 90,
+          "originalBatchYield": 1,
+          "analysisBatchYield": 1,
+          "inputs": [],
+          "coproducts": [],
+          "coinValue": 6,
+          "coinValueStatus": "含估算",
+          "coinValueSource": "06_价格配置!I26"
+        },
+        {
+          "id": 35,
+          "name": "浆果珍珠",
+          "level": 19,
+          "buildingId": 0,
+          "buildingName": "农田",
+          "category": "田地作物",
+          "sourceCategory": "田地",
+          "isCrop": true,
+          "stepMinutes": 120,
+          "originalBatchYield": 1,
+          "analysisBatchYield": 1,
+          "inputs": [],
+          "coproducts": [],
+          "coinValue": 7,
+          "coinValueStatus": "配置值",
+          "coinValueSource": "06_价格配置!I27"
+        },
+        {
+          "id": 3,
+          "name": "芦苇丝",
+          "level": 2,
+          "buildingId": 501,
+          "buildingName": "研磨机",
+          "category": "加工品",
+          "sourceCategory": "加工",
+          "isCrop": false,
+          "stepMinutes": 5,
+          "originalBatchYield": 1,
+          "analysisBatchYield": 1,
+          "inputs": [
+            {
+              "id": 1,
+              "quantity": 2
+            }
+          ],
+          "coproducts": [],
+          "coinValue": 6,
+          "coinValueStatus": "配置值",
+          "coinValueSource": "06_价格配置!I28"
+        },
+        {
+          "id": 4,
+          "name": "棉绒团",
+          "level": 3,
+          "buildingId": 501,
+          "buildingName": "研磨机",
+          "category": "加工品",
+          "sourceCategory": "加工",
+          "isCrop": false,
+          "stepMinutes": 10,
+          "originalBatchYield": 1,
+          "analysisBatchYield": 1,
+          "inputs": [
+            {
+              "id": 1,
+              "quantity": 1
+            },
+            {
+              "id": 2,
+              "quantity": 1
+            }
+          ],
+          "coproducts": [],
+          "coinValue": 9,
+          "coinValueStatus": "配置值",
+          "coinValueSource": "06_价格配置!I29"
+        },
+        {
+          "id": 12,
+          "name": "绒香粉",
+          "level": 7,
+          "buildingId": 501,
+          "buildingName": "研磨机",
+          "category": "加工品",
+          "sourceCategory": "加工",
+          "isCrop": false,
+          "stepMinutes": 20,
+          "originalBatchYield": 1,
+          "analysisBatchYield": 1,
+          "inputs": [
+            {
+              "id": 10,
+              "quantity": 2
+            }
+          ],
+          "coproducts": [],
+          "coinValue": 14,
+          "coinValueStatus": "含估算",
+          "coinValueSource": "06_价格配置!I30"
+        },
+        {
+          "id": 22,
+          "name": "云朵香粉",
+          "level": 13,
+          "buildingId": 501,
+          "buildingName": "研磨机",
+          "category": "加工品",
+          "sourceCategory": "加工",
+          "isCrop": false,
+          "stepMinutes": 30,
+          "originalBatchYield": 1,
+          "analysisBatchYield": 1,
+          "inputs": [
+            {
+              "id": 2,
+              "quantity": 2
+            },
+            {
+              "id": 10,
+              "quantity": 2
+            }
+          ],
+          "coproducts": [],
+          "coinValue": 20,
+          "coinValueStatus": "含估算",
+          "coinValueSource": "06_价格配置!I31"
+        },
+        {
+          "id": 33,
+          "name": "乌云绒团",
+          "level": 18,
+          "buildingId": 501,
+          "buildingName": "研磨机",
+          "category": "加工品",
+          "sourceCategory": "加工",
+          "isCrop": false,
+          "stepMinutes": 60,
+          "originalBatchYield": 1,
+          "analysisBatchYield": 1,
+          "inputs": [
+            {
+              "id": 1,
+              "quantity": 2
+            },
+            {
+              "id": 24,
+              "quantity": 2
+            }
+          ],
+          "coproducts": [],
+          "coinValue": 26,
+          "coinValueStatus": "配置值",
+          "coinValueSource": "06_价格配置!I32"
+        },
+        {
+          "id": 6,
+          "name": "竹条",
+          "level": 4,
+          "buildingId": 502,
+          "buildingName": "切割机",
+          "category": "加工品",
+          "sourceCategory": "加工",
+          "isCrop": false,
+          "stepMinutes": 10,
+          "originalBatchYield": 1,
+          "analysisBatchYield": 1,
+          "inputs": [
+            {
+              "id": 5,
+              "quantity": 2
+            }
+          ],
+          "coproducts": [],
+          "coinValue": 12,
+          "coinValueStatus": "配置值",
+          "coinValueSource": "06_价格配置!I33"
+        },
+        {
+          "id": 7,
+          "name": "薄竹片",
+          "level": 5,
+          "buildingId": 502,
+          "buildingName": "切割机",
+          "category": "加工品",
+          "sourceCategory": "加工",
+          "isCrop": false,
+          "stepMinutes": 20,
+          "originalBatchYield": 1,
+          "analysisBatchYield": 1,
+          "inputs": [
+            {
+              "id": 5,
+              "quantity": 3
+            }
+          ],
+          "coproducts": [],
+          "coinValue": 17,
+          "coinValueStatus": "配置值",
+          "coinValueSource": "06_价格配置!I34"
+        },
+        {
+          "id": 20,
+          "name": "小竹框",
+          "level": 11,
+          "buildingId": 502,
+          "buildingName": "切割机",
+          "category": "加工品",
+          "sourceCategory": "加工",
+          "isCrop": false,
+          "stepMinutes": 30,
+          "originalBatchYield": 1,
+          "analysisBatchYield": 1,
+          "inputs": [
+            {
+              "id": 5,
+              "quantity": 4
+            }
+          ],
+          "coproducts": [],
+          "coinValue": 22,
+          "coinValueStatus": "配置值",
+          "coinValueSource": "06_价格配置!I35"
+        },
+        {
+          "id": 28,
+          "name": "花瓣竹板",
+          "level": 15,
+          "buildingId": 502,
+          "buildingName": "切割机",
+          "category": "加工品",
+          "sourceCategory": "加工",
+          "isCrop": false,
+          "stepMinutes": 45,
+          "originalBatchYield": 1,
+          "analysisBatchYield": 1,
+          "inputs": [
+            {
+              "id": 5,
+              "quantity": 2
+            },
+            {
+              "id": 17,
+              "quantity": 2
+            }
+          ],
+          "coproducts": [],
+          "coinValue": 27,
+          "coinValueStatus": "含估算",
+          "coinValueSource": "06_价格配置!I36"
+        },
+        {
+          "id": 36,
+          "name": "珍珠衣帽架",
+          "level": 19,
+          "buildingId": 502,
+          "buildingName": "切割机",
+          "category": "加工品",
+          "sourceCategory": "加工",
+          "isCrop": false,
+          "stepMinutes": 60,
+          "originalBatchYield": 1,
+          "analysisBatchYield": 1,
+          "inputs": [
+            {
+              "id": 5,
+              "quantity": 2
+            },
+            {
+              "id": 35,
+              "quantity": 2
+            }
+          ],
+          "coproducts": [],
+          "coinValue": 32,
+          "coinValueStatus": "配置值",
+          "coinValueSource": "06_价格配置!I37"
+        },
+        {
+          "id": 14,
+          "name": "竹编小垫",
+          "level": 6,
+          "buildingId": 503,
+          "buildingName": "纺织机",
+          "category": "加工品",
+          "sourceCategory": "加工",
+          "isCrop": false,
+          "stepMinutes": 30,
+          "originalBatchYield": 1,
+          "analysisBatchYield": 1,
+          "inputs": [
+            {
+              "id": 3,
+              "quantity": 1
+            },
+            {
+              "id": 6,
+              "quantity": 1
+            }
+          ],
+          "coproducts": [],
+          "coinValue": 28,
+          "coinValueStatus": "配置值",
+          "coinValueSource": "06_价格配置!I38"
+        },
+        {
+          "id": 16,
+          "name": "软棉布",
+          "level": 9,
+          "buildingId": 503,
+          "buildingName": "纺织机",
+          "category": "加工品",
+          "sourceCategory": "加工",
+          "isCrop": false,
+          "stepMinutes": 45,
+          "originalBatchYield": 1,
+          "analysisBatchYield": 1,
+          "inputs": [
+            {
+              "id": 1,
+              "quantity": 2
+            },
+            {
+              "id": 4,
+              "quantity": 2
+            }
+          ],
+          "coproducts": [],
+          "coinValue": 31,
+          "coinValueStatus": "含估算",
+          "coinValueSource": "06_价格配置!I39"
+        },
+        {
+          "id": 21,
+          "name": "竹帘",
+          "level": 11,
+          "buildingId": 503,
+          "buildingName": "纺织机",
+          "category": "加工品",
+          "sourceCategory": "加工",
+          "isCrop": false,
+          "stepMinutes": 60,
+          "originalBatchYield": 1,
+          "analysisBatchYield": 1,
+          "inputs": [
+            {
+              "id": 2,
+              "quantity": 2
+            },
+            {
+              "id": 7,
+              "quantity": 2
+            }
+          ],
+          "coproducts": [],
+          "coinValue": 50,
+          "coinValueStatus": "配置值",
+          "coinValueSource": "06_价格配置!I40"
+        },
+        {
+          "id": 27,
+          "name": "绒绒灯罩",
+          "level": 15,
+          "buildingId": 503,
+          "buildingName": "纺织机",
+          "category": "加工品",
+          "sourceCategory": "加工",
+          "isCrop": false,
+          "stepMinutes": 120,
+          "originalBatchYield": 1,
+          "analysisBatchYield": 1,
+          "inputs": [
+            {
+              "id": 4,
+              "quantity": 1
+            },
+            {
+              "id": 20,
+              "quantity": 1
+            }
+          ],
+          "coproducts": [],
+          "coinValue": 45,
+          "coinValueStatus": "配置值",
+          "coinValueSource": "06_价格配置!I41"
+        },
+        {
+          "id": 32,
+          "name": "软边小席",
+          "level": 17,
+          "buildingId": 503,
+          "buildingName": "纺织机",
+          "category": "加工品",
+          "sourceCategory": "加工",
+          "isCrop": false,
+          "stepMinutes": 150,
+          "originalBatchYield": 1,
+          "analysisBatchYield": 1,
+          "inputs": [
+            {
+              "id": 2,
+              "quantity": 2
+            },
+            {
+              "id": 3,
+              "quantity": 1
+            },
+            {
+              "id": 7,
+              "quantity": 1
+            }
+          ],
+          "coproducts": [],
+          "coinValue": 42,
+          "coinValueStatus": "含估算",
+          "coinValueSource": "06_价格配置!I42"
+        },
+        {
+          "id": 37,
+          "name": "雨滴篮子",
+          "level": 19,
+          "buildingId": 503,
+          "buildingName": "纺织机",
+          "category": "加工品",
+          "sourceCategory": "加工",
+          "isCrop": false,
+          "stepMinutes": 180,
+          "originalBatchYield": 1,
+          "analysisBatchYield": 1,
+          "inputs": [
+            {
+              "id": 1,
+              "quantity": 1
+            },
+            {
+              "id": 3,
+              "quantity": 1
+            },
+            {
+              "id": 31,
+              "quantity": 1
+            }
+          ],
+          "coproducts": [],
+          "coinValue": 54,
+          "coinValueStatus": "含估算",
+          "coinValueSource": "06_价格配置!I43"
+        },
+        {
+          "id": 13,
+          "name": "薰衣草精油",
+          "level": 8,
+          "buildingId": 504,
+          "buildingName": "萃取机",
+          "category": "加工品",
+          "sourceCategory": "加工",
+          "isCrop": false,
+          "stepMinutes": 20,
+          "originalBatchYield": 1,
+          "analysisBatchYield": 1,
+          "inputs": [
+            {
+              "id": 15,
+              "quantity": 2
+            }
+          ],
+          "coproducts": [],
+          "coinValue": 16,
+          "coinValueStatus": "配置值",
+          "coinValueSource": "06_价格配置!I44"
+        },
+        {
+          "id": 18,
+          "name": "花瓣香水",
+          "level": 10,
+          "buildingId": 504,
+          "buildingName": "萃取机",
+          "category": "加工品",
+          "sourceCategory": "加工",
+          "isCrop": false,
+          "stepMinutes": 45,
+          "originalBatchYield": 1,
+          "analysisBatchYield": 1,
+          "inputs": [
+            {
+              "id": 17,
+              "quantity": 3
+            }
+          ],
+          "coproducts": [],
+          "coinValue": 26,
+          "coinValueStatus": "含估算",
+          "coinValueSource": "06_价格配置!I45"
+        },
+        {
+          "id": 25,
+          "name": "墨汁",
+          "level": 13,
+          "buildingId": 504,
+          "buildingName": "萃取机",
+          "category": "加工品",
+          "sourceCategory": "加工",
+          "isCrop": false,
+          "stepMinutes": 60,
+          "originalBatchYield": 1,
+          "analysisBatchYield": 1,
+          "inputs": [
+            {
+              "id": 24,
+              "quantity": 3
+            }
+          ],
+          "coproducts": [],
+          "coinValue": 30,
+          "coinValueStatus": "配置值",
+          "coinValueSource": "06_价格配置!I46"
+        },
+        {
+          "id": 31,
+          "name": "花蜡",
+          "level": 16,
+          "buildingId": 504,
+          "buildingName": "萃取机",
+          "category": "加工品",
+          "sourceCategory": "加工",
+          "isCrop": false,
+          "stepMinutes": 90,
+          "originalBatchYield": 1,
+          "analysisBatchYield": 1,
+          "inputs": [
+            {
+              "id": 30,
+              "quantity": 3
+            }
+          ],
+          "coproducts": [],
+          "coinValue": 31,
+          "coinValueStatus": "含估算",
+          "coinValueSource": "06_价格配置!I47"
+        },
+        {
+          "id": 19,
+          "name": "竹炭画笔",
+          "level": 10,
+          "buildingId": 505,
+          "buildingName": "窑炉",
+          "category": "加工品",
+          "sourceCategory": "加工",
+          "isCrop": false,
+          "stepMinutes": 45,
+          "originalBatchYield": 1,
+          "analysisBatchYield": 1,
+          "inputs": [
+            {
+              "id": 12,
+              "quantity": 1
+            },
+            {
+              "id": 6,
+              "quantity": 2
+            }
+          ],
+          "coproducts": [],
+          "coinValue": 49,
+          "coinValueStatus": "含估算",
+          "coinValueSource": "06_价格配置!I48"
+        },
+        {
+          "id": 23,
+          "name": "薰衣草香棒",
+          "level": 12,
+          "buildingId": 505,
+          "buildingName": "窑炉",
+          "category": "加工品",
+          "sourceCategory": "加工",
+          "isCrop": false,
+          "stepMinutes": 60,
+          "originalBatchYield": 1,
+          "analysisBatchYield": 1,
+          "inputs": [
+            {
+              "id": 12,
+              "quantity": 1
+            },
+            {
+              "id": 13,
+              "quantity": 1
+            }
+          ],
+          "coproducts": [],
+          "coinValue": 42,
+          "coinValueStatus": "含估算",
+          "coinValueSource": "06_价格配置!I49"
+        },
+        {
+          "id": 26,
+          "name": "竹制盆景",
+          "level": 14,
+          "buildingId": 505,
+          "buildingName": "窑炉",
+          "category": "加工品",
+          "sourceCategory": "加工",
+          "isCrop": false,
+          "stepMinutes": 90,
+          "originalBatchYield": 1,
+          "analysisBatchYield": 1,
+          "inputs": [
+            {
+              "id": 15,
+              "quantity": 2
+            },
+            {
+              "id": 6,
+              "quantity": 1
+            },
+            {
+              "id": 18,
+              "quantity": 1
+            }
+          ],
+          "coproducts": [],
+          "coinValue": 59,
+          "coinValueStatus": "含估算",
+          "coinValueSource": "06_价格配置!I50"
+        },
+        {
+          "id": 29,
+          "name": "圈圈蚊香",
+          "level": 16,
+          "buildingId": 505,
+          "buildingName": "窑炉",
+          "category": "加工品",
+          "sourceCategory": "加工",
+          "isCrop": false,
+          "stepMinutes": 120,
+          "originalBatchYield": 1,
+          "analysisBatchYield": 1,
+          "inputs": [
+            {
+              "id": 10,
+              "quantity": 2
+            },
+            {
+              "id": 22,
+              "quantity": 1
+            },
+            {
+              "id": 25,
+              "quantity": 1
+            }
+          ],
+          "coproducts": [],
+          "coinValue": 70,
+          "coinValueStatus": "含估算",
+          "coinValueSource": "06_价格配置!I51"
+        },
+        {
+          "id": 34,
+          "name": "薰衣草软垫",
+          "level": 18,
+          "buildingId": 505,
+          "buildingName": "窑炉",
+          "category": "加工品",
+          "sourceCategory": "加工",
+          "isCrop": false,
+          "stepMinutes": 150,
+          "originalBatchYield": 1,
+          "analysisBatchYield": 1,
+          "inputs": [
+            {
+              "id": 15,
+              "quantity": 2
+            },
+            {
+              "id": 12,
+              "quantity": 1
+            },
+            {
+              "id": 14,
+              "quantity": 1
+            }
+          ],
+          "coproducts": [],
+          "coinValue": 65,
+          "coinValueStatus": "含估算",
+          "coinValueSource": "06_价格配置!I52"
+        },
+        {
+          "id": 38,
+          "name": "花瓣小灯",
+          "level": 20,
+          "buildingId": 505,
+          "buildingName": "窑炉",
+          "category": "加工品",
+          "sourceCategory": "加工",
+          "isCrop": false,
+          "stepMinutes": 180,
+          "originalBatchYield": 1,
+          "analysisBatchYield": 1,
+          "inputs": [
+            {
+              "id": 30,
+              "quantity": 2
+            },
+            {
+              "id": 28,
+              "quantity": 1
+            },
+            {
+              "id": 27,
+              "quantity": 1
+            }
+          ],
+          "coproducts": [],
+          "coinValue": 100,
+          "coinValueStatus": "含估算",
+          "coinValueSource": "06_价格配置!I53"
+        }
+      ],
+      "sources": [
+        {
+          "id": 501,
+          "name": "研磨机",
+          "level": 2,
+          "category": "加工"
+        },
+        {
+          "id": 502,
+          "name": "切割机",
+          "level": 4,
+          "category": "加工"
+        },
+        {
+          "id": 503,
+          "name": "纺织机",
+          "level": 6,
+          "category": "加工"
+        },
+        {
+          "id": 504,
+          "name": "萃取机",
+          "level": 8,
+          "category": "加工"
+        },
+        {
+          "id": 505,
+          "name": "窑炉",
+          "level": 10,
+          "category": "加工"
+        },
+        {
+          "id": 0,
+          "name": "农田",
+          "level": 1,
+          "category": "田地"
+        }
+      ],
+      "assumptions": [
+        "从 01_数值调参 的原始配方矩阵重算，未依赖 Excel 公式缓存。"
+      ]
+    },
+    "rules": {
+      "cropQuantity": 7,
+      "productQuantity": 1,
+      "maxKinds": 3,
+      "singleWindow": 10
+    },
+    "configs": {
+      "1": {
+        "mix": [
+          100,
+          0,
+          0
+        ],
+        "mean": 14,
+        "variance": 0,
+        "weights": {
+          "0": 6,
+          "501": 1,
+          "502": 1,
+          "503": 1,
+          "504": 1,
+          "505": 1
+        },
+        "sourceEnabled": true,
+        "minimumOrderWeight": true,
+        "revision": 0,
+        "spreadPercent": 0
+      },
+      "2": {
+        "mix": [
+          33,
+          67,
+          0
+        ],
+        "mean": 35.86,
+        "variance": 176.4,
+        "weights": {
+          "0": 6,
+          "501": 1,
+          "502": 1,
+          "503": 1,
+          "504": 1,
+          "505": 1
+        },
+        "sourceEnabled": true,
+        "minimumOrderWeight": true,
+        "revision": 0,
+        "spreadPercent": 37.03727320888788
+      },
+      "3": {
+        "mix": [
+          33,
+          67,
+          0
+        ],
+        "mean": 35.67,
+        "variance": 172.71,
+        "weights": {
+          "0": 6,
+          "501": 1,
+          "502": 1,
+          "503": 1,
+          "504": 1,
+          "505": 1
+        },
+        "sourceEnabled": true,
+        "minimumOrderWeight": true,
+        "revision": 0,
+        "spreadPercent": 36.84305485922541
+      },
+      "4": {
+        "mix": [
+          20,
+          40,
+          40
+        ],
+        "mean": 58.58,
+        "variance": 477.23,
+        "weights": {
+          "0": 12,
+          "501": 1,
+          "502": 1,
+          "503": 1,
+          "504": 1,
+          "505": 1
+        },
+        "sourceEnabled": true,
+        "minimumOrderWeight": true,
+        "revision": 0,
+        "spreadPercent": 37.29189914911329
+      },
+      "5": {
+        "mix": [
+          20,
+          40,
+          40
+        ],
+        "mean": 64.76,
+        "variance": 591.14,
+        "weights": {
+          "0": 12,
+          "501": 1,
+          "502": 1,
+          "503": 1,
+          "504": 1,
+          "505": 1
+        },
+        "sourceEnabled": true,
+        "minimumOrderWeight": true,
+        "revision": 0,
+        "spreadPercent": 37.5438091522964
+      },
+      "6": {
+        "mix": [
+          20,
+          40,
+          40
+        ],
+        "mean": 87.42,
+        "variance": 1885.88,
+        "weights": {
+          "0": 12,
+          "501": 1,
+          "502": 1,
+          "503": 1,
+          "504": 1,
+          "505": 1
+        },
+        "sourceEnabled": true,
+        "minimumOrderWeight": true,
+        "revision": 0,
+        "spreadPercent": 49.67595502784543
+      },
+      "7": {
+        "mix": [
+          20,
+          40,
+          40
+        ],
+        "mean": 103.65,
+        "variance": 2569.76,
+        "weights": {
+          "0": 18,
+          "501": 1,
+          "502": 1,
+          "503": 1,
+          "504": 1,
+          "505": 1
+        },
+        "sourceEnabled": true,
+        "minimumOrderWeight": true,
+        "revision": 0,
+        "spreadPercent": 48.907670311385885
+      },
+      "8": {
+        "mix": [
+          20,
+          40,
+          40
+        ],
+        "mean": 117.63,
+        "variance": 3326.93,
+        "weights": {
+          "0": 18,
+          "501": 1,
+          "502": 1,
+          "503": 1,
+          "504": 1,
+          "505": 1
+        },
+        "sourceEnabled": true,
+        "minimumOrderWeight": true,
+        "revision": 0,
+        "spreadPercent": 49.03472393775029
+      },
+      "9": {
+        "mix": [
+          20,
+          40,
+          40
+        ],
+        "mean": 124.52,
+        "variance": 3678.84,
+        "weights": {
+          "0": 18,
+          "501": 1,
+          "502": 1,
+          "503": 1,
+          "504": 1,
+          "505": 1
+        },
+        "sourceEnabled": true,
+        "minimumOrderWeight": true,
+        "revision": 0,
+        "spreadPercent": 48.70979905395093
+      },
+      "10": {
+        "mix": [
+          20,
+          40,
+          40
+        ],
+        "mean": 172.54,
+        "variance": 8720.54,
+        "weights": {
+          "0": 24,
+          "501": 1,
+          "502": 1,
+          "503": 1,
+          "504": 1,
+          "505": 1
+        },
+        "sourceEnabled": true,
+        "minimumOrderWeight": true,
+        "revision": 0,
+        "spreadPercent": 54.12300427552565
+      },
+      "11": {
+        "mix": [
+          20,
+          40,
+          40
+        ],
+        "mean": 186.04,
+        "variance": 9875.33,
+        "weights": {
+          "0": 24,
+          "501": 1,
+          "502": 1,
+          "503": 1,
+          "504": 1,
+          "505": 1
+        },
+        "sourceEnabled": true,
+        "minimumOrderWeight": true,
+        "revision": 0,
+        "spreadPercent": 53.415768097229254
+      },
+      "12": {
+        "mix": [
+          20,
+          40,
+          40
+        ],
+        "mean": 198.59,
+        "variance": 10444.47,
+        "weights": {
+          "0": 24,
+          "501": 1,
+          "502": 1,
+          "503": 1,
+          "504": 1,
+          "505": 1
+        },
+        "sourceEnabled": true,
+        "minimumOrderWeight": true,
+        "revision": 0,
+        "spreadPercent": 51.46190130814414
+      },
+      "13": {
+        "mix": [
+          20,
+          40,
+          40
+        ],
+        "mean": 245.85,
+        "variance": 20895.28,
+        "weights": {
+          "0": 24,
+          "501": 1,
+          "502": 1,
+          "503": 1,
+          "504": 1,
+          "505": 1
+        },
+        "sourceEnabled": true,
+        "minimumOrderWeight": true,
+        "revision": 0,
+        "spreadPercent": 58.79682634325406
+      },
+      "14": {
+        "mix": [
+          20,
+          40,
+          40
+        ],
+        "mean": 265.32,
+        "variance": 23627.49,
+        "weights": {
+          "0": 24,
+          "501": 1,
+          "502": 1,
+          "503": 1,
+          "504": 1,
+          "505": 1
+        },
+        "sourceEnabled": true,
+        "minimumOrderWeight": true,
+        "revision": 0,
+        "spreadPercent": 57.934705731412215
+      },
+      "15": {
+        "mix": [
+          20,
+          40,
+          40
+        ],
+        "mean": 276.92,
+        "variance": 24067.81,
+        "weights": {
+          "0": 30,
+          "501": 1,
+          "502": 1,
+          "503": 1,
+          "504": 1,
+          "505": 1
+        },
+        "sourceEnabled": true,
+        "minimumOrderWeight": true,
+        "revision": 0,
+        "spreadPercent": 56.02269078090919
+      },
+      "16": {
+        "mix": [
+          20,
+          40,
+          40
+        ],
+        "mean": 361.56,
+        "variance": 52018.96,
+        "weights": {
+          "0": 30,
+          "501": 1,
+          "502": 1,
+          "503": 1,
+          "504": 1,
+          "505": 1
+        },
+        "sourceEnabled": true,
+        "minimumOrderWeight": true,
+        "revision": 0,
+        "spreadPercent": 63.081273863573294
+      },
+      "17": {
+        "mix": [
+          20,
+          40,
+          40
+        ],
+        "mean": 370.38,
+        "variance": 51558.12,
+        "weights": {
+          "0": 30,
+          "501": 1,
+          "502": 1,
+          "503": 1,
+          "504": 1,
+          "505": 1
+        },
+        "sourceEnabled": true,
+        "minimumOrderWeight": true,
+        "revision": 0,
+        "spreadPercent": 61.30572166691176
+      },
+      "18": {
+        "mix": [
+          20,
+          40,
+          40
+        ],
+        "mean": 384.96,
+        "variance": 50583.02,
+        "weights": {
+          "0": 30,
+          "501": 1,
+          "502": 1,
+          "503": 1,
+          "504": 1,
+          "505": 1
+        },
+        "sourceEnabled": true,
+        "minimumOrderWeight": true,
+        "revision": 0,
+        "spreadPercent": 58.4233924988299
+      },
+      "19": {
+        "mix": [
+          20,
+          40,
+          40
+        ],
+        "mean": 465.96,
+        "variance": 85615.98,
+        "weights": {
+          "0": 30,
+          "501": 1,
+          "502": 1,
+          "503": 1,
+          "504": 1,
+          "505": 1
+        },
+        "sourceEnabled": true,
+        "minimumOrderWeight": true,
+        "revision": 0,
+        "spreadPercent": 62.79553711690296
+      },
+      "20": {
+        "mix": [
+          20,
+          40,
+          40
+        ],
+        "mean": 499.27,
+        "variance": 96134.94,
+        "weights": {
+          "0": 30,
+          "501": 1,
+          "502": 1,
+          "503": 1,
+          "504": 1,
+          "505": 1
+        },
+        "sourceEnabled": true,
+        "minimumOrderWeight": true,
+        "revision": 0,
+        "spreadPercent": 62.10193877406477
+      }
+    },
+    "probabilityScale": 10000,
+    "activeLevel": 20
+  },
+  "gameSaves": [
+    {
+      "key": "order-game-v1:game-v2-156-955b4c08-61ef6840",
+      "state": {
+        "version": 2,
+        "signature": "game-v2-156-955b4c08-61ef6840",
+        "level": 1,
+        "lastWallTime": 1792467248776,
+        "elapsedMs": 27913,
+        "money": 1600,
+        "inventory": {
+          "1": 0
+        },
+        "settings": {
+          "warehouseCapacity": 200,
+          "landCapacity": 6,
+          "queueLimit": 3,
+          "orderSlots": 6,
+          "refreshMinutes": 5,
+          "initialStockMultiplier": 2,
+          "channels": {}
+        },
+        "jobs": [],
+        "board": [
+          {
+            "orderId": "S1-1",
+            "status": "ready"
+          },
+          {
+            "orderId": "S1-1",
+            "status": "ready"
+          },
+          {
+            "orderId": "S1-1",
+            "status": "ready"
+          },
+          {
+            "orderId": "S1-1",
+            "status": "ready"
+          },
+          {
+            "orderId": "S1-1",
+            "status": "ready"
+          },
+          {
+            "orderId": "S1-1",
+            "status": "ready"
+          }
+        ],
+        "counters": {
+          "delivered": 2,
+          "earned": 600,
+          "refreshed": 0,
+          "produced": 0,
+          "draws": 8
+        },
+        "log": [
+          {
+            "at": 0,
+            "text": "开始 Lv 1 经营，获得 1000 金币、2 倍单次订单需求的全部商品。"
+          },
+          {
+            "at": 262,
+            "text": "交付订单 1，获得 300 金币。"
+          },
+          {
+            "at": 545,
+            "text": "交付订单 1，获得 300 金币。"
+          }
+        ],
+        "rngState": 807377249,
+        "nextJobId": 1,
+        "warehouseUpgrades": 0,
+        "buildingUpgrades": {}
+      }
+    },
+    {
+      "key": "order-game-v1:game-v2-306388-316799bc-980de67c",
+      "state": {
+        "version": 2,
+        "signature": "game-v2-306388-316799bc-980de67c",
+        "level": 20,
+        "lastWallTime": 1792483547910,
+        "elapsedMs": 38899552,
+        "money": 1000,
+        "inventory": {
+          "1": 23,
+          "2": 30,
+          "3": 9,
+          "4": 2,
+          "5": 9,
+          "6": 4,
+          "7": 2,
+          "10": 6,
+          "12": 2,
+          "13": 2,
+          "14": 2,
+          "15": 14,
+          "16": 2,
+          "17": 14,
+          "18": 2,
+          "19": 2,
+          "20": 2,
+          "21": 2,
+          "22": 6,
+          "23": 2,
+          "24": 10,
+          "25": 2,
+          "26": 2,
+          "27": 2,
+          "28": 2,
+          "29": 2,
+          "30": 14,
+          "31": 2,
+          "32": 2,
+          "33": 4,
+          "34": 2,
+          "35": 12,
+          "36": 3,
+          "37": 2,
+          "38": 2
+        },
+        "settings": {
+          "warehouseCapacity": 267,
+          "landCapacity": 30,
+          "queueLimit": 3,
+          "orderSlots": 6,
+          "refreshMinutes": 5,
+          "initialStockMultiplier": 2,
+          "channels": {
+            "501": 1,
+            "502": 1,
+            "503": 1,
+            "504": 1,
+            "505": 1
+          }
+        },
+        "jobs": [
+          {
+            "id": 69,
+            "productId": 1,
+            "sourceId": "__farm__",
+            "plotIndex": 3,
+            "status": "ready",
+            "enqueuedAt": 33962611,
+            "startedAt": 33962611,
+            "endAt": 34082611
+          },
+          {
+            "id": 70,
+            "productId": 1,
+            "sourceId": "__farm__",
+            "plotIndex": 4,
+            "status": "ready",
+            "enqueuedAt": 33962661,
+            "startedAt": 33962661,
+            "endAt": 34082661
+          },
+          {
+            "id": 71,
+            "productId": 1,
+            "sourceId": "__farm__",
+            "plotIndex": 5,
+            "status": "ready",
+            "enqueuedAt": 33962711,
+            "startedAt": 33962711,
+            "endAt": 34082711
+          },
+          {
+            "id": 72,
+            "productId": 1,
+            "sourceId": "__farm__",
+            "plotIndex": 6,
+            "status": "ready",
+            "enqueuedAt": 33962761,
+            "startedAt": 33962761,
+            "endAt": 34082761
+          },
+          {
+            "id": 73,
+            "productId": 1,
+            "sourceId": "__farm__",
+            "plotIndex": 7,
+            "status": "ready",
+            "enqueuedAt": 33963096,
+            "startedAt": 33963096,
+            "endAt": 34083096
+          },
+          {
+            "id": 74,
+            "productId": 1,
+            "sourceId": "__farm__",
+            "plotIndex": 8,
+            "status": "ready",
+            "enqueuedAt": 33963163,
+            "startedAt": 33963163,
+            "endAt": 34083163
+          },
+          {
+            "id": 75,
+            "productId": 1,
+            "sourceId": "__farm__",
+            "plotIndex": 9,
+            "status": "ready",
+            "enqueuedAt": 33963264,
+            "startedAt": 33963264,
+            "endAt": 34083264
+          },
+          {
+            "id": 76,
+            "productId": 15,
+            "sourceId": "__farm__",
+            "plotIndex": 19,
+            "status": "ready",
+            "enqueuedAt": 33964695,
+            "startedAt": 33964695,
+            "endAt": 35164695
+          },
+          {
+            "id": 77,
+            "productId": 15,
+            "sourceId": "__farm__",
+            "plotIndex": 18,
+            "status": "ready",
+            "enqueuedAt": 33964945,
+            "startedAt": 33964945,
+            "endAt": 35164945
+          },
+          {
+            "id": 78,
+            "productId": 15,
+            "sourceId": "__farm__",
+            "plotIndex": 28,
+            "status": "ready",
+            "enqueuedAt": 33965078,
+            "startedAt": 33965078,
+            "endAt": 35165078
+          },
+          {
+            "id": 79,
+            "productId": 15,
+            "sourceId": "__farm__",
+            "plotIndex": 29,
+            "status": "ready",
+            "enqueuedAt": 33965311,
+            "startedAt": 33965311,
+            "endAt": 35165311
+          }
+        ],
+        "board": [
+          {
+            "orderId": "S1-24",
+            "status": "ready"
+          },
+          {
+            "orderId": "S1-30",
+            "status": "ready"
+          },
+          {
+            "orderId": "S1-35",
+            "status": "ready"
+          },
+          {
+            "orderId": "S2-20-29",
+            "status": "ready"
+          },
+          {
+            "orderId": "S1-24",
+            "status": "ready"
+          },
+          {
+            "orderId": "S1-30",
+            "status": "ready"
+          }
+        ],
+        "counters": {
+          "delivered": 0,
+          "earned": 0,
+          "refreshed": 1,
+          "produced": 68,
+          "draws": 7
+        },
+        "log": [
+          {
+            "at": 12929640,
+            "text": "芦苇丝生产完成，入库 1 件。"
+          },
+          {
+            "at": 13172963,
+            "text": "收获 棉花 × 1。"
+          },
+          {
+            "at": 13172990,
+            "text": "收获 棉花 × 1。"
+          },
+          {
+            "at": 13173007,
+            "text": "收获 棉花 × 1。"
+          },
+          {
+            "at": 13173023,
+            "text": "收获 棉花 × 1。"
+          },
+          {
+            "at": 13584489,
+            "text": "收获 棉花 × 1。"
+          },
+          {
+            "at": 13601245,
+            "text": "珍珠衣帽架加入生产，共 1 次。"
+          },
+          {
+            "at": 13603602,
+            "text": "云朵香粉加入生产，共 1 次。"
+          },
+          {
+            "at": 13605278,
+            "text": "云朵香粉加入生产，共 1 次。"
+          },
+          {
+            "at": 13606026,
+            "text": "云朵香粉加入生产，共 1 次。"
+          },
+          {
+            "at": 13606621,
+            "text": "云朵香粉加入生产，共 1 次。"
+          },
+          {
+            "at": 15403602,
+            "text": "云朵香粉生产完成，入库 1 件。"
+          },
+          {
+            "at": 17201245,
+            "text": "珍珠衣帽架生产完成，入库 1 件。"
+          },
+          {
+            "at": 17203602,
+            "text": "云朵香粉生产完成，入库 1 件。"
+          },
+          {
+            "at": 21494272,
+            "text": "收获 云朵香粉 × 1。"
+          },
+          {
+            "at": 21494272,
+            "text": "收获 云朵香粉 × 1。"
+          },
+          {
+            "at": 21526385,
+            "text": "收获 芦苇草 × 1。"
+          },
+          {
+            "at": 21526435,
+            "text": "收获 棉花 × 1。"
+          },
+          {
+            "at": 21526468,
+            "text": "收获 棉花 × 1。"
+          },
+          {
+            "at": 21605055,
+            "text": "芦苇丝加入生产，共 1 次。"
+          },
+          {
+            "at": 21627871,
+            "text": "乌云绒团加入生产，共 1 次。"
+          },
+          {
+            "at": 21627955,
+            "text": "乌云绒团加入生产，共 1 次。"
+          },
+          {
+            "at": 32873363,
+            "text": "芦苇丝加入生产，共 1 次。"
+          },
+          {
+            "at": 33954278,
+            "text": "收获 芦苇草 × 1。"
+          },
+          {
+            "at": 33954611,
+            "text": "收获 芦苇草 × 1。"
+          },
+          {
+            "at": 33954794,
+            "text": "收获 芦苇草 × 1。"
+          },
+          {
+            "at": 33954861,
+            "text": "收获 芦苇草 × 1。"
+          },
+          {
+            "at": 33954911,
+            "text": "收获 棉花 × 1。"
+          },
+          {
+            "at": 33955045,
+            "text": "收获 棉花 × 1。"
+          },
+          {
+            "at": 33955113,
+            "text": "收获 棉花 × 1。"
+          },
+          {
+            "at": 33955165,
+            "text": "收获 棉花 × 1。"
+          },
+          {
+            "at": 33955198,
+            "text": "收获 芦苇草 × 1。"
+          },
+          {
+            "at": 33955228,
+            "text": "收获 棉花 × 1。"
+          },
+          {
+            "at": 33955262,
+            "text": "收获 棉花 × 1。"
+          },
+          {
+            "at": 33955295,
+            "text": "收获 棉花 × 1。"
+          },
+          {
+            "at": 33955346,
+            "text": "收获 芦苇草 × 1。"
+          },
+          {
+            "at": 33955562,
+            "text": "收获 棉花 × 1。"
+          },
+          {
+            "at": 33955629,
+            "text": "收获 棉花 × 1。"
+          },
+          {
+            "at": 33955679,
+            "text": "收获 棉花 × 1。"
+          },
+          {
+            "at": 33955712,
+            "text": "收获 棉花 × 1。"
+          },
+          {
+            "at": 33955745,
+            "text": "收获 芦苇草 × 1。"
+          },
+          {
+            "at": 33955780,
+            "text": "收获 芦苇草 × 1。"
+          },
+          {
+            "at": 33955828,
+            "text": "收获 芦苇草 × 1。"
+          },
+          {
+            "at": 33955895,
+            "text": "收获 芦苇草 × 1。"
+          },
+          {
+            "at": 33956195,
+            "text": "收获 棉花 × 1。"
+          },
+          {
+            "at": 33956211,
+            "text": "收获 棉花 × 1。"
+          },
+          {
+            "at": 33956261,
+            "text": "收获 芦苇草 × 1。"
+          },
+          {
+            "at": 33956294,
+            "text": "收获 芦苇草 × 1。"
+          },
+          {
+            "at": 33956328,
+            "text": "收获 芦苇草 × 1。"
+          },
+          {
+            "at": 33956361,
+            "text": "收获 棉花 × 1。"
+          },
+          {
+            "at": 33956962,
+            "text": "收获 棉花 × 1。"
+          },
+          {
+            "at": 33969861,
+            "text": "收获 芦苇丝 × 1。"
+          },
+          {
+            "at": 33969861,
+            "text": "收获 乌云绒团 × 1。"
+          },
+          {
+            "at": 33969861,
+            "text": "收获 乌云绒团 × 1。"
+          },
+          {
+            "at": 33969861,
+            "text": "收获 芦苇丝 × 1。"
+          },
+          {
+            "at": 34446517,
+            "text": "收获 芦苇草 × 1。"
+          },
+          {
+            "at": 34446567,
+            "text": "收获 芦苇草 × 1。"
+          },
+          {
+            "at": 34543172,
+            "text": "收获 芦苇草 × 1。"
+          },
+          {
+            "at": 38281373,
+            "text": "刷新订单 1，免费换单。"
+          },
+          {
+            "at": 38581373,
+            "text": "订单 1 刷新完成。"
+          }
+        ],
+        "rngState": 1933817953,
+        "nextJobId": 80,
+        "warehouseUpgrades": 0,
+        "buildingUpgrades": {}
+      }
+    }
+  ]
+}

@@ -16,6 +16,8 @@ import {createOrderSimulator} from './order-simulator.js';
 import {createGameMode} from './game-view.js';
 import {coinValueCoverage} from './coin-values.js';
 import {createOutcomeAnalysis,matchesOutcomeFilter} from './order-analysis-view.js';
+import {fetchSharedSession,restoreSessionSnapshot} from './session-snapshot.js';
+import {createSessionBackupView} from './session-backup-view.js';
 const $=id=>document.getElementById(id),fmt=(v,d=1)=>Number(v).toLocaleString('zh-CN',{maximumFractionDigits:d,minimumFractionDigits:d}),pct=(v,d=2)=>fmt(v*100,d)+'%';
 const escape=value=>String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 let project,catalog,result,worker,itemInfo,activeLevel=20,busy=false,dirty=true,page=0,selectedTimeRange=null,request=0,generation=0;
@@ -309,12 +311,15 @@ $('exportProject').onclick=()=>{
   download(JSON.stringify({schemaVersion:'order-project-export-v2',probabilityScale:project.probabilityScale,filename:project.filename,source:catalog.source,rules:project.rules,coinValues:coinValueCoverage(catalog.products),products:catalog.products,sources:catalog.sources,levels},null,2),'逐级订单配置.json','application/json');
 };
 async function init(){
-  try{projectStore=createProjectStore(localStorage);const saved=projectStore.load();
+  try{projectStore=createProjectStore(localStorage);let saved=projectStore.load();
+    if(!saved){
+      const shared=await fetchSharedSession();
+      if(shared){restoreSessionSnapshot(localStorage,shared);projectStore=createProjectStore(localStorage);saved=projectStore.load();}
+    }
     if(!saved){
       if(new URLSearchParams(location.search).get('project')==='current'){
         const response=await fetch('../current-design.xlsx');if(!response.ok)throw Error('当前数值表读取失败');
-        const base=await readChainExcel(new File([await response.arrayBuffer()],'当前加工链路数值表.xlsx'));
-        installBase(base,'当前加工链路数值表.xlsx');setBusy(false);setView('overview');return;
+        const base=await readChainExcel(new File([await response.blob()],'当前加工链路数值表.xlsx'));installBase(base,'当前加工链路数值表.xlsx');setView('dashboard');await solve(false);return;
       }
       showEmptyProject();return;
     }
@@ -328,6 +333,14 @@ $('showNormalTarget').onchange=()=>{if(result)drawChart();};
 outcomeAnalysis=createOutcomeAnalysis(filter=>{selectedOutcomeFilter=filter;selectedTimeRange=null;$('search').value='';page=0;drawHalfHourChart();renderTable();$('ordersPanel').scrollIntoView({behavior:'smooth',block:'start'});});
 simulator=createOrderSimulator({getState:()=>({catalog,result,level:activeLevel,valid:Boolean(result)&&!dirty&&!busy}),hideItemInfo:()=>itemInfo?.hide()});
 gameMode=createGameMode({getState:()=>({catalog,result,level:activeLevel,filename:project?.filename,valid:Boolean(result)&&!dirty&&!busy}),hideItemInfo:()=>itemInfo?.hide(),onError:message=>notice(message,true)});
+createSessionBackupView({
+  getProject:()=>project?{...project,activeLevel}:null,download,
+  restore:async snapshot=>{
+    if(busy)throw Error('请先等待拟合结束。');
+    gameMode.releaseSession();restoreSessionSnapshot(localStorage,snapshot,{overwrite:true});
+    projectStore=createProjectStore(localStorage);const saved=projectStore.load();installBase(saved.base,saved.filename,saved);setView('dashboard');await solve(false);
+  }
+});
 init();
 
 function drawTimeBands(r){

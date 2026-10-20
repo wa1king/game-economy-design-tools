@@ -22,3 +22,41 @@
 .game-field-toolbar{height:36px;min-height:36px;flex-wrap:nowrap}.game-field-toolbar>span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.game-field-toolbar>div{flex:none}
 
 .game-dialog.field-dragging,.game-dialog.field-dragging *{cursor:grabbing!important}
+/* One workshop queue, shared by waiting, working and finished products. */
+.game-fixed-queue{display:block;min-height:96px;margin-top:10px;padding-top:8px}.game-queue-track{display:grid;grid-template-columns:repeat(var(--queue-count,4),minmax(76px,82px));gap:6px;list-style:none;margin:0;padding:0 0 4px;overflow-x:auto;overscroll-behavior-x:contain;user-select:none}.game-queue-position{min-width:0}.game-queue-track .game-queue-slot{box-sizing:border-box;width:100%;height:92px;min-height:92px;padding:19px 4px 7px;gap:2px;position:relative;border-radius:10px;box-shadow:none;cursor:default}.game-queue-track button.game-queue-slot.ready{background:#ecf5df;border:1px solid #9fbd85;color:#315d35;cursor:pointer}.game-queue-track button.game-queue-slot.ready:hover{background:#e2f0cf;border-color:#6b9b50}.game-queue-slot.ready .game-slot-detail{background:#4b8051;color:white;padding:3px 12px;border-radius:5px;font-size:11px;font-weight:600;pointer-events:none}.game-slot-state{position:absolute;top:6px;left:0;right:0;font-size:10px;font-weight:400;color:#87967e}.game-slot-product-mark{display:grid;place-items:center;width:20px;height:20px;border-radius:5px;font-size:13px!important;font-weight:550;background:#e1ebda;color:#5d7b50!important;pointer-events:none}.game-queue-slot.running{background:#eef4e9;border-color:#cbdcc2}.game-queue-slot.queued{background:#f8f8f4;border-color:#e1e5d9}.game-queue-slot.queued .game-slot-product-mark{background:#ebeee6;color:#84917b!important}.game-queue-slot.queued .game-slot-detail{color:#8d977e}.game-queue-slot.vacant{background:#f7f9f5;border-style:dashed;justify-content:center}.game-queue-slot.vacant .game-slot-empty{font-size:26px;font-weight:400;color:#d6dfcd}.game-queue-slot .game-slot-detail{font-size:10px;font-variant-numeric:tabular-nums}.game-queue-track .game-queue-slot>b{font-size:11px;font-weight:600}.game-queue-track .game-progress{left:8px;right:8px;bottom:5px}.game-plot.selected{outline:3px solid #6f9b50;outline-offset:1px;border-color:#6f9b50}
+/* Context actions stay beside the selected plot. */
+.game-crop-picker{width:min(380px,calc(100vw - 32px));max-height:320px;padding:12px;box-sizing:border-box;border-radius:13px;background:#fcfdf9;border-color:#b9cca9;box-shadow:0 8px 26px #27402730}
+.game-picker-heading{margin-bottom:8px}.game-picker-heading strong{font-size:13px}.game-picker-heading button{font-size:20px;min-width:24px;min-height:24px}
+.game-crop-options{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px;overflow:visible;padding:0}
+.game-crop-option{min-height:86px;padding:7px 3px;gap:3px;box-sizing:border-box;touch-action:none}.game-crop-option .game-product-mark{width:31px;height:31px}.game-crop-option .game-product-mark svg{width:29px;height:29px}.game-crop-option b{font-size:11px}.game-crop-option small{font-size:9px}.game-crop-option>*{pointer-events:none}
+.game-harvest-tool{display:flex;flex-direction:column;align-items:center;justify-content:center;width:100%;min-height:100px;gap:4px;border:1px solid #d7e2cc;border-radius:9px;background:#edf5e1;color:#5d7945;touch-action:none;cursor:grab!important}.game-harvest-tool:hover{background:#e4efce}.game-harvest-tool svg{width:55px;height:55px;fill:#edc47c;stroke:#a77e3a;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;pointer-events:none}.game-harvest-tool strong{font-size:13px;pointer-events:none}
+.game-growing-detail{display:flex;align-items:center;justify-content:center;gap:12px;padding:12px;color:#698253}.game-growing-detail svg{width:42px;height:42px;fill:#6c9352;stroke:#6c9352;stroke-width:2}.game-growing-detail span{color:#829475;font-variant-numeric:tabular-nums}
+.game-drag-ghost{position:fixed;z-index:30;pointer-events:none;width:54px;height:54px;transform:translate(-50%,-66%);filter:drop-shadow(0 3px 4px #28432140)}.game-drag-ghost[hidden]{display:none!important}.game-drag-ghost svg{width:100%;height:100%;fill:#749852;stroke:#436b32;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}.game-drag-ghost[data-tool="harvest"] svg{fill:#edc47c;stroke:#a77e3a}.game-drag-ghost *{pointer-events:none}
+/* Production times are readable at a glance; queue tiles stay compact. */
+.game-choice-text small,.game-crop-option small{font-size:12px;font-weight:600;color:#4b694c;font-variant-numeric:tabular-nums}
+.game-recipe-heading>span{font-size:13px;font-weight:650;color:#365d40;font-variant-numeric:tabular-nums}
+.game-queue-track .game-queue-slot.running .game-slot-detail{font-size:14px;font-weight:750;line-height:1.4;color:#245334;white-space:nowrap;letter-spacing:.1px}
+.game-plot [data-game-end]{font-size:13px;font-weight:750;color:#304e2b;background:#fff8e6;border-radius:4px;padding:1px 2px;line-height:18px;white-space:nowrap;font-variant-numeric:tabular-nums}
+.game-growing-detail [data-game-end]{font-size:18px;font-weight:750;color:#315c3c}
+/* Ingredients and orders share the same stock / demand display. */
+.game-recipe button.game-ingredient{flex-direction:row;align-items:center;justify-content:space-between;gap:8px;min-height:38px}.game-ingredient b{color:#3c5b41}.game-recipe .game-stock-count{display:inline-flex;align-items:baseline;gap:3px;font-size:13px;font-variant-numeric:tabular-nums}.game-recipe .game-stock-count strong{font-size:13px;font-weight:750}.game-recipe .game-stock-count i{font-size:11px;font-style:normal;opacity:.5}.game-recipe .game-stock-count.enough{color:#28704e}.game-recipe .game-stock-count.short,.game-ingredient.missing .game-stock-count.short{color:#b25538}.game-order-top{justify-content:flex-end}.game-savebar{justify-content:flex-start}
+@media(max-width:600px){.game-queue-track{gap:6px;grid-template-columns:repeat(var(--queue-count,4),minmax(76px,82px))}.game-queue-track .game-queue-slot.running .game-slot-detail{font-size:13px}}
+@media(max-width:400px){.game-crop-options{grid-template-columns:repeat(4,minmax(0,1fr))}}
+
+
+/* Compact workshop controls; the selected product and ingredient panel is unchanged. */
+.game-source:not(.farm){padding:14px}.game-source:not(.farm) .game-source-title{margin-bottom:8px}
+.game-source:not(.farm) .game-product-choices{grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+.game-source:not(.farm) .game-product-choice{min-height:40px;padding:6px 7px;gap:6px}
+.game-source:not(.farm) .game-product-choice .game-product-mark{width:22px;height:22px;border-radius:5px;font-size:12px}
+.game-source:not(.farm) .game-choice-text b{font-size:12px;line-height:1.3}
+.game-source:not(.farm) .game-choice-stock{font-size:10px}
+.game-source:not(.farm) .game-craft-action{margin-top:8px}
+.game-warehouse{position:relative}
+.game-stock-float{position:absolute;top:calc(100% + 5px);left:0;z-index:25;display:flex;align-items:center;gap:11px;padding:8px 12px;border:1px solid #92b99e;border-radius:9px;background:#f4fbf4;color:#28663d;box-shadow:0 5px 16px #203f2b26;white-space:nowrap;pointer-events:none;font-variant-numeric:tabular-nums}
+.game-stock-float[hidden]{display:none!important}.game-stock-float b{font-size:16px;font-weight:750}.game-stock-float span{font-size:13px;font-weight:650;color:inherit}
+.game-stock-float[data-tone="near"]{background:#fff8e9;border-color:#d6b57a;color:#9b641b}.game-stock-float[data-tone="full"]{background:#fff1eb;border-color:#d89c83;color:#a64b2f}
+.game-stock-float.show{animation:game-stock-rise 2.4s ease-out both}
+@keyframes game-stock-rise{0%{opacity:1;transform:translateY(10px)}12%{opacity:1;transform:translateY(0)}80%{opacity:1;transform:translateY(-8px)}100%{opacity:0;transform:translateY(-17px)}}
+@media(prefers-reduced-motion:reduce){.game-stock-float.show{animation:none}}
+@media(max-width:440px){.game-source:not(.farm) .game-product-choices{grid-template-columns:repeat(2,minmax(0,1fr))}.game-stock-float{left:auto;right:0;gap:6px;padding:7px 9px}.game-stock-float b{font-size:14px}.game-stock-float span{font-size:12px}}
