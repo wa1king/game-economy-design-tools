@@ -43,9 +43,9 @@ export function createOutcomeAnalysis(onFilter){
   function renderProducts(){
     if(!data)return;
     const values=data.products.filter(p=>type==='all'||(type==='crop'?p.isCrop:!p.isCrop));
-    const key=sort==='probability'?'directOrderProbability':sort==='quantity'?'directQuantityPer100Orders':'level';
-    values.sort((a,b)=>(direction==='desc'?-1:1)*(a[key]-b[key])||a.id-b.id);
-    $('productAppearanceRows').innerHTML=values.map(p=>`<tr><th scope="row"><button type="button" class="analysis-product" data-product="${p.id}" data-name="${esc(p.name)}" title="查看直接索取该商品的订单">${esc(p.name)}</button>${p.level===data.level?'<small class="new-product">本级新解锁</small>':''}</th><td>${esc(p.buildingName||'—')}</td><td>${p.level}</td><td class="appearance-probability" style="--probability:${p.directOrderProbability*100}%">${pct(p.directOrderProbability)}</td><td>${num(p.directQuantityPer100Orders)}</td><td>${num(p.cumulativeComplexity,0)}</td><td>${num(p.unitCumulativeMinutes)}</td></tr>`).join('')||'<tr><td colspan="7" class="analysis-empty">没有对应商品</td></tr>';
+    const key=sort==='probability'?'directOrderProbability':sort==='quantity'?'directQuantityPer100Orders':sort==='coinValue'?'coinValue':'level';
+    values.sort((a,b)=>{if(key==='coinValue'){if(!Number.isFinite(a[key]))return Number.isFinite(b[key])?1:a.id-b.id;if(!Number.isFinite(b[key]))return -1;}return (direction==='desc'?-1:1)*(a[key]-b[key])||a.id-b.id;});
+    $('productAppearanceRows').innerHTML=values.map(p=>`<tr><th scope="row"><button type="button" class="analysis-product" data-product="${p.id}" data-name="${esc(p.name)}" title="查看直接索取该商品的订单">${esc(p.name)}</button>${p.level===data.level?'<small class="new-product">本级新解锁</small>':''}</th><td>${esc(p.buildingName||'—')}</td><td>${p.level}</td><td class="appearance-probability" style="--probability:${p.directOrderProbability*100}%">${pct(p.directOrderProbability)}</td><td>${num(p.directQuantityPer100Orders)}</td><td>${num(p.cumulativeComplexity,0)}</td><td>${num(p.unitCumulativeMinutes)}</td><td title="${esc([p.coinValueStatus,p.coinValueSource].filter(Boolean).join(' · '))}">${num(p.coinValue,4)}${Number.isFinite(p.coinValue)&&p.coinValueStatus?.includes('估算')?' <small class="coin-estimate">估</small>':''}</td></tr>`).join('')||'<tr><td colspan="8" class="analysis-empty">没有对应商品</td></tr>';
   }
   $('productTypeFilter').onchange=e=>{type=e.target.value;renderProducts();};
   $('productAppearanceSort').onchange=e=>{sort=e.target.value;renderProducts();};

@@ -1,4 +1,5 @@
 import {addOrderComplexity} from './order-complexity.js';
+import {orderCoinValue} from './coin-values.js';
 export const DEFAULT_RULES={cropQuantity:7,productQuantity:1,maxKinds:3,singleWindow:10};
 export function validateProducts(base){
   const by=new Map(),names=new Set(),sources=new Map(base.sources.map(s=>[s.id,s]));
@@ -6,6 +7,7 @@ export function validateProducts(base){
     if(by.has(p.id)||names.has(p.name))throw Error(`商品重复：${p.name} / ${p.id}`);
     if(!Number.isInteger(p.level)||p.level<1||p.level>200||!Number.isFinite(p.stepMinutes)||p.stepMinutes<=0)throw Error(`${p.name} 的等级或时间无效。`);
     if(!sources.has(p.buildingId)||!Number.isInteger(p.analysisBatchYield)||p.analysisBatchYield<1)throw Error(`${p.name} 的建筑或产量无效。`);
+    if(p.coinValue!=null&&(typeof p.coinValue!=='number'||!Number.isFinite(p.coinValue)||p.coinValue<0))throw Error(`${p.name} 的金币价格无效。`);
     by.set(p.id,p);names.add(p.name);
   }
   const memo=new Map(),visiting=new Set();
@@ -44,7 +46,7 @@ export function buildCatalog(base,rules=DEFAULT_RULES){
   const compatible=(a,b)=>a.buildingId!==b.buildingId&&!a.inputs.some(v=>v.id===b.id)&&!b.inputs.some(v=>v.id===a.id);
   function add(products){
     const items=products.map(p=>({id:p.id,quantity:p.orderQuantity})),k=items.length;
-    c.orders.push({id:`S${k}-${products.map(p=>p.id).join('-')}`,itemTypes:k,minimumLevel:Math.max(...products.map(p=>p.level)),maximumLevel:k===1?products[0].level+rules.singleWindow-1:null,items,description:products.map(p=>`${p.name}×${p.orderQuantity}`).join(' + '),...calculate(items)});
+    c.orders.push({id:`S${k}-${products.map(p=>p.id).join('-')}`,itemTypes:k,minimumLevel:Math.max(...products.map(p=>p.level)),maximumLevel:k===1?products[0].level+rules.singleWindow-1:null,items,coinValue:orderCoinValue({items},by),description:products.map(p=>`${p.name}×${p.orderQuantity}`).join(' + '),...calculate(items)});
   }
   const ps=c.products;for(let i=0;i<ps.length;i++){add([ps[i]]);if(rules.maxKinds<2)continue;for(let j=i+1;j<ps.length;j++){if(!compatible(ps[i],ps[j]))continue;add([ps[i],ps[j]]);if(rules.maxKinds<3)continue;for(let k=j+1;k<ps.length;k++)if(compatible(ps[i],ps[k])&&compatible(ps[j],ps[k]))add([ps[i],ps[j],ps[k]]);}}
   c.maxLevel=base.maxLevel||Math.max(...ps.map(p=>p.level));

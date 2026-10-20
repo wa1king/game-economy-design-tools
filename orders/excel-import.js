@@ -1,4 +1,5 @@
 import {validateProducts} from './order-engine.js';
+import {applyImportedCoinValues} from './coin-values.js';
 const clean=value=>String(value??'').trim();
 export function readLandsByLevel(plan){
   const headerIndex=plan.findIndex(row=>row?.some(v=>clean(v)==='等级')&&row?.some(v=>clean(v)==='累计土地'));
@@ -64,9 +65,10 @@ export function catalogFromSheets(sheets,filename='加工链路.xlsx'){
     products.push({id,name,level,buildingId:source.id,buildingName,category:isCrop?'田地作物':'加工品',sourceCategory:isCrop?'田地':'加工',isCrop,stepMinutes,originalBatchYield:1,analysisBatchYield:1,inputs,coproducts:[]});
   }
   if(!products.length)throw Error('未识别到商品，请检查第 5～9 行。');
+  const coinValues=applyImportedCoinValues(products,sheets);
   const landsByLevel=readLandsByLevel(plan),plannedLevels=Object.keys(landsByLevel).map(Number);
   const maxLevel=Math.max(...products.map(p=>p.level),...plannedLevels);
-  const base={schemaVersion:'order-lab-import-v1',filename,maxLevel,landsByLevel,source:{filename,snapshot:'用户导入'},products,sources,assumptions:['从 01_数值调参 的原始配方矩阵重算，未依赖 Excel 公式缓存。']};
+  const base={schemaVersion:'order-lab-import-v1',filename,maxLevel,landsByLevel,coinValues,source:{filename,snapshot:'用户导入'},products,sources,assumptions:['从 01_数值调参 的原始配方矩阵重算，未依赖 Excel 公式缓存。']};
   validateProducts(base);return base;
 }
 export async function readChainExcel(file){
@@ -85,7 +87,7 @@ export async function readChainExcel(file){
   const targets=new Map(tags(rels,'Relationship').map(r=>[r.getAttribute('Id'),r.getAttribute('Target')]));
   const sheets={};
   for(const sheet of tags(workbook,'sheet')){
-    const name=sheet.getAttribute('name');if(!['01_数值调参','00_等级规划'].includes(name))continue;
+    const name=sheet.getAttribute('name');if(!['01_数值调参','00_等级规划','06_价格配置'].includes(name))continue;
     const rid=sheet.getAttribute('r:id')||sheet.getAttributeNS('http://schemas.openxmlformats.org/officeDocument/2006/relationships','id'),target=targets.get(rid);
     if(!target)throw Error(`工作表 ${name} 的路径缺失。`);
     const parts=(target.startsWith('/')?target.slice(1):'xl/'+target).split('/'),path=[];

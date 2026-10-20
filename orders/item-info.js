@@ -1,3 +1,4 @@
+import {unitCoinValue} from './coin-values.js';
 const escapeHTML = value => String(value).replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
 
 export function renderOrderItems(order, products) {
@@ -31,7 +32,8 @@ export function setupItemInfo(catalog, rows) {
     const host=button.closest('dialog')||document.body;if(tooltip.parentNode!==host)host.append(tooltip);
     const product = products.get(Number(button.dataset.productId));
     const unitWork = product.unitCumulativeMinutes ?? product.soloOrderMinutes / product.orderQuantity;
-    tooltip.innerHTML = `<strong>${escapeHTML(product.name)}</strong><small>${escapeHTML(product.buildingName)} · ${product.level} 级解锁 · 本单需求 ${button.dataset.quantity} 个</small><dl><dt>累计复杂度</dt><dd>${product.cumulativeComplexity} 种</dd><dt>单步时间</dt><dd>${minutes(product.stepMinutes)}</dd><dt>单品累计工时</dt><dd>${minutes(unitWork)}</dd></dl>`;
+    const coins=unitCoinValue(product),coinText=coins===null?'未导入':coins.toLocaleString('zh-CN',{maximumFractionDigits:4})+' 金币';
+    tooltip.innerHTML = `<strong>${escapeHTML(product.name)}</strong><small>${escapeHTML(product.buildingName)} · ${product.level} 级解锁 · 本单需求 ${button.dataset.quantity} 个</small><dl><dt>累计复杂度</dt><dd>${product.cumulativeComplexity} 种</dd><dt>单步时间</dt><dd>${minutes(product.stepMinutes)}</dd><dt>单品累计工时</dt><dd>${minutes(unitWork)}</dd><dt>单价</dt><dd title="${escapeHTML([product.coinValueStatus,product.coinValueSource].filter(Boolean).join(' · '))}">${coinText}${coins!==null&&product.coinValueStatus?.includes('估算')?' <small class="coin-estimate">含估算</small>':''}</dd></dl>`;
     button.setAttribute('aria-describedby', tooltip.id);
     tooltip.hidden = false;
     const rect = button.getBoundingClientRect(), gap = 8;

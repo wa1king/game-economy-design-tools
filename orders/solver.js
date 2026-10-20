@@ -45,7 +45,7 @@ export function fit(catalog,config,onProgress=()=>{}) {
   // A zero work-share is a genuine exclusion, not a weak numerical target.
   const eligible=pool.filter(o=>eligibleOrder(o,config));
   const groups=[1,2,3].map(k=>eligible.filter(o=>o.itemTypes===k));
-  for(let k=0;k<3;k++)if(mix[k]>0&&!groups[k].length)return {blocked:true,reason:`${k+1} 种商品订单占比大于 0，但筛选后没有这类订单。将该类占比设为 0 并补足其他类别至 100%，或恢复被设为 0 的来源权重。`};
+  for(let k=0;k<3;k++)if(mix[k]>0&&!groups[k].length)return {blocked:true,reason:`${k+1} 种商品订单占比大于 0，但筛选后没有这类订单。将该类权重设为 0，或恢复被设为 0 的来源权重。`};
   const floorPlan=config.minimumOrderWeight?probabilityFloorPlan(catalog,config):null;
   if(floorPlan&&!floorPlan.feasible)return {blocked:true,reason:floorPlan.reason,floorPlan};
   const marginalConflict=marginalSourceConflict(catalog,config);

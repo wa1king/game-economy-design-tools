@@ -24,6 +24,7 @@ function prepare(catalog) {
   const products = catalog.products.map(product => ({
     id: product.id, name: product.name, level: product.level,
     buildingId: product.buildingId, buildingName: product.buildingName,
+    coinValue: product.coinValue??null,coinValueStatus:product.coinValueStatus??'未提供',coinValueSource:product.coinValueSource??null,
     isCrop: isCrop(product), cumulativeComplexity: chain(product.id).size,
     stepMinutes: product.stepMinutes,
     unitCumulativeMinutes: product.unitCumulativeMinutes ?? calculate([{id: product.id, quantity: 1}]).cumulativeMinutes

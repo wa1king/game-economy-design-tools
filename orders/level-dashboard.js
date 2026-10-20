@@ -1,5 +1,6 @@
 import {resultFeedback,renderFitProblems} from './fit-feedback.js';
 import {normalizedSourceWeights} from './order-engine.js';
+import {normalizedMixWeights} from './mix-weights.js';
 import {spreadPercent,actualSpread} from './time-spread.js';
 import {summarizeOrderOutcomes} from './order-outcomes.js';
 const esc=v=>String(v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -65,7 +66,7 @@ export function createLevelDashboard(api){
         return `<td title="${esc(title)}" style="background:${color}">${show?num(v):'—'}</td>`;
       }).join('')}</tr>`).join('')}</tbody></table></div></article>
       <article class="panel dash-validation"><div class="panel-heading"><h3>拟合校验</h3><span class="hint">目标 / 实际</span></div><div class="dash-scroll"><table class="dash-results"><thead><tr><th>等级</th><th>状态</th><th>候选订单</th><th>非零订单</th><th>均值 · 分钟</th><th>工时波动 %</th><th>种类最大偏差<br>百分点</th><th>来源最大偏差<br>百分点</th><th>工时形态</th><th></th></tr></thead><tbody>${rows.map(row=>{
-        const r=row.r,mixError=r?Math.max(...r.actualMix.map((v,j)=>Math.abs(v*100-row.c.mix[j]))):null,sourceError=r&&row.c.sourceEnabled?Math.max(...r.shares.map((v,j)=>row.info.active[j]?Math.abs(v*100-row.targets[j]):0)):null;
+        const r=row.r,mixTargets=normalizedMixWeights(row.c.mix,row.info.counts),mixError=r?Math.max(...r.actualMix.map((v,j)=>Math.abs(v*100-mixTargets[j]))):null,sourceError=r&&row.c.sourceEnabled?Math.max(...r.shares.map((v,j)=>row.info.active[j]?Math.abs(v*100-row.targets[j]):0)):null;
         return `<tr><th>Lv ${row.level}</th><td><span class="dash-status ${row.state}" title="${esc(row.error||'')}">${states[row.state]}</span></td><td>${num(row.info.orders.length)}</td><td>${r?num(r.quantization?.nonZeroOrders??r.probabilities.filter(v=>v>0).length):'—'}</td><td>${num(row.c.mean)} / <b>${r?num(r.mean):'—'}</b></td><td>${num(spreadPercent(row.c))} / <b>${r?num(actualSpread(r)):'—'}</b></td><td>${num(mixError)}</td><td>${r&&!row.c.sourceEnabled?'未约束':num(sourceError)}</td><td>${esc(r?.shapeAssessment?.label||'—')}</td><td><button class="text-button" data-open="${row.level}">查看单级</button></td></tr>`;
       }).join('')}</tbody></table></div></article>`;
     root.querySelector('#dashboardSourceMode').onchange=e=>{sourceMode=e.target.value;render();};

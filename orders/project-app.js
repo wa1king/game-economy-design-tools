@@ -5,17 +5,22 @@ import {halfHourStats,inTimeRange} from './time-bins.js';
 import {applyProbabilityPrecision,PROBABILITY_SCALES} from './probability-precision.js';
 import {probabilityFloorPlan} from './probability-floor.js';
 import {buildCatalog,DEFAULT_RULES,levelInfo,availableAt,normalizedSourceWeights} from './order-engine.js';
+import {normalizedMixWeights,mixWeightsIssue} from './mix-weights.js';
 import {readChainExcel,initialSourceConfig} from './excel-import.js';
 import {createAllLevelPanel} from './all-level-panel.js';
 import {createLevelDashboard} from './level-dashboard.js';
 import {spreadPercent,actualSpread,migrateSpread,setTimeTarget,spreadInterval} from './time-spread.js';
 import {createProjectStore,PROJECT_STORAGE_KEY} from './project-storage.js';
+import {migrateProjectPrecision,setProjectProbabilityScale} from './project-precision.js';
 import {createOrderSimulator} from './order-simulator.js';
+import {createGameMode} from './game-view.js';
+import {coinValueCoverage} from './coin-values.js';
 import {createOutcomeAnalysis,matchesOutcomeFilter} from './order-analysis-view.js';
 const $=id=>document.getElementById(id),fmt=(v,d=1)=>Number(v).toLocaleString('zh-CN',{maximumFractionDigits:d,minimumFractionDigits:d}),pct=(v,d=2)=>fmt(v*100,d)+'%';
 const escape=value=>String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 let project,catalog,result,worker,itemInfo,activeLevel=20,busy=false,dirty=true,page=0,selectedTimeRange=null,request=0,generation=0;
-let allLevelPanel,levelDashboard,simulator,outcomeAnalysis;
+let allLevelPanel,levelDashboard,simulator,outcomeAnalysis,gameMode;
+function syncSimulators(){simulator?.sync();gameMode?.sync();}
 let selectedOutcomeFilter=null;
 let projectStore;
 const results=new Map(),errors=new Map(),infos=new Map(),jobs=new Map(),colors=['#75a28b','#3f8268','#244f40'];
@@ -34,25 +39,32 @@ function showEmptyProject(message='导入加工链路 Excel 后开始配置订�
 }
 function fittedConfig(level){
   const c=project.configs[level],rawWeights=catalog.sources.map(s=>Number(c.weights[s.id]??1));
-  return {level,mix:[...c.mix],mean:Number(c.mean),spreadPercent:spreadPercent(c),variance:Number(c.variance),sigma:Math.sqrt(Number(c.variance)),rawSourceWeights:rawWeights,shares:normalizedSourceWeights(rawWeights,info(level).active),sourceEnabled:c.sourceEnabled,shapeStrength:400,probabilityScale:Number(c.probabilityScale),minimumOrderWeight:c.minimumOrderWeight};
+  return {level,rawMixWeights:[...c.mix],mix:normalizedMixWeights(c.mix,info(level).counts),mean:Number(c.mean),spreadPercent:spreadPercent(c),variance:Number(c.variance),sigma:Math.sqrt(Number(c.variance)),rawSourceWeights:rawWeights,shares:normalizedSourceWeights(rawWeights,info(level).active),sourceEnabled:c.sourceEnabled,shapeStrength:400,probabilityScale:project.probabilityScale,minimumOrderWeight:c.minimumOrderWeight};
 }
 function defaultConfig(level){
   const {orders,counts,active}=info(level),mix=[20,40,40].map((v,j)=>counts[j]?v:0),total=mix.reduce((a,b)=>a+b,0);
   if(total){let left=100;mix.forEach((v,j)=>{mix[j]=Math.round(v/total*100);left-=mix[j];});mix[mix.findIndex(v=>v>0)]+=left;}
   let mean=0,second=0;for(const o of orders){const p=mix[o.itemTypes-1]/100/counts[o.itemTypes-1];mean+=p*o.cumulativeMinutes;second+=p*o.cumulativeMinutes**2;}
-  const c={mix,mean:Math.round(mean*100)/100,variance:Math.max(0,Math.round((second-mean*mean)*100)/100),...initialSourceConfig(catalog,level,active),probabilityScale:10000,minimumOrderWeight:true,revision:0};
-  migrateSpread(c);project.configs[level]=c;const plan=probabilityFloorPlan(catalog,fittedConfig(level));if(!plan.feasible&&plan.recommendedScale)c.probabilityScale=plan.recommendedScale;return c;
+  const c={mix,mean:Math.round(mean*100)/100,variance:Math.max(0,Math.round((second-mean*mean)*100)/100),...initialSourceConfig(catalog,level,active),minimumOrderWeight:true,revision:0};
+  migrateSpread(c);project.configs[level]=c;return c;
 }
 function installBase(base,filename,keepConfigs=null){
   catalog=buildCatalog(base,keepConfigs?.rules||DEFAULT_RULES);infos.clear();results.clear();errors.clear();
   project={schemaVersion:'order-project-v3',origin:'excel-import',filename,base,rules:catalog.rules,configs:{}};
   for(let level=1;level<=catalog.maxLevel;level++){defaultConfig(level);if(keepConfigs?.configs?.[level]){const saved=keepConfigs.configs[level];project.configs[level]={...project.configs[level],...saved,spreadPercent:spreadPercent(saved)};}}
+  if(keepConfigs?.probabilityScale!=null)project.probabilityScale=keepConfigs.probabilityScale;
+  migrateProjectPrecision(project);
+  if(!keepConfigs)for(let level=1;level<=catalog.maxLevel;level++){
+    const plan=probabilityFloorPlan(catalog,fittedConfig(level));
+    if(!plan.feasible&&plan.recommendedScale)project.probabilityScale=Math.max(project.probabilityScale,plan.recommendedScale);
+  }
   activeLevel=Math.min(catalog.maxLevel,Math.max(1,keepConfigs?.activeLevel||catalog.maxLevel));
   generation++;setupWorker();itemInfo?.hide();if(!itemInfo)itemInfo=setupItemInfo(catalog,document.querySelector('main'));else{
     // Recreate the delegated view only once; all later catalogs update its map.
     itemInfo.products.clear();catalog.products.forEach(p=>itemInfo.products.set(p.id,p));
   }
-  $('catalogMeta').textContent=`${catalog.products.length} 商品 · ${catalog.sources.length} 来源`;
+  const coinCoverage=coinValueCoverage(catalog.products);
+  $('catalogMeta').textContent=`${catalog.products.length} 商品 · ${catalog.sources.length} 来源 · ${coinCoverage.priced?'金币 '+coinCoverage.priced+'/'+coinCoverage.total:'金币未导入'}`;
   $('projectName').textContent=filename;$('rangeFrom').max=$('rangeTo').max=catalog.maxLevel;$('rangeFrom').value=1;$('rangeTo').value=catalog.maxLevel;
   $('cropQuantity').value=project.rules.cropQuantity;$('productQuantity').value=project.rules.productQuantity;$('maxKinds').value=project.rules.maxKinds;
   $('singleLevelSelect').innerHTML=Array.from({length:catalog.maxLevel},(_,i)=>`<option value="${i+1}">Lv ${i+1}</option>`).join('');
@@ -72,7 +84,7 @@ function setupWorker(){
 }
 function markDirty(){
   const c=settings();c.revision=(c.revision||0)+1;errors.delete(activeLevel);dirty=true;clearDownload();persist();
-  $('exportCSV').disabled=$('exportJSON').disabled=true;status('待更新');notice('参数已修改');updateSourceRatios();renderFloorHint();renderNavigation();renderOverview();simulator?.sync();
+  $('exportCSV').disabled=$('exportJSON').disabled=true;status('待更新');notice('参数已修改');updateMixRatios();updateSourceRatios();renderFloorHint();renderNavigation();renderOverview();syncSimulators();
 }
 function renderNavigation(){
   $('levelList').innerHTML=Array.from({length:catalog.maxLevel},(_,i)=>{
@@ -85,7 +97,7 @@ function loadLevel(level){
   activeLevel=level;$('singleLevelSelect').value=level;page=0;selectedTimeRange=null;selectedOutcomeFilter=null;itemInfo?.hide();
   const c=settings();$('levelTitle').textContent=`Lv ${level}`;$('poolHint').textContent=`${info(level).goods} 商品 · ${info(level).orders.length.toLocaleString()} 候选`;
   $('mean').value=c.mean;$('spreadPercent').value=Number(spreadPercent(c).toFixed(4));renderSpreadPreview();
-  $('sourceEnabled').checked=c.sourceEnabled;$('probabilityScale').value=c.probabilityScale;$('minimumOrderWeight').checked=c.minimumOrderWeight;
+  $('sourceEnabled').checked=c.sourceEnabled;$('minimumOrderWeight').checked=c.minimumOrderWeight;
   renderMix();renderSources();renderFloorHint();renderNavigation();renderOverview();
   const saved=results.get(level);result=errors.has(level)?null:saved?.result||null;dirty=!saved||saved.revision!==revision(level)||errors.has(level);
   if(result){renderResult();showResultStatus();}else clearResult();
@@ -93,13 +105,13 @@ function loadLevel(level){
 }
 function renderMix(){
   const counts=info(activeLevel).counts,c=settings();
-  $('mixControls').innerHTML=c.mix.map((v,j)=>`<div class="range-row"><label for="mixRange${j}">${j+1} 种商品 <small>${counts[j].toLocaleString()} 单</small></label><span class="percent-wrap"><input id="mixNum${j}" class="percentage" type="number" min="0" max="100" step="1" value="${v}" aria-label="${j+1}种商品占比" ${!counts[j]?'disabled':''}>%</span><input id="mixRange${j}" aria-label="调节${j+1}种商品占比" type="range" min="0" max="100" step="1" value="${v}" ${!counts[j]?'disabled':''}></div>`).join('');
-  c.mix.forEach((_,j)=>{for(const suffix of ['Num','Range'])$('mix'+suffix+j).oninput=event=>{
-    const n=Math.max(0,Math.min(100,Math.round(Number(event.target.value)))),others=[0,1,2].filter(k=>k!==j&&counts[k]);
-    if(!others.length)c.mix=[0,0,0].map((_,k)=>k===j?100:0);
-    else{const remaining=100-n,old=others.reduce((s,k)=>s+c.mix[k],0);c.mix[j]=n;let left=remaining;others.forEach((k,i)=>{c.mix[k]=i===others.length-1?left:Math.round(remaining*(old?c.mix[k]/old:1/others.length));left-=c.mix[k];});}
-    c.mix.forEach((v,k)=>$('mixNum'+k).value=$('mixRange'+k).value=v);markDirty();
-  };});
+  $('mixControls').innerHTML=c.mix.map((v,j)=>`<div class="source-weight mix-weight${counts[j]?'':' locked-source'}"><label for="mixNum${j}">${j+1} 种商品 <small>${counts[j].toLocaleString()} 单</small></label><input id="mixNum${j}" type="number" min="0" step="any" value="${v}" aria-label="${j+1}种商品权重" ${counts[j]?'':'disabled'}><output id="mixRatio${j}">—</output></div>`).join('');
+  c.mix.forEach((_,j)=>$('mixNum'+j).oninput=event=>{c.mix[j]=Number(event.target.value);markDirty();});
+  updateMixRatios();
+}
+function updateMixRatios(){
+  if(!project)return;const counts=info(activeLevel).counts;
+  normalizedMixWeights(settings().mix,counts).forEach((v,j)=>{const output=$('mixRatio'+j);if(output)output.textContent=counts[j]?fmt(v,2)+'%':'—';});
 }
 function renderSources(){
   const c=settings(),active=info(activeLevel).active;
@@ -112,18 +124,21 @@ function updateSourceRatios(){
   $('sourceEnabled').checked=c.sourceEnabled;$('sourceFitState').textContent=c.sourceEnabled?'已启用来源目标':'未启用 · 修改权重后自动启用';$('sourceFitState').className='source-fit-state'+(c.sourceEnabled?' enabled':'');
 }
 function renderFloorHint(){
-  if(!project)return;const c=fittedConfig(activeLevel),plan=probabilityFloorPlan(catalog,c);$('probabilityScale').querySelector('option[value="0"]').disabled=c.minimumOrderWeight;
+  if(!project)return;const c=fittedConfig(activeLevel),plan=probabilityFloorPlan(catalog,c);
+  $('probabilityScale').value=project.probabilityScale;$('probabilityScale').disabled=busy;
+  $('probabilityScale').querySelector('option[value="0"]').disabled=Object.values(project.configs).some(c=>c.minimumOrderWeight);
+  $('singlePrecisionHint').textContent=`全局精度：${$('probabilityScale').selectedOptions[0]?.textContent||''}`;
   $('precisionHint').textContent=c.probabilityScale?`最小概率 ${pct(1/c.probabilityScale,Math.max(0,Math.log10(c.probabilityScale)-2))}`:'原始连续精度';
   $('floorHint').textContent=c.minimumOrderWeight?(plan.feasible?`${plan.total.toLocaleString()} 单 · 保底 ${pct(plan.total/c.probabilityScale)}`:plan.reason):'';
   $('floorHint').className='hint'+(c.minimumOrderWeight&&!plan.feasible?' error-text':'');$('fixFloorPrecision').hidden=!c.minimumOrderWeight||plan.feasible||!plan.recommendedScale;
-  $('fixFloorPrecision').textContent=plan.recommendedScale?`使用 ${plan.recommendedScale.toLocaleString()} 分制`:'';
+  $('fixFloorPrecision').textContent=plan.recommendedScale?`全局改用 ${plan.recommendedScale.toLocaleString()} 分制`:'';
 }
 function renderSpreadPreview(){const c=settings(),range=spreadInterval(c);$('spreadMagnitude').textContent=`分散幅度 ±${fmt(c.mean*spreadPercent(c)/100)} 分钟`;$('spreadPreview').textContent=`约 68% 的正态参考：${fmt(range[0])}～${fmt(range[1])} 分钟`;}
 function validateConfig(c){
   if(!Number.isFinite(c.mean)||c.mean<=0||!Number.isFinite(c.spreadPercent)||c.spreadPercent<0||!Number.isFinite(c.variance)||c.variance<0)throw Error('均值必须大于 0，工时波动比例必须为非负数。');
   if(c.rawSourceWeights.some(v=>!Number.isFinite(v)||v<0))throw Error('来源权重必须是非负数。');
   if(c.sourceEnabled&&!c.shares.some(v=>v>0))throw Error('至少设置一个可用来源的正权重。');
-  if(c.mix.some(v=>!Number.isFinite(v)||v<0||v>100)||Math.abs(c.mix.reduce((a,b)=>a+b,0)-100)>1e-7)throw Error('商品种类占比必须合计 100%。');
+  const mixIssue=mixWeightsIssue(c.rawMixWeights,info(c.level).counts);if(mixIssue)throw Error(mixIssue);
   if(!info(c.level).orders.length)throw Error('该等级没有符合排除规则的订单。');
 }
 async function computeLevel(level){
@@ -144,7 +159,7 @@ function setBusy(value){
   document.querySelectorAll('.controls input,.controls select,#rulesPanel input,#rulesPanel select,#overviewPanel input,#overviewPanel select').forEach(e=>e.disabled=value);
   if(!project){showEmptyProject($('emptyProjectMessage').textContent);return;}
   if(!value){renderMix();renderSources();renderFloorHint();}
-  renderNavigation();renderOverview();simulator?.sync();
+  renderNavigation();renderOverview();syncSimulators();
 }
 async function solve(all=false){
   if(busy||!project)return;setBusy(true);let failures=0;
@@ -156,13 +171,13 @@ async function solve(all=false){
   setBusy(false);$('batchProgress').textContent=all?`已完成 ${levels.length} 级${failures?' · '+failures+' 级需调整':''}`:'';renderOverview();
 }
 function clearResult(){
-  simulator?.sync();
+  syncSimulators();
   status(errors.has(activeLevel)?'无法拟合':'未计算',errors.has(activeLevel)?'warn':'neutral');notice(errors.get(activeLevel)||'');
   outcomeAnalysis?.clear();
   $('chart').innerHTML='<div class="chart-placeholder">拟合后显示分布</div>';$('curveNote').textContent='';$('timeBands').innerHTML='';$('precisionReport').innerHTML='';$('mixResults').innerHTML='';$('fitDetails').innerHTML='';$('sourceResults').innerHTML='';$('sourceFitSummary').textContent='';drawHalfHourChart();renderTable();
 }
 function showResultStatus(){
-  simulator?.sync();
+  syncSimulators();
   if(!result)return;
   if(dirty){status('待更新','warn');notice('参数已修改，结果待更新。');}
   else if(result.matched){status('目标达标','good');notice('');}
@@ -172,7 +187,7 @@ function renderResult(){
   const r=result;$('weightColumn').textContent=r.probabilityScale?'生成权重（整数）':'相对权重';
   outcomeAnalysis.render(catalog,r,activeLevel);
   $('precisionReport').innerHTML=r.quantization?`总权重 <b>${r.probabilityScale.toLocaleString()}</b> · 非零 <b>${r.quantization.nonZeroOrders.toLocaleString()}</b> · 归零 <b>${r.quantization.zeroedOrders.toLocaleString()}</b>`:'原始连续精度';
-  $('mixResults').innerHTML=r.actualMix.map((v,j)=>`<div class="mix-result"><div class="labels"><span>${j+1} 种商品</span><span>${r.config.mix[j]}% / ${pct(v)}</span></div><div class="bar"><span style="width:${v*100}%;background:${colors[j]}"></span></div></div>`).join('');
+  $('mixResults').innerHTML=r.actualMix.map((v,j)=>`<div class="mix-result"><div class="labels"><span>${j+1} 种商品</span><span>${fmt(r.config.mix[j],2)}% / ${pct(v)}</span></div><div class="bar"><span style="width:${v*100}%;background:${colors[j]}"></span></div></div>`).join('');
   $('fitDetails').innerHTML=[['平均工时 · 目标 / 实际',`${fmt(r.config.mean)} / ${fmt(r.mean)} 分钟`],['工时波动 · 目标 / 实际',`${fmt(spreadPercent(r.config),2)}% / ${fmt(actualSpread(r),2)}%`],['工时形态',r.shapeAssessment?.label||'—'],['等效均匀订单数',fmt(r.effectiveCount,0)],['最大单笔概率',pct(r.maxProbability,3)],['来源最大偏差',r.config.sourceEnabled?fmt(r.sourceError*100,2)+' 个百分点':'未约束'],['均值可达区间',`${fmt(r.minMean)}～${fmt(r.maxMean)} 分钟`],['迭代',r.iterations]].map(([a,b])=>`<div><dt>${a}</dt><dd>${escape(b)}</dd></div>`).join('');
   $('sourceResults').innerHTML=`<table class="compact-source-table"><thead><tr><th>来源</th><th>目标 %</th><th>实际 %</th><th title="实际减目标，单位为百分点">偏差</th></tr></thead><tbody>${catalog.sources.map((source,j)=>{const actual=r.shares[j]*100,target=r.config.shares[j],active=info(activeLevel).active[j],delta=actual-target,rounded=Math.abs(delta)<.005?0:delta;return `<tr class="${r.config.sourceEnabled&&Math.abs(delta)>1?'source-miss':''}"><th scope="row" title="${escape(source.name)}">${escape(source.name)}</th><td>${active&&r.config.sourceEnabled?fmt(target,2):'—'}</td><td class="source-actual" style="--share:${Math.max(0,Math.min(100,actual))}%">${active?fmt(actual,2):'—'}</td><td>${active&&r.config.sourceEnabled?(rounded>0?'+':'')+fmt(rounded,2):'—'}</td></tr>`;}).join('')}</tbody></table>`;
   $('sourceFitSummary').textContent=r.config.sourceEnabled?`已启用 · 最大偏差 ${fmt(r.sourceError*100,2)} 个百分点`:'未启用来源约束';
@@ -190,8 +205,7 @@ function renderTable(){
   $('pageLabel').textContent=`${list.length.toLocaleString()} 单 · ${page+1} / ${pages}`;$('prev').disabled=page===0;$('next').disabled=page>=pages-1;$('tableHint').textContent=`Lv ${activeLevel}`;
   $('timeFilter').hidden=!selectedTimeRange;$('timeFilterLabel').textContent=selectedTimeRange?`${selectedTimeRange.start}～${selectedTimeRange.end} 分钟`:'';
 }
-function configIssue(level){const c=fittedConfig(level);if(c.mix.some(v=>!Number.isFinite(v)||v<0||v>100)||Math.abs(c.mix.reduce((a,b)=>a+b,0)-100)>1e-7)return {short:'占比合计错误',message:`每单商品种类占比当前合计 ${fmt(c.mix.reduce((a,b)=>a+b,0),2)}%，请将三项调整为合计 100%。`};
-  if(c.mix.some((v,j)=>v>0&&!info(level).counts[j]))return {short:'无该类候选',message:'当前等级不存在对应商品种类数的候选订单，请将该项设为0。'};
+function configIssue(level){const c=fittedConfig(level),mixIssue=mixWeightsIssue(c.rawMixWeights,info(level).counts);if(mixIssue)return {short:'种类权重需调整',message:mixIssue};
   try{validateConfig(c);}catch(error){return {short:'参数需调整',message:error.message};}
   const plan=probabilityFloorPlan(catalog,c);if(c.minimumOrderWeight&&!plan.feasible)return {short:'精度不足',message:plan.reason};return null;}
 function renderDashboard(){
@@ -203,6 +217,11 @@ function assignConfigField(c,key,value){
   else if(key.startsWith('mix'))c.mix[Number(key.slice(3))]=value;
   else if(key.startsWith('weight')){c.weights[key.slice(6)]=value;c.sourceEnabled=true;}
   else c[key]=value;
+}
+function changeProjectPrecision(value){
+  if(busy||!project||!setProjectProbabilityScale(project,value))return;
+  errors.clear();clearDownload();persist();loadLevel(activeLevel);
+  $('matrixMessage').textContent=`精度已应用全部 ${catalog.maxLevel} 级 · 需重新拟合`;
 }
 function fillConfigColumn(key,value,fromLevel){
   if(busy||!Number.isInteger(fromLevel)||fromLevel<1||fromLevel>catalog.maxLevel)return;let changed=0;
@@ -217,7 +236,7 @@ function renderOverview(){
   if(!allLevelPanel)allLevelPanel=createAllLevelPanel({
     getCatalog:()=>catalog,getConfig:level=>project.configs[level],getInfo:info,getResult:level=>results.get(level),getError:level=>errors.get(level),isBusy:()=>busy,
     getIssue:configIssue,
-    onEdit:(level,key,value)=>{if(busy)return;const c=project.configs[level];assignConfigField(c,key,value);
+    onEdit:(level,key,value)=>{if(busy)return;const c=project.configs[level];assignConfigField(c,key,value);if(key==='minimumOrderWeight')renderFloorHint();
       c.revision=(c.revision||0)+1;errors.delete(level);clearDownload();persist();
       if(level===activeLevel)loadLevel(level);else{renderNavigation();allLevelPanel.refreshReadouts();renderDashboard();}},
     onFillColumn:fillConfigColumn,
@@ -257,9 +276,9 @@ $('copyPrevious').onclick=()=>{if(activeLevel===1)return;const previous=structur
 $('applyRange').onclick=()=>{const from=Number($('rangeFrom').value),to=Number($('rangeTo').value);if(!Number.isInteger(from)||!Number.isInteger(to)||from<1||to>catalog.maxLevel||from>to){notice('请选择有效等级范围。',true);return;}applyCopy(from,to);};
 for(const id of ['mean','spreadPercent'])$(id).oninput=()=>{setTimeTarget(settings(),id,Number($(id).value));renderSpreadPreview();markDirty();};
 $('sourceEnabled').onchange=()=>{settings().sourceEnabled=$('sourceEnabled').checked;markDirty();};
-$('probabilityScale').onchange=()=>{settings().probabilityScale=Number($('probabilityScale').value);markDirty();};
+$('probabilityScale').onchange=()=>changeProjectPrecision(Number($('probabilityScale').value));
 $('minimumOrderWeight').onchange=()=>{settings().minimumOrderWeight=$('minimumOrderWeight').checked;markDirty();};
-$('fixFloorPrecision').onclick=()=>{const plan=probabilityFloorPlan(catalog,fittedConfig(activeLevel));if(plan.recommendedScale){settings().probabilityScale=plan.recommendedScale;$('probabilityScale').value=plan.recommendedScale;markDirty();}};
+$('fixFloorPrecision').onclick=()=>{const plan=probabilityFloorPlan(catalog,fittedConfig(activeLevel));if(plan.recommendedScale)changeProjectPrecision(plan.recommendedScale);};
 for(const id of ['search','sort','sortDirection','onlyPositive'])$(id).oninput=()=>{page=0;if(id==='onlyPositive')drawHalfHourChart();renderTable();};$('prev').onclick=()=>{page--;renderTable();};$('next').onclick=()=>{page++;renderTable();};
 $('binMetric').oninput=()=>drawHalfHourChart();$('clearTimeBin').onclick=$('clearTimeFilter').onclick=()=>{selectedTimeRange=null;page=0;drawHalfHourChart();renderTable();};
 $('toggleRules').onclick=()=>{
@@ -273,7 +292,7 @@ for(const id of ['cropQuantity','productQuantity','maxKinds'])$(id).oninput=()=>
 $('rulesPanel').onsubmit=event=>{
   event.preventDefault();if(busy)return;
   try{const rules={...project.rules,cropQuantity:Number($('cropQuantity').value),productQuantity:Number($('productQuantity').value),maxKinds:Number($('maxKinds').value)},next=buildCatalog(project.base,rules);catalog=next;project.rules=rules;infos.clear();results.clear();errors.clear();
-    for(let level=1;level<=catalog.maxLevel;level++){const c=project.configs[level],counts=info(level).counts;const mix=c.mix.map((v,j)=>counts[j]?v:0),sum=mix.reduce((a,b)=>a+b,0);if(!sum)mix[mix.findIndex((_,j)=>counts[j])]=100;else{let left=100;mix.forEach((v,j)=>{mix[j]=Math.round(v/sum*100);left-=mix[j];});mix[mix.findIndex(v=>v>0)]+=left;}c.mix=mix;c.revision++;}
+    for(let level=1;level<=catalog.maxLevel;level++)project.configs[level].revision++;
     itemInfo.products.clear();catalog.products.forEach(p=>itemInfo.products.set(p.id,p));generation++;setupWorker();persist();$('rulesPending').hidden=true;loadLevel(activeLevel);$('rulesDialog').close();$('batchProgress').textContent='订单规则已应用 · 需重新拟合';
   }catch(error){$('rulesError').textContent=error.message;$('rulesError').hidden=false;}
 };
@@ -281,13 +300,13 @@ $('importExcel').onclick=()=>$('excelFile').click();
 $('importFirstProject').onclick=()=>$('excelFile').click();
 $('excelFile').onchange=async()=>{
   const file=$('excelFile').files[0];if(!file)return;setBusy(true);$('cancelFit').hidden=true;$('batchProgress').textContent='读取 Excel…';
-  try{const base=await readChainExcel(file);if(projectStore)projectStore.acceptLatest();else projectStore=createProjectStore(localStorage);$('projectStorageNotice').hidden=true;installBase(base,file.name);setView('overview');$('batchProgress').textContent=`已导入 ${base.products.length} 种商品`;}catch(error){if(project){notice(error.message,true);$('batchProgress').textContent='导入失败';}else showEmptyProject(error.message);}finally{setBusy(false);$('excelFile').value='';}
+  try{const base=await readChainExcel(file);if(projectStore)projectStore.acceptLatest();else projectStore=createProjectStore(localStorage);$('projectStorageNotice').hidden=true;installBase(base,file.name);setView('overview');const coins=coinValueCoverage(base.products);$('batchProgress').textContent=`已导入 ${base.products.length} 种商品 · 金币 ${coins.priced}/${coins.total}`;}catch(error){if(project){notice(error.message,true);$('batchProgress').textContent='导入失败';}else showEmptyProject(error.message);}finally{setBusy(false);$('excelFile').value='';}
 };
 $('exportCSV').onclick=()=>{if(result&&!dirty)download(toCSV(catalog,result),`订单权重_Lv${activeLevel}.csv`,'text/csv;charset=utf-8');};
 $('exportJSON').onclick=()=>{if(result&&!dirty)download(toJSON(catalog,result),`订单权重_Lv${activeLevel}.json`,'application/json');};
 $('exportProject').onclick=()=>{
   const levels=Array.from({length:catalog.maxLevel},(_,i)=>{const level=i+1,saved=results.get(level),fresh=saved?.revision===revision(level);return {level,rawSettings:project.configs[level],normalizedTargets:fittedConfig(level),status:fresh?(saved.result.matched?'matched':'approximate'):errors.has(level)?'blocked':'not_fitted',error:errors.get(level)||null,fit:fresh?JSON.parse(toJSON(catalog,saved.result)):null};});
-  download(JSON.stringify({schemaVersion:'order-project-export-v2',filename:project.filename,source:catalog.source,rules:project.rules,products:catalog.products,sources:catalog.sources,levels},null,2),'逐级订单配置.json','application/json');
+  download(JSON.stringify({schemaVersion:'order-project-export-v2',probabilityScale:project.probabilityScale,filename:project.filename,source:catalog.source,rules:project.rules,coinValues:coinValueCoverage(catalog.products),products:catalog.products,sources:catalog.sources,levels},null,2),'逐级订单配置.json','application/json');
 };
 async function init(){
   try{projectStore=createProjectStore(localStorage);const saved=projectStore.load();
@@ -308,6 +327,7 @@ $('clearOutcomeFilter').onclick=()=>{selectedOutcomeFilter=null;page=0;renderTab
 $('showNormalTarget').onchange=()=>{if(result)drawChart();};
 outcomeAnalysis=createOutcomeAnalysis(filter=>{selectedOutcomeFilter=filter;selectedTimeRange=null;$('search').value='';page=0;drawHalfHourChart();renderTable();$('ordersPanel').scrollIntoView({behavior:'smooth',block:'start'});});
 simulator=createOrderSimulator({getState:()=>({catalog,result,level:activeLevel,valid:Boolean(result)&&!dirty&&!busy}),hideItemInfo:()=>itemInfo?.hide()});
+gameMode=createGameMode({getState:()=>({catalog,result,level:activeLevel,filename:project?.filename,valid:Boolean(result)&&!dirty&&!busy}),hideItemInfo:()=>itemInfo?.hide(),onError:message=>notice(message,true)});
 init();
 
 function drawTimeBands(r){
@@ -337,7 +357,7 @@ function drawChart(){const r=result,W=650,H=260,p={l:64,r:20,t:24,b:42},w=W-p.l-
 function drawHalfHourChartData(){
   const bins=halfHourStats(catalog,result,$('onlyPositive').checked),isCount=$('binMetric').value==='count';
   const max=Math.max(...bins.map(b=>isCount?b.count:b.probability),isCount?1:.0001),totalCount=bins.reduce((s,b)=>s+b.count,0);
-  $('binScope').textContent=`Lv ${activeLevel} · ${totalCount.toLocaleString()} 单`; 
+  $('binScope').textContent=`Lv ${activeLevel} · ${totalCount.toLocaleString()} 单`;
   $('binScale').innerHTML=[max,max*.75,max*.5,max*.25,0].map(v=>`<span>${isCount?fmt(v,0):pct(v,1)}</span>`).join('');
   $('halfHourBars').style.minWidth=Math.max(700,bins.length*22)+'px';
   $('halfHourBars').innerHTML=bins.map((b,j)=>{

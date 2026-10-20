@@ -7,3 +7,4 @@
 @media(min-width:521px){.level-nav{max-height:calc(100vh - 175px)}}
 
 .source-fit-state{font-size:10px;color:#a16b3a;margin:9px 0 0}.source-fit-state.enabled{color:var(--green)}#spreadMagnitude{color:var(--green);font-size:12px;margin:8px 0 3px}#spreadPreview{font-size:10px;margin:3px 0 0}#sourceFitSummary{display:block;margin-top:5px}.source-result-head .values{font-variant-numeric:tabular-nums}
+.mix-weight label small{display:block;font-size:10px;color:var(--muted);line-height:1.4}
