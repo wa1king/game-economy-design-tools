@@ -159,8 +159,8 @@ export function createGameMode(api){
     else renderSources(false);
   }
   function plotAtPoint(point){const target=document.elementFromPoint(point.x,point.y)?.closest('[data-game-plot]');return target&&dialog.contains(target)?Number(target.dataset.gamePlot):null;}
-  function finishFieldStroke(){pendingCrop=null;stroke.cancel();if(state&&!conflict)save(true);}
-  function capturePointer(event){try{dialog.setPointerCapture(event.pointerId);}catch{}}
+  function finishFieldStroke(){dialog.classList.remove('field-dragging');pendingCrop=null;stroke.cancel();if(state&&!conflict)save(true);}
+  function capturePointer(event){dialog.classList.add('field-dragging');try{dialog.setPointerCapture(event.pointerId);}catch{}}
   function fieldMutation(run){
     try{game.advanceGame(state,active.catalog,active.result);run();message('');view=game.gameView(state,active.catalog);render(false);save();}
     catch(error){finishFieldStroke();message(error.message);render(false);save(true);}
@@ -188,6 +188,7 @@ export function createGameMode(api){
     event.preventDefault();fieldMutation(()=>stroke.move(event.pointerId,point,plotAtPoint));
   });
   dialog.addEventListener('pointerup',event=>{
+    dialog.classList.remove('field-dragging');
     if(pendingCrop?.pointerId===event.pointerId){const product=pendingCrop.productId;pendingCrop=null;suppressClickUntil=performance.now()+150;chooseCrop(product);}
     else if(stroke.end(event.pointerId)){suppressClickUntil=performance.now()+150;save(true);}
     if(dialog.hasPointerCapture(event.pointerId))dialog.releasePointerCapture(event.pointerId);
