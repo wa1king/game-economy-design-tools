@@ -1,5 +1,5 @@
 import {eligibleOrder} from './probability-floor.js';
-import {orderCoinValue} from './coin-values.js';
+import {ordinaryOrderReward} from './coin-values.js';
 
 // Game time is stored separately from wall time so GM jumps never create future wall clocks.
 export const GAME_VERSION=2;
@@ -233,7 +233,7 @@ function readySlot(state,catalog,slotIndex){
   if(slot.status!=='ready')throw Error('该订单正在刷新，请等待。');
   const order=catalog.orders.find(o=>o.id===slot.orderId);if(!order)throw Error('订单已失效，请重新开始模拟。');return order;
 }
-export function orderReward(state,order,catalog){const value=orderCoinValue(order,new Map(catalog.products.map(p=>[p.id,p])));return value===null?null:value*5;}
+export function orderReward(state,order,catalog){return ordinaryOrderReward(order,new Map(catalog.products.map(p=>[p.id,p])));}
 export function deliverGameOrder(state,catalog,result,slotIndex){
   const order=readySlot(state,catalog,slotIndex);
   for(const item of order.items)if(stock(state,item.id)<item.quantity)throw Error('仓库商品不足，无法交付。');

@@ -1,4 +1,5 @@
 import {availableAt, productionCalculator, validateProducts} from './order-engine.js';
+import {ordinaryOrderReward,ORDINARY_ORDER_REWARD_MULTIPLIER} from './coin-values.js';
 
 const catalogCache = new WeakMap();
 const resultCache = new WeakMap();
@@ -60,7 +61,9 @@ function prepare(catalog) {
       for (const input of product.inputs) demand.set(input.id, (demand.get(input.id) || 0) + batches * input.quantity);
       for (const output of product.coproducts || []) spare.set(output.id, (spare.get(output.id) || 0) + batches * output.quantity);
     }
-    const value = {direct, crops, complexity, directCropKinds, itemKinds: order.items.length};
+    const reward=ordinaryOrderReward(order,productInfo);
+    const estimatedReward=reward!==null&&order.items.some(item=>String(productInfo.get(item.id).coinValueStatus).includes('估算'));
+    const value = {direct, crops, complexity, directCropKinds, itemKinds: order.items.length,reward,estimatedReward};
     orderCache.set(order, value);
     return value;
   }
@@ -116,7 +119,8 @@ export function summarizeOrderOutcomes(catalog, result, level = result?.config?.
   }));
   const summary = {
     empty: true, level, orderCount: 0, probabilityMass: 0, excludedProbabilityMass: 0,
-    stats: {time: emptyStats(), complexity: emptyStats()}, complexityDistribution: [],
+    stats: {time: emptyStats(), complexity: emptyStats(),coinReward:emptyStats()}, complexityDistribution: [],
+    coinRewardCoverage:{multiplier:ORDINARY_ORDER_REWARD_MULTIPLIER,pricedProbability:0,missingProbability:0,estimatedProbability:0,missingOrderCount:0},
     directCropOrderProbability: 0, pureCropOrderProbability: 0,
     mixedCropOrderProbability: 0, noCropOrderProbability: 0, cropChainOrderProbability: 0,
     cropTotals: emptyCropTotals(), products, crops
@@ -138,11 +142,13 @@ export function summarizeOrderOutcomes(catalog, result, level = result?.config?.
   summary.orderCount = rows.length;
   const productRows = new Map(products.map(product => [product.id, product]));
   const cropRows = new Map(crops.map(product => [product.id, product]));
-  const times = [], complexities = [], distribution = new Map();
+  const times = [], complexities = [], rewards=[],distribution = new Map();
   for (const row of rows) {
     const probability = row.probability / summary.probabilityMass, detail = prepared.describe(row.order);
     times.push({value: row.order.cumulativeMinutes, probability});
     complexities.push({value: detail.complexity, probability});
+    if(detail.reward===null){summary.coinRewardCoverage.missingProbability+=probability;summary.coinRewardCoverage.missingOrderCount++;}
+    else{rewards.push({value:detail.reward,probability});summary.coinRewardCoverage.pricedProbability+=probability;if(detail.estimatedReward)summary.coinRewardCoverage.estimatedProbability+=probability;}
     if (!distribution.has(detail.complexity)) distribution.set(detail.complexity, {complexity: detail.complexity, probability: 0, orderCount: 0});
     const bucket = distribution.get(detail.complexity);
     bucket.probability += probability;
@@ -175,7 +181,7 @@ export function summarizeOrderOutcomes(catalog, result, level = result?.config?.
       crop.productionMinutesPer100Orders += probability * requirement.productionMinutes * 100;
     }
   }
-  summary.stats = {time: weightedStats(times), complexity: weightedStats(complexities)};
+  summary.stats = {time: weightedStats(times), complexity: weightedStats(complexities),coinReward:summary.coinRewardCoverage.missingOrderCount?emptyStats():weightedStats(rewards)};
   summary.complexityDistribution = [...distribution.values()].sort((a, b) => a.complexity - b.complexity);
   for (const crop of crops) for (const key of Object.keys(summary.cropTotals)) summary.cropTotals[key] += crop[key];
   if (!resultCache.has(result)) resultCache.set(result, new WeakMap());

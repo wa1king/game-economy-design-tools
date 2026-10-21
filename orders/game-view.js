@@ -13,7 +13,7 @@ export function createGameMode(api){
   $('refreshSimulation').insertAdjacentHTML('beforebegin','<button type="button" id="openGameFromSimulator" class="game-button">进入模拟经营 →</button>');
   const root=document.createElement('div');root.innerHTML=`
   <dialog id="managementGameDialog" class="game-dialog" aria-labelledby="managementGameTitle"><div class="game-shell">
-    <div class="game-head"><div class="game-brand"><span class="game-emblem" aria-hidden="true">禾</span><div><h2 id="managementGameTitle">模拟经营</h2><p id="gameProjectMeta"></p></div></div><div class="game-head-actions"><button class="game-button game-settings-button" id="gameSettingsButton" type="button">试玩设置</button><button class="game-button gm" id="gameSkipHour" type="button">GM · 跳过1小时</button><button class="game-close" id="gameClose" type="button" aria-label="返回订单分析">×</button></div></div>
+    <div class="game-head"><div class="game-brand"><span class="game-emblem" aria-hidden="true">禾</span><div><h2 id="managementGameTitle">模拟经营</h2><p id="gameProjectMeta"></p></div></div><div class="game-head-actions"><button class="game-button game-settings-button" id="gameSettingsButton" type="button">试玩设置</button><button class="game-button game-restart-button" id="gameRestart" type="button">重新试玩</button><button class="game-button gm" id="gameSkipHour" type="button">GM · 跳过1小时</button><button class="game-close" id="gameClose" type="button" aria-label="返回订单分析">×</button></div></div>
     <div class="game-stats"><div class="game-stat"><small>经营时间</small><strong id="gameClock">00:00:00</strong><span id="gameDay">第1天</span></div><div class="game-stat"><small>金币</small><strong id="gameMoney">0</strong><span id="gameEarned">累计收入 0</span></div><div class="game-stat game-warehouse"><small>仓库</small><strong id="gameStock">0<em>/ 200</em></strong><span id="gameStockHint"></span><div id="gameStockFloat" class="game-stock-float" role="status" aria-live="polite" aria-atomic="true" hidden></div></div><div class="game-stat"><small>已交订单</small><strong id="gameDelivered">0<em>单</em></strong><span id="gameReadyCount">可交付 0 单</span></div></div>
     <div class="game-notice" id="gameNotice" role="status" aria-live="polite"></div>
     <div class="game-body"><section class="game-production"><div class="game-section-heading"><nav class="game-tabs" aria-label="经营内容"><button class="active" type="button" data-game-tab="production">生产</button><button type="button" data-game-tab="inventory">仓库</button><button type="button" data-game-tab="log">记录</button></nav><small id="gameProductionSummary"></small></div><div id="gameProductionPane"><div id="gameSources" class="game-source-grid"></div></div><div id="gameInventoryPane" hidden><div class="game-inventory"><div class="game-inventory-tools"><input id="gameStockSearch" aria-label="搜索仓库商品" placeholder="搜索商品"><button class="game-button" type="button" id="gameExpandWarehouse"></button></div><div id="gameStockList" class="game-stock-list"></div></div></div><div id="gameLogPane" hidden><div id="gameLogList" class="game-log"></div></div></section>
@@ -24,7 +24,7 @@ export function createGameMode(api){
   </div></dialog>
   <dialog id="gameSettingsDialog" class="game-settings" aria-labelledby="gameSettingsTitle"><h3 id="gameSettingsTitle">试玩设置</h3><p class="game-settings-sub">配方与时间来自导入表；以下为独立的试玩规则。</p><form id="gameSettingsForm"><div class="game-settings-grid">
     <label>仓库容量<input type="number" name="warehouseCapacity" min="1" max="1000000" required></label><label>农田数量<input type="number" name="landCapacity" min="1" max="10000" required></label><label>额外队列格数<input type="number" name="queueLimit" min="1" max="100" required></label><label>订单栏数量 · 重开生效<input type="number" name="orderSlots" min="1" max="12" required></label><label>刷新等待 · 分钟<input type="number" name="refreshMinutes" min="0" max="10080" step="any" required></label>
-  </div><fieldset class="game-stock-multiplier"><legend>初始备货 · 订单需求的倍数 · 重开生效</legend><div>${[1,2,3].map(n=>`<label><input type="radio" name="initialStockMultiplier" value="${n}" ${n===2?'checked':''}><span>${n} 倍</span></label>`).join('')}</div><small>每种已解锁商品均发放；仓库容量不足时自动扩至可容纳初始物品。</small></fieldset><h4>加工建筑 · 并行生产线</h4><div id="gameChannelSettings" class="game-settings-grid"></div><p id="gameLandSettings" class="game-settings-note"></p><p class="game-settings-note">队列总格数 = 并行数 + 额外格数。订单奖励 = 商品金币价值 × 5；刷新、播种免费。</p><div id="gameSettingsError" class="game-setup-error" role="alert"></div><div class="game-setting-actions"><button id="gameNewSave" type="button" class="game-button danger">重新开始</button><div><button id="gameCancelSettings" type="button" class="game-button">取消</button><button type="submit" class="game-button primary">保存设置</button></div></div></form></dialog>
+  </div><fieldset class="game-stock-multiplier"><legend>初始备货 · 订单需求的倍数 · 重开生效</legend><div>${[1,2,3].map(n=>`<label><input type="radio" name="initialStockMultiplier" value="${n}" ${n===2?'checked':''}><span>${n} 倍</span></label>`).join('')}</div><small>每种已解锁商品均发放；仓库容量不足时自动扩至可容纳初始物品。</small></fieldset><h4>加工建筑 · 并行生产线</h4><div id="gameChannelSettings" class="game-settings-grid"></div><p id="gameLandSettings" class="game-settings-note"></p><p class="game-settings-note">队列总格数 = 并行数 + 额外格数。订单奖励 = 商品金币价值 × 5；刷新、播种免费。</p><div id="gameSettingsError" class="game-setup-error" role="alert"></div><div class="game-setting-actions"><button id="gameNewSave" type="button" class="game-button danger">重新试玩</button><div><button id="gameCancelSettings" type="button" class="game-button">取消</button><button type="submit" class="game-button primary">保存设置</button></div></div></form></dialog>
   <dialog id="gameConfirmDialog" class="game-confirm" aria-labelledby="gameConfirmTitle"><h3 id="gameConfirmTitle"></h3><p id="gameConfirmText"></p><div class="game-confirm-actions"><button class="game-button" type="button" id="gameConfirmCancel">取消</button><button class="game-button primary" type="button" id="gameConfirmAccept">确认</button></div></dialog>`;
   document.querySelector('main').append(root);
   const dialog=$('managementGameDialog'),settingsDialog=$('gameSettingsDialog'),confirmDialog=$('gameConfirmDialog');
@@ -76,7 +76,7 @@ export function createGameMode(api){
       store=createGameStore(localStorage,signature);const saved=store.load();
       state=saved?game.validateGameSave(saved,active.catalog,active.result):game.createGame(active.catalog,active.result,{level:active.level});
       game.advanceGame(state,active.catalog,active.result);conflict=false;boardStamp=sourceStamp=inventoryStamp=logStamp='';
-      $('gameSettingsButton').disabled=$('gameSkipHour').disabled=false;
+      $('gameSettingsButton').disabled=$('gameRestart').disabled=$('gameSkipHour').disabled=false;
       dialog.querySelectorAll('[data-game-tab]').forEach(button=>button.disabled=false);
       $('gameProjectMeta').textContent=`Lv ${active.level} · ${active.filename||'当前导入项目'}`;
       clearWarehousePickup();closeCropPicker();mode='production';setMode();message(saved?'':'初始备货已发放');
@@ -117,7 +117,7 @@ export function createGameMode(api){
       const p=view.products.find(p=>String(p.id)===String(selection[s.id]));
       if(s.isFarm){
         const grid=article.querySelector('[data-game-plots]'),gridStamp=JSON.stringify(view.plots.map(p=>[p.index,p.job?.id,p.job?.status]));
-        grid.style.setProperty('--plot-cols',Math.min(10,s.capacity));
+        grid.style.setProperty('--plot-cols',Math.min(6,s.capacity));
         if(grid.dataset.stamp!==gridStamp){grid.dataset.stamp=gridStamp;grid.innerHTML=view.plots.map(({index,job})=>`<button type="button" class="game-plot ${job?.status||'empty'}" data-game-plot="${index}" aria-label="地块${index+1}：${job?escape(job.name)+(job.status==='ready'?'，成熟可收获':'，生长中'):'空地，点击播种'}"><span class="game-plot-number">${index+1}</span>${job?`<span class="game-plot-sprout">${sprout}</span><b>${escape(job.name)}</b><small ${job.status==='running'?`data-game-end="${job.endAt}"`:''}>${job.status==='ready'?'已成熟':duration(job.remainingMs)}</small>${job.status==='running'?`<i class="game-plot-progress"><i data-game-start="${job.startedAt}" data-game-finish="${job.endAt}" style="width:${job.progress*100}%"></i></i>`:''}`:'<span class="game-plot-plus">＋</span><small>空地</small>'}</button>`).join('');}
         for(const cell of grid.querySelectorAll('[data-game-plot]'))cell.classList.toggle('selected',Number(cell.dataset.gamePlot)===(pickerPlot??dragContext?.anchorIndex));
         continue;
@@ -255,12 +255,23 @@ export function createGameMode(api){
   $('gameSkipHour').onclick=()=>action(()=>game.skipGameTime(state,active.catalog,active.result,60),'已跳过1小时');
   $('gameSettingsButton').onclick=showSettings;$('gameCancelSettings').onclick=()=>settingsDialog.close();
   $('gameSettingsForm').onsubmit=event=>{event.preventDefault();if(conflict){$('gameSettingsError').textContent='存档已在其他页面更新，请关闭后重新进入。';return;}try{const patch=readSettings();game.advanceGame(state,active.catalog,active.result);game.updateGameSettings(state,active.catalog,patch);settingsDialog.close();message('试玩设置已更新。');render(true);save(true);}catch(error){$('gameSettingsError').textContent=error.message;}};
+  function requestRestart(settings,fromSettings=false){
+    if(conflict)return;const restartSettings=structuredClone(settings);
+    confirm('重新试玩？','按当前试玩设置重新开始，重置进度并发放初始备货。当前存档会先备份。',()=>{
+      if(conflict)return;
+      try{
+        game.advanceGame(state,active.catalog,active.result);
+        const next=game.createGame(active.catalog,active.result,{level:active.level,settings:restartSettings});
+        store.backup(state);store.save(next);state=next;lastSavedAt=Date.now();
+        if(settingsDialog.open)settingsDialog.close();
+        clearWarehousePickup();mode='production';setMode();render(true);message('已重新试玩，原存档已备份。');$('gameSaveStatus').textContent='已保存';
+      }catch(error){if(fromSettings&&settingsDialog.open)$('gameSettingsError').textContent=error.message;else message(error.message);}
+    });
+  }
+  $('gameRestart').onclick=()=>requestRestart(state.settings);
   $('gameNewSave').onclick=()=>{
     if(conflict)return;
-    const input=$('gameSettingsForm').elements.namedItem('orderSlots');input.disabled=false;
-    confirm('重新开始本级经营？','将备份当前存档，再以当前试玩设置、所选倍数备货和1,000金币重新开始。商品、土地与拟合概率保持当前版本。',()=>{
-      if(conflict)return;try{const patch=readSettings();patch.orderSlots=Number(input.value);const next=game.createGame(active.catalog,active.result,{level:active.level,settings:patch});store.backup(state);state=next;settingsDialog.close();render(true);save(true);message('已重新开始，上一份存档已备份。');}catch(error){$('gameSettingsError').textContent=error.message;}
-    });
+    try{requestRestart(readSettings(),true);}catch(error){$('gameSettingsError').textContent=error.message;}
   };
   $('gameConfirmCancel').onclick=()=>confirmDialog.close();$('gameConfirmAccept').onclick=()=>{const run=confirmAction;confirmAction=null;confirmDialog.close();run?.();};
   $('gameExpandWarehouse').onclick=()=>action(()=>game.upgradeWarehouse(state,active.catalog));

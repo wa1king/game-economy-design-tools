@@ -35,9 +35,9 @@
 #dashboardContent .panel-heading .hint{font-size:12px}
 #dashboardContent .dash-charts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin:0 0 14px}
 #dashboardContent .dash-charts>.panel{margin:0}
-#dashboardContent .dash-charts .dash-crop{grid-column:1/-1}
+#dashboardContent .dash-charts .dash-crop{grid-column:auto}
 #dashboardContent .dash-charts svg{display:block;width:100%;height:220px;max-height:none;overflow:visible}
-#dashboardContent .dash-charts .dash-crop svg{height:130px}
+#dashboardContent .dash-charts .dash-crop svg,#dashboardContent .dash-charts .dash-reward svg{height:150px}
 #dashboardContent .dash-charts svg text{font-size:12px;fill:#65766b;font-family:inherit;font-variant-numeric:tabular-nums}
 #dashboardContent .dash-charts circle[data-open]{cursor:pointer;stroke:#fff;stroke-width:1.5;transition:stroke-width .15s}
 #dashboardContent .dash-charts circle[data-open]:hover{stroke:#cde2d5;stroke-width:5}

@@ -3,7 +3,7 @@ const esc=v=>String(v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'
 const num=(v,d=1)=>Number.isFinite(v)?v.toLocaleString('zh-CN',{maximumFractionDigits:d}):'—';
 const pct=v=>num(v*100,2)+'%';
 const empty='<p class="analysis-empty">拟合后显示订单结果</p>';
-const metrics=['常见订单工时','平均累计复杂度','含作物订单'];
+const metrics=['常见订单工时','平均累计复杂度','含作物订单','平均金币奖励'];
 
 export function matchesOutcomeFilter(order,filter,products){
   if(!filter)return true;
@@ -26,7 +26,8 @@ export function createOutcomeAnalysis(onFilter){
     const values=[
       [metrics[0],num(t.p50),'分钟',`中位数 · 中间 80%：${num(t.p10,0)}–${num(t.p90,0)} 分钟`],
       [metrics[1],num(c.mean),'',`中位数 ${num(c.p50,0)} · 90% 订单不超过 ${num(c.p90,0)}`],
-      [metrics[2],num(data.directCropOrderProbability*100,1),'%',`直接索要作物 · 纯作物 ${pct(data.pureCropOrderProbability)}`]
+      [metrics[2],num(data.directCropOrderProbability*100,1),'%',`直接索要作物 · 纯作物 ${pct(data.pureCropOrderProbability)}`],
+      [metrics[3],num(data.stats.coinReward.mean,2),'金币/单',data.coinRewardCoverage.missingOrderCount?`${data.coinRewardCoverage.missingOrderCount} 张可生成订单缺少金币单价`:`概率加权 · 物品价值 × ${data.coinRewardCoverage.multiplier}${data.coinRewardCoverage.estimatedProbability?' · 含估算单价':''}`]
     ];
     $('metrics').innerHTML=values.map(([name,value,unit,sub])=>`<div><small>${name}</small><strong>${value}<em>${unit}</em></strong><span class="sub">${sub}</span></div>`).join('');
     $('complexityStats').innerHTML=[['平均',c.mean],['中位数',c.p50],['90%不超过',c.p90],['最小',c.min],['最大',c.max]].map(([label,v])=>`<span>${label}<b>${num(v)}</b></span>`).join('');

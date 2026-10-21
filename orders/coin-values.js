@@ -56,3 +56,8 @@ export function orderCoinValue(order,products){
   for(const item of order.items){const value=unitCoinValue(products.get(item.id));if(value===null)return null;total+=value*item.quantity;}
   return total;
 }
+export const ORDINARY_ORDER_REWARD_MULTIPLIER=5;
+export function ordinaryOrderReward(order,products){
+  const value=orderCoinValue(order,products);
+  return value===null?null:value*ORDINARY_ORDER_REWARD_MULTIPLIER;
+}
