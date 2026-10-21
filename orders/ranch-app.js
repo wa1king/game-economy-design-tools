@@ -1,3 +1,4 @@
+import {renderOrderItems,setupItemInfo} from './item-info.js';
 import {createProjectStore} from './project-storage.js';
 import {readChainExcel} from './excel-import.js';
 import {prepareRanch,ranchCapacities,groupMetrics} from './ranch-engine.js';
@@ -5,7 +6,7 @@ import {generateRanchLevelGroups,ranchDemandKey,ranchPermutations,remapRanchResu
 import {loadRanchCache,saveRanchCache} from './ranch-cache.js';
 const $=id=>document.getElementById(id),esc=v=>String(v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const fmt=(v,d=1)=>v==null?'—':Number(v).toLocaleString('zh-CN',{maximumFractionDigits:d}),letters=['A','B','C','D'],animals=['史莱姆','吞吞貘','陆行鸟','宝箱怪'],colors=['#39866a','#a67b39','#647fac','#a46a80'];
-let base,model,filename,level=20,type='all',families=[],groups=[],current,capacities={},worker,busy=false,page=0,results=new Map(),failures=new Map(),savedSettings={},storageKey,downloadUrl,cacheKey,buildToken=0,saveTimer,viewRows=[],viewRevision=0,sortedRevision=-1,sortedRows=[],metricCache=new Map(),cacheQueue=Promise.resolve();
+let base,model,filename,level=20,type='all',families=[],groups=[],current,capacities={},worker,busy=false,page=0,results=new Map(),failures=new Map(),savedSettings={},storageKey,downloadUrl,cacheKey,buildToken=0,saveTimer,viewRows=[],viewRevision=0,sortedRevision=-1,sortedRows=[],itemInfo,metricCache=new Map(),cacheQueue=Promise.resolve();
 const groupKey=g=>g.key??ranchDemandKey(g);
 const representative=g=>groups.find(v=>v.key===groupKey(g))??g;
 const resultFor=(g,detail=false)=>{if(!g)return null;const r=results.get(groupKey(g));return r&&detail?remapRanchResult(r,representative(g),g):r;};
@@ -16,7 +17,7 @@ function saveCache(){clearTimeout(saveTimer);if(!cacheKey)return;const key=cache
 function scheduleSave(){clearTimeout(saveTimer);saveTimer=setTimeout(saveCache,800);}
 function stop(){worker?.terminate();worker=null;busy=false;$('stop').hidden=true;$('solveAll').disabled=!groups.length;$('solveOne').disabled=!current;}
 function install(newBase,name,rules){
-  stop();prepareRanch(newBase);base=structuredClone(newBase);model=prepareRanch(base);filename=name||base.filename||'加工链路';storageKey='ranch-settings-v1:'+fingerprint({products:base.products,sources:base.sources,lands:base.landsByLevel});
+  stop();prepareRanch(newBase);base=structuredClone(newBase);model=prepareRanch(base);filename=name||base.filename||'加工链路';if(!itemInfo)itemInfo=setupItemInfo(base,document.querySelector('main'));else{itemInfo.hide();itemInfo.products.clear();base.products.forEach(p=>itemInfo.products.set(p.id,p));}storageKey='ranch-settings-v1:'+fingerprint({products:base.products,sources:base.sources,lands:base.landsByLevel});
   savedSettings={};try{savedSettings=JSON.parse(localStorage.getItem(storageKey)||'{}');}catch{}
   level=Math.min(base.maxLevel||20,Math.max(1,savedSettings.level??level));$('cropQuantity').value=savedSettings.cropQuantity??rules?.cropQuantity??7;$('productQuantity').value=savedSettings.productQuantity??rules?.productQuantity??1;$('allowRepeated').checked=savedSettings.allowRepeated??false;$('searchLimit').value=savedSettings.searchLimit||'2000';
   $('projectName').textContent=filename;$('sourceMeta').textContent=`${base.products.length} 商品 · ${base.products.filter(v=>v.coinValue!=null).length} 个已定价`;$('level').innerHTML=Array.from({length:base.maxLevel||20},(_,i)=>`<option value="${i+1}">Lv ${i+1}</option>`).join('');$('level').value=level;
@@ -53,9 +54,10 @@ function updateView(){
 }
 function metrics(g){const key=groupKey(g);if(!metricCache.has(key))metricCache.set(key,groupMetrics(model,g,level));return metricCache.get(key);}
 function renderSelected(){
+  itemInfo?.hide();
   $('solveOne').disabled=!current||busy;$('groupTitle').textContent=current?'R'+String(viewRows.findIndex(v=>v.id===current.id)+1).padStart(5,'0')+' · 四单详情':'四单详情';$('groupMeta').textContent=current?`Lv ${level} · ${current.types.map(t=>t==='building'?'同建筑':'高级加工链').join(' / ')} · 动物位固定分配`:'本级暂无符合规则的需求组';
   if(!current){$('slots').innerHTML='';for(const id of ['optimal','totalMinutes','complexity','coins'])$(id).textContent='—';renderSchedule(null);$('solveState').textContent='无候选';return;}
-  $('slots').innerHTML=current.slots.map((v,i)=>{const p=model.by.get(v.id);return `<article class="slot"><div class="slot-top"><b>动物 ${letters[i]}</b><span>${animals[i]}</span></div><strong class="slot-product">${esc(p.name)} <small>×${v.quantity}</small></strong><div class="slot-info"><span>${esc(p.buildingName)} · Lv ${p.level}</span><span>单步 ${fmt(p.stepMinutes)}分 · 复杂度 ${model.chains.get(p.id).size}</span></div></article>`;}).join('');
+  $('slots').innerHTML=current.slots.map((v,i)=>{const p=model.by.get(v.id);return `<article class="slot"><div class="slot-top"><b>动物 ${letters[i]}</b><span>${animals[i]}</span></div><strong class="slot-product">${renderOrderItems({items:[v]},itemInfo.products)}</strong><div class="slot-info"><span>${esc(p.buildingName)} · Lv ${p.level}</span><span>单步 ${fmt(p.stepMinutes)}分 · 复杂度 ${model.chains.get(p.id).size}</span></div></article>`;}).join('');
   const m=metrics(current),r=resultFor(current,true),error=failures.get(groupKey(current));$('totalMinutes').textContent=fmt(m.totalMinutes);$('complexity').textContent=fmt(m.complexity,0);$('coins').textContent=fmt(m.coinValue);$('coinNote').textContent=m.coinValue==null?'存在未导入金币单价的商品':'数量 × 导入金币单价 · 非Token奖励';
   $('optimalLabel').textContent=r&&!r.proven?'四单可行完工时间':'四单联合优化时间';$('optimal').textContent=r?fmt(r.proven?r.optimalMinutes:r.feasibleMinutes):'—';$('optimalNote').textContent=r?(r.proven?'已证明最优 · 四单全部备齐':`最优时间范围 ${fmt(r.lowerMinutes)}～${fmt(r.feasibleMinutes)}分`):'空仓 · 等待后台计算';$('solveState').textContent=error?'计算失败':r?(r.proven?'已证明最优':'待证明最优'):busy?'计算中':'待计算';$('solveState').className='badge'+(error||r&&!r.proven?' warn':'');renderSchedule(r);
 }
@@ -85,13 +87,14 @@ function entries(){
   });sortedRevision=viewRevision;return sortedRows;
 }
 function renderTable(){
+  itemInfo?.hide();
   const list=entries(),maxPage=Math.max(0,Math.ceil(list.length/40)-1);page=Math.min(page,maxPage);$('candidateCount').textContent=fmt(list.length,0)+' 组';
   const solved=groups.filter(g=>results.has(g.key)).length,proven=groups.filter(g=>results.get(g.key)?.proven),done=proven.length;
   $('candidateSummary').textContent=`本级${busy?'正在计算':'已计算'} ${solved+failures.size} / ${groups.length} 个组合 · 最优 ${done} · 待证明 ${solved-done}${failures.size?' · 失败 '+failures.size:''}`;
   $('progress').value=solved+failures.size;$('progress').max=Math.max(1,groups.length);$('completionCount').textContent=done===groups.length&&done?'全部完成':fmt(done,0)+' / '+fmt(groups.length,0);
   const visibleKeys=new Set(viewRows.map(groupKey)),visibleProven=proven.filter(g=>visibleKeys.has(g.key));$('batchStats').hidden=!visibleProven.length;
   if(done){$('averageTime').textContent=fmt(proven.reduce((s,g)=>s+results.get(g.key).optimalMinutes,0)/done);if(visibleProven.length){const values=visibleProven.map(g=>results.get(g.key).optimalMinutes).sort((a,b)=>a-b),mean=values.reduce((s,v)=>s+v,0)/values.length,mid=(values[(values.length-1)>>1]+values[values.length>>1])/2;$('batchStats').innerHTML=`<span>当前筛选 · 已证明 ${visibleProven.length} 个组合 · 逐组合等权</span><span>平均 <b>${fmt(mean)}分</b></span><span>中位数 <b>${fmt(mid)}分</b></span><span>最短 <b>${fmt(values[0])}分</b></span><span>最长 <b>${fmt(values.at(-1))}分</b></span>`;}}else $('averageTime').textContent='—';
-  $('rows').innerHTML=list.slice(page*40,page*40+40).map(({g,i,m,r})=>`<tr class="${g.id===current?.id?'selected':''}"><td><button class="group-button" data-select="${esc(g.id)}">R${String(i+1).padStart(5,'0')}</button></td>${g.slots.map((v,j)=>`<td class="commodity-cell"><span class="slot-item">${esc(model.by.get(v.id).name)} <small>×${v.quantity}</small></span></td>`).join('')}<td><span class="type-tag">${g.types.map(t=>t==='building'?'同建筑':'加工链').join(' / ')}</span></td><td class="optimal-cell">${r?(r.proven?fmt(r.optimalMinutes)+'分':`<span class="bounded" title="已找到可行排程，尚未证明最优">${fmt(r.lowerMinutes)}～${fmt(r.feasibleMinutes)}分</span>`):failures.has(groupKey(g))?`<span title="${esc(failures.get(groupKey(g)))}">计算失败</span>`:busy?'计算中':'待计算'}</td><td>${fmt(m.totalMinutes)}分</td><td>${fmt(m.complexity,0)}</td><td>${fmt(m.coinValue)}</td></tr>`).join('')||'<tr><td colspan="10" class="placeholder">本级暂无符合筛选条件的四单组合</td></tr>';
+  $('rows').innerHTML=list.slice(page*40,page*40+40).map(({g,i,m,r})=>`<tr class="${g.id===current?.id?'selected':''}"><td><button class="group-button" data-select="${esc(g.id)}">R${String(i+1).padStart(5,'0')}</button></td>${g.slots.map((v,j)=>`<td class="commodity-cell"><span class="slot-item">${renderOrderItems({items:[v]},itemInfo.products)}</span></td>`).join('')}<td><span class="type-tag">${g.types.map(t=>t==='building'?'同建筑':'加工链').join(' / ')}</span></td><td class="optimal-cell">${r?(r.proven?fmt(r.optimalMinutes)+'分':`<span class="bounded" title="已找到可行排程，尚未证明最优">${fmt(r.lowerMinutes)}～${fmt(r.feasibleMinutes)}分</span>`):failures.has(groupKey(g))?`<span title="${esc(failures.get(groupKey(g)))}">计算失败</span>`:busy?'计算中':'待计算'}</td><td>${fmt(m.totalMinutes)}分</td><td>${fmt(m.complexity,0)}</td><td>${fmt(m.coinValue)}</td></tr>`).join('')||'<tr><td colspan="10" class="placeholder">本级暂无符合筛选条件的四单组合</td></tr>';
   $('range').textContent=list.length?`${page*40+1}—${Math.min(list.length,page*40+40)} / ${fmt(list.length,0)} 组`:'0 组';$('prev').disabled=page===0;$('next').disabled=page>=maxPage;$('solveAll').disabled=busy||!groups.length;$('solveAll').hidden=busy||done===groups.length;$('shuffle').disabled=!list.length;
 }
 function run(items){
