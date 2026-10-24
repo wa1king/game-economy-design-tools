@@ -1,0 +1,97 @@
+import {solveRanchGroup} from './ranch-engine.js';
+import {ranchDemandKey} from './ranch-catalog.js';
+const clamp=(x,l,h)=>Math.max(l,Math.min(h,x));
+const compare=(a,b)=>{for(let i=0;i<a.length;i++){if(a[i]!==b[i])return a[i]-b[i];}return 0;};
+export function quantityGroup(group,quantities){
+  if(quantities.length!==4||quantities.some(v=>!Number.isSafeInteger(v)||v<1))throw Error('四个交付数量都必须是正整数。');
+  const result={...group,slots:group.slots.map((v,i)=>({...v,quantity:quantities[i]}))};result.key=ranchDemandKey(result);return result;
+}
+export function quantityOptions(options={}){
+  const value={targetMinutes:360,toleranceMinutes:30,targetWorkMinutes:1080,cropMax:42,productMax:12,timeLimitMs:2500,maxEvaluations:42,...options};
+  for(const key of ['targetMinutes','targetWorkMinutes','timeLimitMs'])if(!Number.isFinite(value[key])||value[key]<=0)throw Error('目标时间和搜索预算必须大于0。');
+  if(!Number.isFinite(value.toleranceMinutes)||value.toleranceMinutes<0||value.toleranceMinutes>=value.targetMinutes)throw Error('允许偏差应不小于0且小于目标优化时间。');
+  for(const key of ['cropMax','productMax'])if(!Number.isSafeInteger(value[key])||value[key]<1||value[key]>100)throw Error('自动配量的数量上限需为1至100的整数。');
+  if(!Number.isSafeInteger(value.maxEvaluations)||value.maxEvaluations<1||value.maxEvaluations>200)throw Error('候选复核数量超出范围。');
+  return value;
+}
+export function ranchQuantityProfile(model,group,capacities){
+  const memo=new Map();
+  function unit(id){if(memo.has(id))return memo.get(id);const p=model.by.get(id),work={[p.buildingId]:p.stepMinutes};let tasks=1,critical=0;
+    for(const input of p.inputs){const u=unit(input.id);tasks+=input.quantity*u.tasks;critical=Math.max(critical,u.critical);for(const [b,w] of Object.entries(u.work))work[b]=(work[b]||0)+input.quantity*w;}
+    const result={work,tasks,critical:critical+p.stepMinutes,total:Object.values(work).reduce((s,v)=>s+v,0)};memo.set(id,result);return result;
+  }
+  const units=group.slots.map(v=>unit(v.id)),resources=[...new Set(units.flatMap(u=>Object.keys(u.work)))];
+  for(const b of resources)if(!Number.isSafeInteger(Number(capacities[b]))||Number(capacities[b])<1)throw Error('请先填写全部生产来源的实际并行容量。');
+  return {units,resources,estimate(q){const sourceMinutes=Object.fromEntries(resources.map(b=>[b,units.reduce((s,u,i)=>s+(u.work[b]||0)*q[i],0)]));return {totalMinutes:units.reduce((s,u,i)=>s+u.total*q[i],0),taskCount:units.reduce((s,u,i)=>s+u.tasks*q[i],0),lowerMinutes:Math.max(...units.map(u=>u.critical),...resources.map(b=>sourceMinutes[b]/capacities[b])),sourceMinutes};}};
+}
+export function quantityRank(candidate,options,mode='work'){
+  const {result,group}=candidate,T=options.targetMinutes,tol=options.toleranceMinutes,lo=T-tol,hi=T+tol;
+  const lower=result.lowerMinutes,upper=result.feasibleMinutes,certified=lower>=lo-1e-7&&upper<=hi+1e-7;
+  const actual=result.proven?result.optimalMinutes:upper,timeError=Math.abs(actual-T),workError=Math.abs(result.totalMinutes-options.targetWorkMinutes),quantity=group.slots.reduce((s,v)=>s+v.quantity,0);
+  const category=result.proven&&certified?0:certified?1:result.proven?2:3;
+  if(category<2)return [category,...(mode==='time'?[timeError,workError,quantity]:mode==='quantity'?[quantity,workError,timeError]:[workError,timeError,quantity])];
+  return [category,timeError,workError,quantity];
+}
+class Bank{
+  values=[];
+  constructor(size){this.size=size;}
+  offer(q,score){const key=q.join(',');if(this.values.some(v=>v.key===key))return;const entry={key,q:[...q],score};if(this.values.length===this.size&&compare(score,this.values.at(-1).score)>=0)return;this.values.push(entry);this.values.sort((a,b)=>compare(a.score,b.score));if(this.values.length>this.size)this.values.pop();}
+}
+function values(max,initial){const set=new Set([1,max,clamp(initial,1,max)]);if(max<=24)for(let i=1;i<=max;i++)set.add(i);else for(let i=0;i<24;i++)set.add(1+Math.round((max-1)*i/23));return [...set].sort((a,b)=>a-b);}
+// Continuous relaxation: every schedule completing by H must fit all resource
+// work in capacity*H. Its maximum resource work is a necessary upper bound,
+// not a promise that a schedule with that work is achievable.
+export function workUpperAtTime(profile,capacities,max,H){
+  const constraints=[];
+  for(let i=0;i<4;i++){const row=[0,0,0,0];row[i]=1;constraints.push({row,b:max[i]});constraints.push({row:row.map(x=>-x),b:-1});}
+  for(const r of profile.resources){const row=profile.units.map(u=>u.work[r]||0),scale=Math.max(...row);if(scale)constraints.push({row:row.map(x=>x/scale),b:capacities[r]*H/scale});}
+  function intersect(rows){const a=rows.map(c=>[...c.row,c.b]);for(let i=0;i<4;i++){let pivot=i;for(let j=i+1;j<4;j++)if(Math.abs(a[j][i])>Math.abs(a[pivot][i]))pivot=j;if(Math.abs(a[pivot][i])<1e-10)return null;[a[i],a[pivot]]=[a[pivot],a[i]];const divisor=a[i][i];for(let k=i;k<=4;k++)a[i][k]/=divisor;for(let j=0;j<4;j++)if(j!==i){const f=a[j][i];for(let k=i;k<=4;k++)a[j][k]-=f*a[i][k];}}return a.map(v=>v[4]);}
+  let best=null;const n=constraints.length;
+  for(let a=0;a<n;a++)for(let b=a+1;b<n;b++)for(let c=b+1;c<n;c++)for(let d=c+1;d<n;d++){
+    const q=intersect([constraints[a],constraints[b],constraints[c],constraints[d]]);if(!q||q.some(x=>!Number.isFinite(x))||constraints.some(v=>v.row.reduce((s,x,i)=>s+x*q[i],0)>v.b+1e-7))continue;
+    const value=profile.units.reduce((s,u,i)=>s+u.total*q[i],0);best=Math.max(best??0,value);
+  }
+  return best==null?null:Math.ceil(best+Math.max(1e-6,Math.abs(best)*1e-8));
+}
+export function quantityCandidates(model,group,capacities,options,baseline){
+  const profile=ranchQuantityProfile(model,group,capacities),max=group.slots.map(v=>model.by.get(v.id).isCrop?options.cropMax:options.productMax),initial=group.slots.map((v,i)=>clamp(v.quantity,1,max[i])),banks=[new Bank(16),new Bank(16),new Bank(16)],seeds=new Map();let considered=0,taskLimited=0;
+  const offset=baseline?.proven?Math.max(0,baseline.optimalMinutes-profile.estimate(group.slots.map(v=>v.quantity)).lowerMinutes):0;
+  function offer(q,seed=false){q=q.map((v,i)=>clamp(Math.round(v),1,max[i]));const e=profile.estimate(q);considered++;if(e.taskCount>1200){taskLimited++;return;}
+    const predicted=e.lowerMinutes+offset,excess=Math.max(0,e.lowerMinutes-options.targetMinutes-options.toleranceMinutes),te=Math.abs(predicted-options.targetMinutes)/options.targetMinutes,we=Math.abs(e.totalMinutes-options.targetWorkMinutes)/options.targetWorkMinutes;
+    banks[0].offer(q,[excess,te,we]);banks[1].offer(q,[excess,Math.max(0,te-options.toleranceMinutes/options.targetMinutes),we,te]);banks[2].offer(q,[excess,te+we,we]);if(seed)seeds.set(q.join(','),q);
+  }
+  offer(initial,true);offer([1,1,1,1],true);
+  const baseTime=baseline?.proven?baseline.optimalMinutes:profile.estimate(initial).lowerMinutes;
+  for(const scale of [.5,.75,1,1.25,1.5])offer(initial.map(q=>q*options.targetMinutes/Math.max(1,baseTime)*scale),true);
+  offer(max,true);
+  const pivot=profile.units.reduce((best,u,i)=>u.total>profile.units[best].total?i:best,0),axes=[0,1,2,3].filter(i=>i!==pivot),ranges=axes.map(i=>values(max[i],initial[i]));
+  for(const a of ranges[0])for(const b of ranges[1])for(const c of ranges[2]){
+    const q=[...initial];[a,b,c].forEach((v,i)=>q[axes[i]]=v);q[pivot]=0;const e=profile.estimate(q),candidates=new Set([1,max[pivot],initial[pivot],(options.targetWorkMinutes-e.totalMinutes)/profile.units[pivot].total]);
+    for(const r of profile.resources){const w=profile.units[pivot].work[r]||0;if(w)for(const t of [options.targetMinutes-options.toleranceMinutes,options.targetMinutes,options.targetMinutes+options.toleranceMinutes])candidates.add(((t-offset)*capacities[r]-e.sourceMinutes[r])/w);}
+    for(const v of candidates)for(const n of [Math.floor(v),Math.ceil(v)]){q[pivot]=n;offer(q);}
+  }
+  const selected=new Map();for(const q of seeds.values())selected.set(q.join(','),q);
+  for(let i=0;i<16;i++)for(const bank of banks){const v=bank.values[i];if(v)selected.set(v.key,v.q);}
+  const lists=[...selected.values()].slice(0,options.maxEvaluations);
+  return {quantities:lists,considered,taskLimited,minWork:profile.estimate([1,1,1,1]).totalMinutes,maxWork:profile.estimate(max).totalMinutes};
+}
+export function fitRanchQuantities(model,group,level,capacities,rawOptions={},baseline=null,onProgress=()=>{}){
+  const options=quantityOptions(rawOptions),start=performance.now(),pool=quantityCandidates(model,group,capacities,options,baseline),evaluated=[],failures=[];let tried=0;
+  // A current, already verified schedule is reusable only for exactly the same quantities.
+  if(baseline&&group.slots.every(v=>v.quantity<=(model.by.get(v.id).isCrop?options.cropMax:options.productMax)))evaluated.push({group:structuredClone(group),result:baseline});
+  for(const q of pool.quantities){
+    if(tried&&performance.now()-start>=options.timeLimitMs)break;
+    const candidate=quantityGroup(group,q);if(evaluated.some(v=>ranchDemandKey(v.group)===candidate.key))continue;
+    try{const result=solveRanchGroup(model,candidate,level,capacities,{timeLimitMs:Math.min(120,Math.max(0,options.timeLimitMs-(performance.now()-start))),nodeLimit:1500});evaluated.push({group:candidate,result});}catch(error){failures.push(error.message);}
+    tried++;onProgress({tried,candidates:pool.quantities.length});
+  }
+  if(!evaluated.length)throw Error(failures[0]||'搜索范围内未找到可计算的数量配置。');
+  const recommendations=[],labels={work:'累计工时更接近',time:'优化时间更接近',quantity:'交付件数较少'};
+  for(const mode of ['work','time','quantity']){const ranked=[...evaluated].sort((a,b)=>compare(quantityRank(a,options,mode),quantityRank(b,options,mode))),best=ranked[0];if(!recommendations.some(v=>ranchDemandKey(v.group)===ranchDemandKey(best.group)))recommendations.push({...best,label:labels[mode]});}
+  const best=recommendations[0],within=best.result.lowerMinutes>=options.targetMinutes-options.toleranceMinutes-1e-7&&best.result.feasibleMinutes<=options.targetMinutes+options.toleranceMinutes+1e-7,profile=ranchQuantityProfile(model,group,capacities),workUpper=workUpperAtTime(profile,capacities,group.slots.map(v=>model.by.get(v.id).isCrop?options.cropMax:options.productMax),options.targetMinutes+options.toleranceMinutes);
+  const minimum=evaluated.find(v=>v.group.slots.every(s=>s.quantity===1));let reason=within?'已找到目标范围内的数量配置。':'本轮搜索未找到已确认落入目标时间范围的配置，可调整数量上限或增加搜索时限。';
+  if(minimum?.result.lowerMinutes>options.targetMinutes+options.toleranceMinutes)reason='四种商品各1个的最优时间下界已超过目标范围；增加数量不能缩短整组最优时间。';
+  if(options.targetWorkMinutes<pool.minWork||options.targetWorkMinutes>pool.maxWork)reason+=` 累计工时目标超出数量范围可达到的 ${Math.round(pool.minWork)}～${Math.round(pool.maxWork)} 分钟。`;
+  else if(workUpper!=null&&options.targetWorkMinutes>workUpper)reason+=` 在优化时间不超过 ${Math.round(options.targetMinutes+options.toleranceMinutes)} 分钟时，本组累计工时的理论上限为 ${workUpper} 分钟，低于共同目标。`;
+  return {options,recommendations,within,reason,tried,evaluatedCount:evaluated.length,considered:pool.considered,taskLimited:pool.taskLimited,workUpperAtTime:workUpper,provenCount:evaluated.filter(v=>v.result.proven).length,elapsedMs:Math.round(performance.now()-start),quantitySearchProven:false,method:'bounded_candidate_search_with_joint_schedule_verification'};
+}
