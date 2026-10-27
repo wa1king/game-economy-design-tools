@@ -1,3 +1,4 @@
+import {calculateRanchImport,canMigrateRanchSettings,backupRanchBeforeImport,ranchSettingsKey,readRanchResultBundle} from './ranch-import.js';
 import {ranchBrowserScope,ranchSchemeStep} from './ranch-browser.js';
 import {ranchChainData,renderRanchChain,setupRanchChains} from './ranch-chain.js';
 import {quantityGroup,quantityOptions} from './ranch-quantity.js';
@@ -224,7 +225,26 @@ $('resetLevelQuantities').onclick=()=>resetQuantityGroups([...groups]);
 $('recommendationCards').onclick=event=>{const button=event.target.closest('[data-recommendation]');if(!button||!current)return;const g=representative(current),candidate=quantityFits.get(g.id)?.recommendations[Number(button.dataset.recommendation)];if(!candidate)return;stop();setGroupQuantities(g.id,candidate.group.slots.map(v=>v.quantity),candidate.result);persist();saveCache();updateView();};
 for(const id of ['targetHours','targetTolerance','targetWork','fitCropMax','fitProductMax','quantityBudget'])$(id).onchange=()=>{persist();viewRevision++;renderTable();renderRecommendations();};
 $('importButton').onclick=$('importEmpty').onclick=()=>$('importFile').click();$('readCurrent').onclick=$('readProject').onclick=()=>{try{readCurrent();}catch(e){message(e.message);}};
-$('importFile').onchange=async()=>{const file=$('importFile').files[0];if(!file)return;try{const imported=await readChainExcel(file);install(imported,file.name);localStorage.setItem('ranch-source-v1',JSON.stringify({kind:'import',base:imported,filename:file.name}));}catch(e){message(e.message);}finally{$('importFile').value='';}};
+$('importFile').onchange=async()=>{
+  const file=$('importFile').files[0];if(!file)return;
+  const previousCacheKey=cacheKey;let activated=false;
+  const lock=value=>{$('workspace').inert=value;for(const id of ['importButton','importEmpty','readProject','readCurrent'])$(id).disabled=value;};
+  try{
+    if(file.size>60*1024*1024)throw Error('文件超过60 MB，请缩小导入数据。');
+    const payload=/\.json$/i.test(file.name)?readRanchResultBundle(JSON.parse(await file.text())):{schema:'ranch-precomputed-v1',base:await readChainExcel(file),filename:file.name,level,rules:{cropQuantity:7,productQuantity:1,allowRepeated:false}};
+    lock(true);commitSlotInputs(false);persist();stop();saveCache();await cacheQueue;clearTimeout(saveTimer);cacheKey=null;
+    const targetKey=ranchSettingsKey(payload.base),migrate=canMigrateRanchSettings(base,payload.base),settings=migrate?structuredClone(savedSettings):JSON.parse(localStorage.getItem(targetKey)||'{}');
+    const backupKey=backupRanchBeforeImport(localStorage,savedSettings,model?{base,filename}:null);
+    message('正在导入新配方并重新计算全部等级…');
+    const prepared=await calculateRanchImport(payload,{settings,onProgress:p=>message(`重算 Lv ${p.level} · ${p.completed} / ${p.total} 个方案`)});
+    await cacheQueue;for(const plan of prepared.plans)await saveRanchCache(plan.cacheKey,plan.cache);
+    localStorage.setItem(prepared.storageKey,JSON.stringify(prepared.settings));
+    localStorage.setItem('ranch-source-v1',JSON.stringify({kind:'import',base:prepared.base,filename:prepared.filename}));
+    localStorage.setItem('ranch-last-import-backup-v1',backupKey);
+    install(prepared.base,prepared.filename,prepared.rules);activated=true;
+    message(`已导入 ${prepared.base.products.length} 种商品 · ${prepared.base.products.filter(p=>p.coinValue!=null).length} 个已定价；全部等级 ${prepared.total} 个方案已重算，最优 ${prepared.proven}，待证明 ${prepared.total-prepared.proven}。${migrate?'已保留交付数量、目标与产能设置。':''}导入前配置已备份。`);
+  }catch(error){if(!activated)cacheKey=previousCacheKey;message(error.message);}finally{lock(false);$('importFile').value='';}
+};
 $('level').onchange=()=>{persist();level=Number($('level').value);restoreQuantityTargets();capacities={...ranchCapacities(model,level),...(savedSettings.capacities?.[level]||{})};renderCapacities();rebuild();};
 for(const [id,t] of [['buildingType','building'],['chainType','chain']])$(id).onclick=()=>{clearTimeout(manualTimer);commitSlotInputs(false);type=t;updateFilters();updateView();persist();};
 $('family').onchange=$('expandPermutations').onchange=updateView;$('search').oninput=()=>{page=0;renderTable();};

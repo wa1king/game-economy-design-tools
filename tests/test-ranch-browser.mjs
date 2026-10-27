@@ -11,6 +11,7 @@ import {ranchDemandKey,ranchPermutations,remapRanchResult} from '../orders/ranch
 import {setupRanchChains} from '../orders/ranch-chain.js';
 import {quantityGroup,quantityOptions} from '../orders/ranch-quantity.js';
 import {renderOrderItems} from '../orders/item-info.js';
+import {calculateRanchImport,canMigrateRanchSettings,backupRanchBeforeImport,ranchSettingsKey,readRanchResultBundle} from '../orders/ranch-import.js';
 const p=(id,b,level=1,inputs=[])=>({id,name:'商品'+id,buildingId:b,buildingName:'建筑'+b,level,stepMinutes:5,analysisBatchYield:1,isCrop:b===0,inputs:inputs.map(([id,quantity])=>({id,quantity}))});
 const base={maxLevel:20,sources:[{id:0,name:'田地',level:1},{id:10,name:'磨坊',level:2},{id:20,name:'厨房',level:4}],products:[p(1,0),p(2,0),p(3,0),p(4,0),p(5,10,2,[[1,1]]),p(6,10,2,[[2,1]]),p(7,10,3,[[1,1],[2,1]]),p(8,10,3,[[3,1]]),p(9,20,5,[[5,1],[6,1],[3,1]]),p(10,20,6,[[7,1],[8,1],[4,1]])]};
 const model=prepareRanch(base),catalog=generateRanchLevelGroups(model,20,{allowRepeated:false});
@@ -67,9 +68,9 @@ test('page keeps catalogue and tuning collapsed after the always-visible scheme 
   }
   for(const m of html.matchAll(/<(\w+)\b([^>]*\bid="[^"]+"[^>]*)>/g)){const a=attributes(m[2]),e=new Element(m[1],a);elements.set(e.id,e);}
   for(const id of ['searchLimit','sort','direction','quantityBudget']){const pattern=new RegExp(`<select[^>]*id="${id}"[^>]*>([\\s\\S]*?)<\\/select>`);elements.get(id).innerHTML=html.match(pattern)[1];}
-  const isolatedBase={...base,landsByLevel:{20:30}},memory=new Map([['ranch-source-v1',JSON.stringify({kind:'import',base:isolatedBase,filename:'synthetic.xlsx'})]]),posts=[];
-  const context=vm.createContext({console,structuredClone,prepareRanch,ranchCapacities,groupMetrics,solveRanchGroup,generateRanchLevelGroups,ranchDemandKey,ranchPermutations,remapRanchResult,ranchBrowserScope,ranchSchemeStep,ranchChainData,renderRanchChain,setupRanchChains,quantityGroup,quantityOptions,renderOrderItems,
-    setupItemInfo:base=>({products:new Map(base.products.map(p=>[p.id,p])),hide(){}}),createProjectStore:()=>({load:()=>null}),readChainExcel:()=>{},loadRanchCache:async()=>null,saveRanchCache:async()=>{},performance:{now:()=>1000},crypto:{getRandomValues:a=>{a[0]=0;}},setTimeout:()=>1,clearTimeout(){},
+  const isolatedBase={...base,landsByLevel:{20:30}},memory=new Map([['ranch-source-v1',JSON.stringify({kind:'import',base:isolatedBase,filename:'synthetic.xlsx'})]]),posts=[],scheduleCache=new Map();
+  const context=vm.createContext({console,structuredClone,prepareRanch,ranchCapacities,groupMetrics,solveRanchGroup,generateRanchLevelGroups,ranchDemandKey,ranchPermutations,remapRanchResult,ranchBrowserScope,ranchSchemeStep,ranchChainData,renderRanchChain,setupRanchChains,quantityGroup,quantityOptions,renderOrderItems,calculateRanchImport,canMigrateRanchSettings,backupRanchBeforeImport,ranchSettingsKey,readRanchResultBundle,
+    setupItemInfo:base=>({products:new Map(base.products.map(p=>[p.id,p])),hide(){}}),createProjectStore:()=>({load:()=>null}),readChainExcel:()=>{},loadRanchCache:async key=>scheduleCache.get(key),saveRanchCache:async(key,value)=>{scheduleCache.set(key,value);},performance:{now:()=>1000},crypto:{getRandomValues:a=>{a[0]=0;}},setTimeout:()=>1,clearTimeout(){},
     Worker:class{postMessage(v){posts.push(v);}terminate(){}},localStorage:{getItem:k=>memory.get(k)??null,setItem:(k,v)=>memory.set(k,v)},window:{addEventListener(){}},document:{getElementById:id=>elements.get(id),querySelector:()=>new Element('main'),querySelectorAll:q=>q==='#slots input'?elements.get('slots').inputs:[]}});
   vm.runInContext(fs.readFileSync(new URL('../orders/ranch-app.js',import.meta.url),'utf8').replace(/^import .*;\r?\n/gm,''),context);
   await vm.runInContext('rebuild()',context);
@@ -99,5 +100,17 @@ test('page keeps catalogue and tuning collapsed after the always-visible scheme 
     assert.equal(elements.get('scheduleDetails').tag,'section');assert.equal(elements.get('scheduleDetails').open,false);
     vm.runInContext('results.set(current.key,solveRanchGroup(model,current,level,capacities));renderSelected()',context);assert(elements.get('schedule').innerHTML.includes('<svg'));assert.equal(elements.get('completion').hidden,false);
   });
+  {
+    const before=memory.get('ranch-source-v1'),newBase={...structuredClone(base),landsByLevel:Object.fromEntries(Array.from({length:20},(_,i)=>[i+1,30]))};newBase.products.forEach(p=>{p.coinValue=p.id;});
+    const json=JSON.stringify({schema:'ranch-precomputed-v1',base:newBase,filename:'带价格的新表.xlsx',rules:{cropQuantity:7,productQuantity:1,allowRepeated:false}});
+    elements.get('importFile').files=[{name:'results.json',size:json.length,text:async()=>json}];await elements.get('importFile').onchange();await vm.runInContext('cacheQueue',context);await new Promise(resolve=>setTimeout(resolve,0));
+    test('import backs up the old source, preserves targets and activates all-level recalculated caches',()=>{
+      assert.equal(elements.get('workspace').inert,false);assert.equal(elements.get('importButton').disabled,false);assert.equal(JSON.parse(memory.get('ranch-source-v1')).filename,'带价格的新表.xlsx');assert.equal(elements.get('sourceMeta').textContent,'10 商品 · 10 个已定价');assert(elements.get('message').textContent.includes('全部等级'));const backup=JSON.parse(memory.get(memory.get('ranch-last-import-backup-v1')));assert.equal(JSON.stringify(backup.source),before);assert.equal(scheduleCache.get(vm.runInContext('cacheKey',context)).results.length,catalog.groups.length);assert.equal(vm.runInContext('results.size',context),catalog.groups.length);
+    });
+    // Reimport the same source must not overwrite the newly seeded complete
+    // result cache with the previous page's partial cache.
+    elements.get('importFile').files=[{name:'results.json',size:json.length,text:async()=>json}];await elements.get('importFile').onchange();await vm.runInContext('cacheQueue',context);await new Promise(resolve=>setTimeout(resolve,0));
+    test('same-source reimport retains a complete cache instead of restoring stale partial results',()=>{assert.equal(vm.runInContext('results.size',context),catalog.groups.length);});
+  }
 }
 console.log(count+' scheme browser checks passed');
