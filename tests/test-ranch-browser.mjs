@@ -6,7 +6,7 @@ import {generateRanchLevelGroups} from '../orders/ranch-catalog.js';
 import {ranchBrowserScope,ranchSchemeStep} from '../orders/ranch-browser.js';
 import {ranchChainData,renderRanchChain} from '../orders/ranch-chain.js';
 import {layoutRanchChain} from '../orders/ranch-chain-layout.js';
-import {ranchCapacities,groupMetrics} from '../orders/ranch-engine.js';
+import {ranchCapacities,groupMetrics,solveRanchGroup} from '../orders/ranch-engine.js';
 import {ranchDemandKey,ranchPermutations,remapRanchResult} from '../orders/ranch-catalog.js';
 import {setupRanchChains} from '../orders/ranch-chain.js';
 import {quantityGroup,quantityOptions} from '../orders/ranch-quantity.js';
@@ -41,7 +41,12 @@ test('compact graph preserves every node, recipe, count and workshop color',()=>
 });
 test('page keeps catalogue and tuning collapsed after the always-visible scheme graph',()=>{
   const html=fs.readFileSync(new URL('../orders/ranch.html',import.meta.url),'utf8'),ids=[...html.matchAll(/\bid="([^"]+)"/g)].map(v=>v[1]);assert.equal(new Set(ids).size,ids.length);
-  assert(!html.includes('id="allType"'));assert(html.indexOf('id="chainGraph"')<html.indexOf('id="catalogDetails"'));assert(html.includes('<section id="groupDetails"'));for(const id of ['targetDetails','scheduleDetails','catalogDetails'])assert(html.includes(`<details id="${id}" class="secondary-section">`));
+  assert(!html.includes('id="allType"'));assert(html.indexOf('id="chainGraph"')<html.indexOf('id="catalogDetails"'));assert(html.includes('<section id="groupDetails"'));for(const id of ['targetDetails','catalogDetails'])assert(html.includes(`<details id="${id}" class="secondary-section">`));
+  const sidebar=html.slice(html.indexOf('<aside class="plan-sidebar">'),html.indexOf('</aside>'));
+  for(const id of ['buildingNav','productNav','schemeNav','slots'])assert(sidebar.includes(`id="${id}"`));
+  assert(!sidebar.includes('id="chainGraph"'));assert(!html.includes('id="schemeSelect"'));
+  assert(html.includes('id="chainGraph" class="chain-graph"></div></section><section id="scheduleDetails" class="panel schedule-panel">'),'schedule must directly follow the processing graph');
+  assert(!html.includes('<details id="scheduleDetails"'));
   const app=fs.readFileSync(new URL('../orders/ranch-app.js',import.meta.url),'utf8');for(const v of app.matchAll(/\$\('([^']+)'\)/g))assert(ids.includes(v[1]),'missing DOM binding '+v[1]);new vm.Script(app.replace(/^import .*;\r?\n/gm,''));
 });
 // Minimal DOM/event simulation, not browser execution. Exercise the actual app
@@ -50,19 +55,20 @@ test('page keeps catalogue and tuning collapsed after the always-visible scheme 
   const html=fs.readFileSync(new URL('../orders/ranch.html',import.meta.url),'utf8'),elements=new Map();
   const attributes=str=>Object.fromEntries([...str.matchAll(/([\w-]+)="([^"]*)"/g)].map(v=>[v[1],v[2]]));
   class Element{
-    constructor(tag,attrs={}){this.tag=tag;this.id=attrs.id;this._value=attrs.value??'';this._html='';this.inputs=[];this.checked=false;this.open=false;this.hidden=false;this.disabled=false;this.dataset={};this.handlers={};this.style={};this.classList={toggle(){}};}
-    set innerHTML(value){this._html=value;this.inputs=[...value.matchAll(/<input\b([^>]*)>/g)].map(v=>{const a=attributes(v[1]),e=new Element('input',a);e.dataset={quantity:a['data-quantity'],cap:a['data-cap']};return e;});if(this.tag==='select'){const opts=[...value.matchAll(/<option\b([^>]*)>(.*?)<\/option>/g)];this._value=attributes(opts.find(v=>/selected/.test(v[1]))?.[1]??opts[0]?.[1]??'').value??'';}}
+    constructor(tag,attrs={}){this.tag=tag;this.id=attrs.id;this._value=attrs.value??'';this._html='';this.inputs=[];this.buttons=[];this.checked=false;this.open=false;this.hidden=false;this.disabled=false;this.dataset={};this.handlers={};this.style={};this.classList={toggle(){}};}
+    set innerHTML(value){this._html=value;this.inputs=[...value.matchAll(/<input\b([^>]*)>/g)].map(v=>{const a=attributes(v[1]),e=new Element('input',a);e.dataset={quantity:a['data-quantity'],cap:a['data-cap']};return e;});this.buttons=[...value.matchAll(/<button\b([^>]*)>/g)].map(v=>{const a=attributes(v[1]),e=new Element('button',a);e.dataset.browseScheme=a['data-browse-scheme'];return e;});if(this.tag==='select'){const opts=[...value.matchAll(/<option\b([^>]*)>(.*?)<\/option>/g)];this._value=attributes(opts.find(v=>/selected/.test(v[1]))?.[1]??opts[0]?.[1]??'').value??'';}}
     get innerHTML(){return this._html;}
     set value(v){this._value=String(v);}get value(){return this._value;}
-    querySelectorAll(query){return query.includes('input')?this.inputs:[];}
+    querySelectorAll(query){return query.includes('input')?this.inputs:query==='[data-browse-scheme]'?this.buttons:[];}
     addEventListener(name,fn){this.handlers[name]=fn;}
     setAttribute(name,value){this[name]=value;}
     scrollIntoView(){}
+    focus(){this.focused=true;}
   }
   for(const m of html.matchAll(/<(\w+)\b([^>]*\bid="[^"]+"[^>]*)>/g)){const a=attributes(m[2]),e=new Element(m[1],a);elements.set(e.id,e);}
   for(const id of ['searchLimit','sort','direction','quantityBudget']){const pattern=new RegExp(`<select[^>]*id="${id}"[^>]*>([\\s\\S]*?)<\\/select>`);elements.get(id).innerHTML=html.match(pattern)[1];}
   const isolatedBase={...base,landsByLevel:{20:30}},memory=new Map([['ranch-source-v1',JSON.stringify({kind:'import',base:isolatedBase,filename:'synthetic.xlsx'})]]),posts=[];
-  const context=vm.createContext({console,structuredClone,prepareRanch,ranchCapacities,groupMetrics,generateRanchLevelGroups,ranchDemandKey,ranchPermutations,remapRanchResult,ranchBrowserScope,ranchSchemeStep,ranchChainData,renderRanchChain,setupRanchChains,quantityGroup,quantityOptions,renderOrderItems,
+  const context=vm.createContext({console,structuredClone,prepareRanch,ranchCapacities,groupMetrics,solveRanchGroup,generateRanchLevelGroups,ranchDemandKey,ranchPermutations,remapRanchResult,ranchBrowserScope,ranchSchemeStep,ranchChainData,renderRanchChain,setupRanchChains,quantityGroup,quantityOptions,renderOrderItems,
     setupItemInfo:base=>({products:new Map(base.products.map(p=>[p.id,p])),hide(){}}),createProjectStore:()=>({load:()=>null}),readChainExcel:()=>{},loadRanchCache:async()=>null,saveRanchCache:async()=>{},performance:{now:()=>1000},crypto:{getRandomValues:a=>{a[0]=0;}},setTimeout:()=>1,clearTimeout(){},
     Worker:class{postMessage(v){posts.push(v);}terminate(){}},localStorage:{getItem:k=>memory.get(k)??null,setItem:(k,v)=>memory.set(k,v)},window:{addEventListener(){}},document:{getElementById:id=>elements.get(id),querySelector:()=>new Element('main'),querySelectorAll:q=>q==='#slots input'?elements.get('slots').inputs:[]}});
   vm.runInContext(fs.readFileSync(new URL('../orders/ranch-app.js',import.meta.url),'utf8').replace(/^import .*;\r?\n/gm,''),context);
@@ -73,7 +79,7 @@ test('page keeps catalogue and tuning collapsed after the always-visible scheme 
   test('actual building, chain product and next-scheme handlers update the persistent viewer',()=>{
     elements.get('buildingNav').onclick({target:{closest:()=>({dataset:{browseBuilding:'10'}})}});assert.equal(elements.get('family').value,'b10');assert(elements.get('groupTitle').textContent.includes('磨坊'));
     elements.get('chainType').onclick();assert.equal(elements.get('family').value,'p9');assert.equal(elements.get('productFilterRow').hidden,false);
-    elements.get('productNav').onclick({target:{closest:()=>({dataset:{browseFamily:'p10'}})}});assert.equal(elements.get('family').value,'p10');const old=vm.runInContext('current.id',context);elements.get('schemeNext').onclick();assert.notEqual(vm.runInContext('current.id',context),old);assert(elements.get('groupMeta').textContent.includes('方案 2'));
+    elements.get('productNav').onclick({target:{closest:()=>({dataset:{browseFamily:'p10'}})}});assert.equal(elements.get('family').value,'p10');const old=vm.runInContext('current.id',context),next=vm.runInContext('entries()[1].g.id',context);elements.get('schemeNav').onclick({target:{closest:()=>({dataset:{browseScheme:next}})}});assert.notEqual(vm.runInContext('current.id',context),old);assert(elements.get('groupMeta').textContent.includes('方案 2'));
     const selected=vm.runInContext('current.id',context);vm.runInContext('renderSelected(); renderTable()',context);assert.equal(vm.runInContext('current.id',context),selected);
     assert.equal(elements.get('rows').innerHTML,'');assert(memory.get(vm.runInContext('storageKey',context)).includes('"familyId":"p10"'));
   });
@@ -83,6 +89,15 @@ test('page keeps catalogue and tuning collapsed after the always-visible scheme 
   test('level and compact graph toggles keep quantities and the selected scheme unchanged',()=>{
     const before=vm.runInContext('JSON.stringify(current.slots)',context);elements.get('levelGraph').onclick();assert(!elements.get('chainGraph').innerHTML.includes('data-auto-fit="true"'));elements.get('compactGraph').onclick();assert(elements.get('chainGraph').innerHTML.includes('data-auto-fit="true"'));assert.equal(vm.runInContext('JSON.stringify(current.slots)',context),before);
     elements.get('catalogDetails').open=true;elements.get('catalogDetails').ontoggle();assert(elements.get('rows').innerHTML.includes('data-select='));
+  });
+  test('left scheme tabs expose selection and support keyboard navigation without rebuilding the tabs',()=>{
+    const nav=elements.get('schemeNav'),buttons=nav.buttons,selected=buttons.find(v=>v['aria-pressed']==='true');assert(selected);
+    let prevented=false;nav.handlers.keydown({key:'Home',target:{closest:()=>selected},preventDefault(){prevented=true;}});assert(prevented);assert.equal(nav.buttons,buttons);assert.equal(buttons[0]['aria-pressed'],'true');assert(buttons[0].focused);
+    nav.handlers.keydown({key:'ArrowRight',target:{closest:()=>buttons[0]},preventDefault(){}});assert.equal(buttons[1]['aria-pressed'],'true');assert.equal(buttons[0]['aria-pressed'],'false');
+  });
+  test('joint schedule renders beside the current graph without opening a details panel',()=>{
+    assert.equal(elements.get('scheduleDetails').tag,'section');assert.equal(elements.get('scheduleDetails').open,false);
+    vm.runInContext('results.set(current.key,solveRanchGroup(model,current,level,capacities));renderSelected()',context);assert(elements.get('schedule').innerHTML.includes('<svg'));assert.equal(elements.get('completion').hidden,false);
   });
 }
 console.log(count+' scheme browser checks passed');
