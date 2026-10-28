@@ -43,14 +43,16 @@ export function buildCatalog(base,rules=DEFAULT_RULES){
   const c={...base,products:base.products.map(p=>({...p,inputs:p.inputs.map(v=>({...v})),coproducts:(p.coproducts||[]).map(v=>({...v}))})),orders:[],rules};
   const calculate=productionCalculator(c),by=new Map(c.products.map(p=>[p.id,p]));
   for(const p of c.products){p.orderQuantity=(p.category==='田地作物'||p.category==='特殊作物'||p.isCrop)?rules.cropQuantity:rules.productQuantity;p.unitCumulativeMinutes=calculate([{id:p.id,quantity:1}]).cumulativeMinutes;p.soloOrderMinutes=calculate([{id:p.id,quantity:p.orderQuantity}]).cumulativeMinutes;}
-  const compatible=(a,b)=>a.buildingId!==b.buildingId&&!a.inputs.some(v=>v.id===b.id)&&!b.inputs.some(v=>v.id===a.id);
+  const farmland=new Set(c.sources.filter(s=>s.id===0||s.category==='田地'||s.name==='农田'||s.name==='田地').map(s=>s.id));
+  const isField=p=>farmland.has(p.buildingId)||p.isCrop||p.category==='田地作物'||p.sourceCategory==='田地';
+  const compatible=(a,b)=>(a.buildingId!==b.buildingId||isField(a)&&isField(b))&&!a.inputs.some(v=>v.id===b.id)&&!b.inputs.some(v=>v.id===a.id);
   function add(products){
     const items=products.map(p=>({id:p.id,quantity:p.orderQuantity})),k=items.length;
     c.orders.push({id:`S${k}-${products.map(p=>p.id).join('-')}`,itemTypes:k,minimumLevel:Math.max(...products.map(p=>p.level)),maximumLevel:k===1?products[0].level+rules.singleWindow-1:null,items,coinValue:orderCoinValue({items},by),description:products.map(p=>`${p.name}×${p.orderQuantity}`).join(' + '),...calculate(items)});
   }
   const ps=c.products;for(let i=0;i<ps.length;i++){add([ps[i]]);if(rules.maxKinds<2)continue;for(let j=i+1;j<ps.length;j++){if(!compatible(ps[i],ps[j]))continue;add([ps[i],ps[j]]);if(rules.maxKinds<3)continue;for(let k=j+1;k<ps.length;k++)if(compatible(ps[i],ps[k])&&compatible(ps[j],ps[k]))add([ps[i],ps[j],ps[k]]);}}
   c.maxLevel=base.maxLevel||Math.max(...ps.map(p=>p.level));
-  c.assumptions=[...(base.assumptions||[]).filter(v=>!v.includes('未执行')&&!v.includes('尚未套用')),`多商品排除同直接生产建筑与直接上下游；间接上下游允许。单商品只保留最近 ${rules.singleWindow} 级。`];
+  c.assumptions=[...(base.assumptions||[]).filter(v=>!v.includes('未执行')&&!v.includes('尚未套用')),`多商品排除同建筑（田地除外）与直接上下游；田地作物可同单，间接上下游允许。单商品只保留最近 ${rules.singleWindow} 级。`];
   addOrderComplexity(c);return c;
 }
 export function availableAt(order,level){return order.minimumLevel<=level&&(order.maximumLevel==null||order.maximumLevel>=level);}
