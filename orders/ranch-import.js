@@ -9,7 +9,7 @@ export function ranchSettingsKey(base){
 }
 export function ranchImportCacheKey(base,level,rules,capacities){
   const generation=JSON.stringify([rules.cropQuantity,rules.productQuantity,rules.allowRepeated]);
-  return 'ranch-catalog-v2:'+JSON.stringify([base,level,generation,capacities]);
+  return 'ranch-catalog-v3:'+JSON.stringify([base,level,generation,capacities]);
 }
 const sameIds=(a,b)=>JSON.stringify(a.map(v=>v.id).sort((a,b)=>a-b))===JSON.stringify(b.map(v=>v.id).sort((a,b)=>a-b));
 export function canMigrateRanchSettings(oldBase,newBase){
@@ -29,7 +29,7 @@ export function backupRanchBeforeImport(storage,settings,project=null){
 export async function calculateRanchImport(payload,{settings={},onProgress=()=>{},solve=solveRanchGroup}={}){
   const bundle=readRanchResultBundle(payload),base=structuredClone(bundle.base),model=prepareRanch(base);
   const chosen=settings.cropQuantity!=null?settings:bundle.rules??{};
-  const rules={cropQuantity:Number(chosen.cropQuantity??7),productQuantity:Number(chosen.productQuantity??1),allowRepeated:chosen.allowRepeated??false};
+  const rules={cropQuantity:Number(chosen.cropQuantity??7),productQuantity:Number(chosen.productQuantity??1),allowRepeated:chosen.allowRepeated??false,sameBuildingRepeated:true};
   if(typeof rules.allowRepeated!=='boolean')throw Error('重复商品规则必须为勾选状态。');
   const migrated=structuredClone(settings),plans=[];
   for(let level=1;level<=(base.maxLevel??20);level++){

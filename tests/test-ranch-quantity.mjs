@@ -28,6 +28,12 @@ test('same building queues quantities rather than summing isolated optimal times
   const m=prepareRanch(base([product(1,10,1),product(2,20,1),product(3,30,1),product(4,40,1)])),g=group([1,2,3,4]),fit=fitRanchQuantities(m,g,20,{1:1},{targetMinutes:120,toleranceMinutes:0,targetWorkMinutes:120,productMax:3,timeLimitMs:2000});
   assert.equal(fit.recommendations[0].result.optimalMinutes,120);assert.equal(fit.recommendations[0].result.totalMinutes,120);
 });
+test('four identical products keep four quantities while sharing one workshop queue',()=>{
+  const m=prepareRanch(base([product(1,10,1)])),g=group([1,1,1,1]),caps={1:1},fit=fitRanchQuantities(m,g,20,caps,{targetMinutes:60,toleranceMinutes:0,targetWorkMinutes:60,productMax:3,timeLimitMs:2000}),best=fit.recommendations[0];
+  assert.equal(best.result.optimalMinutes,60);assert.equal(best.result.totalMinutes,60);assert.equal(best.result.complexity,4);assert.equal(best.result.coinValue,6);
+  assert.equal(best.group.slots.length,4);assert.equal(best.group.slots.reduce((n,s)=>n+s.quantity,0),6);
+});
+
 test('baseline outside the quantity bounds cannot become a recommendation',()=>{
   const m=prepareRanch(base([product(1,10,1),product(2,20,2),product(3,30,3),product(4,40,4)])),g=group([1,2,3,4],[9,9,9,9]),caps={1:1,2:1,3:1,4:1},fit=fitRanchQuantities(m,g,20,caps,{productMax:2,targetWorkMinutes:300,timeLimitMs:2000},solveRanchGroup(m,g,20,caps));assert(fit.recommendations.every(v=>v.group.slots.every(s=>s.quantity<=2)));
 });

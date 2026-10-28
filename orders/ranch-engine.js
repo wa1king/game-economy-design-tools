@@ -20,22 +20,25 @@ export function ranchCapacities(model,level){
 }
 export function ranchFamilies(model,level,type){
   const ps=model.base.products.filter(p=>p.level<=level),families=[];
-  if(type==='building')for(const s of model.base.sources){const products=ps.filter(p=>p.buildingId===s.id);if(products.length>=2)families.push({id:'b'+s.id,name:s.name,productIds:products.map(p=>p.id),anchorId:null});}
+  if(type==='building')for(const s of model.base.sources){const products=ps.filter(p=>p.buildingId===s.id);if(products.length>=1)families.push({id:'b'+s.id,name:s.name,productIds:products.map(p=>p.id),anchorId:null});}
   if(type==='chain')for(const p of ps)if(model.depths.get(p.id)>=2){const ids=ps.filter(v=>model.chains.get(p.id).has(v.id)).map(v=>v.id);if(ids.length>=2)families.push({id:'p'+p.id,name:p.name+' · 上游链',productIds:ids,anchorId:p.id});}
   return families;
 }
 export function generateRanchGroups(model,family,{cropQuantity=7,productQuantity=1,allowRepeated=true,limit=30000}={}){
   positive(cropQuantity,'作物数量');positive(productQuantity,'加工品数量');
   if(!family)return [];
+  // Same-building slots always allow repetition, including four identical items.
+  // The optional repeat setting applies only to anchored advanced chains.
+  const sameBuilding=family.anchorId==null,repeat=sameBuilding||allowRepeated;
   const groups=[],ids=family.productIds,current=[];
   function visit(start){
     if(current.length===4){
-      if(new Set(current).size<2||family.anchorId!=null&&!current.includes(family.anchorId))return;
-      if(groups.length>=limit)throw Error(`本组候选超过${limit.toLocaleString()}组，请缩小建筑/主链范围或关闭重复商品。未截断生成结果。`);
+      if(!sameBuilding&&(new Set(current).size<2||!current.includes(family.anchorId)))return;
+      if(groups.length>=limit)throw Error(`本组候选超过${limit.toLocaleString()}组，请缩小建筑/主链范围或关闭高级加工链重复商品。未截断生成结果。`);
       const slots=current.map(id=>({id,quantity:model.by.get(id).isCrop?cropQuantity:productQuantity}));
       groups.push({id:'R-'+current.join('-'),slots,weight:1});return;
     }
-    for(let i=start;i<ids.length;i++){current.push(ids[i]);visit(allowRepeated?i:i+1);current.pop();}
+    for(let i=start;i<ids.length;i++){current.push(ids[i]);visit(repeat?i:i+1);current.pop();}
   }
   visit(0);return groups;
 }

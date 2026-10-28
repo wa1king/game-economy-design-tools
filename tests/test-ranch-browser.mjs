@@ -11,14 +11,14 @@ import {ranchDemandKey,ranchPermutations,remapRanchResult} from '../orders/ranch
 import {setupRanchChains} from '../orders/ranch-chain.js';
 import {quantityGroup,quantityOptions} from '../orders/ranch-quantity.js';
 import {renderOrderItems} from '../orders/item-info.js';
-import {calculateRanchImport,canMigrateRanchSettings,backupRanchBeforeImport,ranchSettingsKey,readRanchResultBundle} from '../orders/ranch-import.js';
+import {calculateRanchImport,canMigrateRanchSettings,backupRanchBeforeImport,ranchSettingsKey,ranchImportCacheKey,readRanchResultBundle} from '../orders/ranch-import.js';
 const p=(id,b,level=1,inputs=[])=>({id,name:'商品'+id,buildingId:b,buildingName:'建筑'+b,level,stepMinutes:5,analysisBatchYield:1,isCrop:b===0,inputs:inputs.map(([id,quantity])=>({id,quantity}))});
 const base={maxLevel:20,sources:[{id:0,name:'田地',level:1},{id:10,name:'磨坊',level:2},{id:20,name:'厨房',level:4}],products:[p(1,0),p(2,0),p(3,0),p(4,0),p(5,10,2,[[1,1]]),p(6,10,2,[[2,1]]),p(7,10,3,[[1,1],[2,1]]),p(8,10,3,[[3,1]]),p(9,20,5,[[5,1],[6,1],[3,1]]),p(10,20,6,[[7,1],[8,1],[4,1]])]};
 const model=prepareRanch(base),catalog=generateRanchLevelGroups(model,20,{allowRepeated:false});
 let count=0;const test=(name,fn)=>{fn();count++;console.log('PASS '+name);};
 test('same-building route narrows first to building then exactly its available schemes',()=>{
   const s=ranchBrowserScope(model,catalog.families,catalog.groups,{type:'building',buildingId:10});
-  assert.deepEqual(s.buildings.map(b=>b.id),[0,10]);assert.equal(s.family.id,'b10');assert.equal(s.groups.length,1);assert(s.groups.every(g=>g.slots.every(v=>model.by.get(v.id).buildingId===10)));
+  assert.deepEqual(s.buildings.map(b=>b.id),[0,10,20]);assert.equal(s.family.id,'b10');assert.equal(s.groups.length,35);assert(s.groups.every(g=>g.slots.every(v=>model.by.get(v.id).buildingId===10)));
 });
 test('advanced chains group final products by their actual producing building',()=>{
   const a=ranchBrowserScope(model,catalog.families,catalog.groups,{type:'chain',buildingId:20,familyId:'p9'}),b=ranchBrowserScope(model,catalog.families,catalog.groups,{type:'chain',buildingId:20,familyId:'p10'});
@@ -69,7 +69,7 @@ test('page keeps catalogue and tuning collapsed after the always-visible scheme 
   for(const m of html.matchAll(/<(\w+)\b([^>]*\bid="[^"]+"[^>]*)>/g)){const a=attributes(m[2]),e=new Element(m[1],a);elements.set(e.id,e);}
   for(const id of ['searchLimit','sort','direction','quantityBudget']){const pattern=new RegExp(`<select[^>]*id="${id}"[^>]*>([\\s\\S]*?)<\\/select>`);elements.get(id).innerHTML=html.match(pattern)[1];}
   const isolatedBase={...base,landsByLevel:{20:30}},memory=new Map([['ranch-source-v1',JSON.stringify({kind:'import',base:isolatedBase,filename:'synthetic.xlsx'})]]),posts=[],scheduleCache=new Map();
-  const context=vm.createContext({console,structuredClone,prepareRanch,ranchCapacities,groupMetrics,solveRanchGroup,generateRanchLevelGroups,ranchDemandKey,ranchPermutations,remapRanchResult,ranchBrowserScope,ranchSchemeStep,ranchChainData,renderRanchChain,setupRanchChains,quantityGroup,quantityOptions,renderOrderItems,calculateRanchImport,canMigrateRanchSettings,backupRanchBeforeImport,ranchSettingsKey,readRanchResultBundle,
+  const context=vm.createContext({console,structuredClone,prepareRanch,ranchCapacities,groupMetrics,solveRanchGroup,generateRanchLevelGroups,ranchDemandKey,ranchPermutations,remapRanchResult,ranchBrowserScope,ranchSchemeStep,ranchChainData,renderRanchChain,setupRanchChains,quantityGroup,quantityOptions,renderOrderItems,calculateRanchImport,canMigrateRanchSettings,backupRanchBeforeImport,ranchSettingsKey,ranchImportCacheKey,readRanchResultBundle,
     setupItemInfo:base=>({products:new Map(base.products.map(p=>[p.id,p])),hide(){}}),createProjectStore:()=>({load:()=>null}),readChainExcel:()=>{},loadRanchCache:async key=>scheduleCache.get(key),saveRanchCache:async(key,value)=>{scheduleCache.set(key,value);},performance:{now:()=>1000},crypto:{getRandomValues:a=>{a[0]=0;}},setTimeout:()=>1,clearTimeout(){},
     Worker:class{postMessage(v){posts.push(v);}terminate(){}},localStorage:{getItem:k=>memory.get(k)??null,setItem:(k,v)=>memory.set(k,v)},window:{addEventListener(){}},document:{getElementById:id=>elements.get(id),querySelector:()=>new Element('main'),querySelectorAll:q=>q==='#slots input'?elements.get('slots').inputs:[]}});
   vm.runInContext(fs.readFileSync(new URL('../orders/ranch-app.js',import.meta.url),'utf8').replace(/^import .*;\r?\n/gm,''),context);
@@ -83,6 +83,19 @@ test('page keeps catalogue and tuning collapsed after the always-visible scheme 
     elements.get('productNav').onclick({target:{closest:()=>({dataset:{browseFamily:'p10'}})}});assert.equal(elements.get('family').value,'p10');const old=vm.runInContext('current.id',context),next=vm.runInContext('entries()[1].g.id',context);elements.get('schemeNav').onclick({target:{closest:()=>({dataset:{browseScheme:next}})}});assert.notEqual(vm.runInContext('current.id',context),old);assert(elements.get('groupMeta').textContent.includes('方案 2'));
     const selected=vm.runInContext('current.id',context);vm.runInContext('renderSelected(); renderTable()',context);assert.equal(vm.runInContext('current.id',context),selected);
     assert.equal(elements.get('rows').innerHTML,'');assert(memory.get(vm.runInContext('storageKey',context)).includes('"familyId":"p10"'));
+  });
+  test('four identical goods allow independent quantity edits and retain all delivery slots',()=>{
+    elements.get('buildingType').onclick();elements.get('buildingNav').onclick({target:{closest:()=>({dataset:{browseBuilding:'10'}})}});
+    const id=vm.runInContext('viewRows.find(g=>g.slots.every(v=>v.id===5)).id',context);
+    elements.get('schemeNav').onclick({target:{closest:()=>({dataset:{browseScheme:id}})}});
+    vm.runInContext('stop()',context);
+    const inputs=elements.get('slots').inputs;inputs[0].value='3';elements.get('slots').handlers.change({target:inputs[0]});
+    assert.equal(vm.runInContext('JSON.stringify(current.slots.map(v=>v.quantity))',context),'[3,1,1,1]');
+    assert.equal(vm.runInContext('ranchChainData(model,current,level).nodes.find(n=>n.id===5).delivered',context),6);
+    assert.equal(vm.runInContext('JSON.stringify(ranchChainData(model,current,level).nodes.find(n=>n.id===5).deliverySlots)',context),'[0,1,2,3]');
+    vm.runInContext('stop()',context);const second=elements.get('slots').inputs[1];second.value='2';elements.get('slots').handlers.change({target:second});
+    assert.equal(vm.runInContext('JSON.stringify(current.slots.map(v=>v.quantity))',context),'[3,2,1,1]');
+    elements.get('chainType').onclick();
   });
   test('optional table search cannot silently filter the primary scheme browser',()=>{
     const selected=vm.runInContext('current.id',context),size=vm.runInContext('viewRows.length',context);elements.get('search').value='no such product';elements.get('search').oninput();assert.equal(vm.runInContext('current.id',context),selected);assert.equal(vm.runInContext('viewRows.length',context),size);assert.equal(elements.get('shuffle').disabled,false);elements.get('search').value='';elements.get('search').oninput();

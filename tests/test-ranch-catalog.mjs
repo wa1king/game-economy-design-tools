@@ -9,8 +9,8 @@ for(const level of [1,3,4])for(const allowRepeated of [false,true]){
   const catalog=generateRanchLevelGroups(model,level,{allowRepeated}),actual=catalog.groups.flatMap(g=>ranchPermutations(g).map(p=>p.slots.map(v=>v.id).join(','))),expected=[];
   const ids=base.products.filter(p=>p.level<=level).map(p=>p.id);
   for(const a of ids)for(const b of ids)for(const c of ids)for(const d of ids){const selected=[a,b,c,d],distinct=new Set(selected).size;
-    if(distinct<2||!allowRepeated&&distinct<4)continue;
-    if(catalog.families.some(f=>selected.every(id=>f.productIds.includes(id))&&(f.anchorId==null||selected.includes(f.anchorId))))expected.push(selected.join(','));
+
+    if(catalog.families.some(f=>selected.every(id=>f.productIds.includes(id))&&(f.type==='building'||distinct>=2&&(allowRepeated||distinct===4)&&selected.includes(f.anchorId))))expected.push(selected.join(','));
   }
   assert.deepEqual(actual.sort(),expected.sort());assert.equal(new Set(actual).size,actual.length);assert.equal(catalog.permutationCount,expected.length);checks++;
 }
@@ -31,4 +31,23 @@ assert(repeated.groups.some(g=>g.familyIds.length>1),'overlapping families must 
 for(const g of repeated.groups)assert.equal(ranchPermutations(g).length,new Set(ranchPermutations(g).map(v=>v.id)).size);checks++;
 assert.throws(()=>generateRanchLevelGroups(model,4,{allowRepeated:true,limit:1}),/未截断/);assert.throws(()=>generateRanchLevelGroups(model,5),/等级/);checks++;
 assert.equal(ranchPermutations({slots:[{id:1,quantity:1},{id:1,quantity:1},{id:2,quantity:1},{id:2,quantity:1}]}).length,6);checks++;
+// Independent multiset counts include one-product workshops and AAAA.
+for(let n=1;n<=5;n++){
+  const one=prepareRanch({maxLevel:1,products:Array.from({length:n},(_,i)=>product(i+1,1)),sources:[{id:1,name:'B1',level:1}]});
+  const rows=generateRanchLevelGroups(one,1,{allowRepeated:false}).groups;
+  assert.equal(rows.length,n*(n+1)*(n+2)*(n+3)/24);
+  assert.equal(rows.filter(g=>new Set(g.slots.map(v=>v.id)).size===1).length,n);
+}checks++;
+for(const [ids,count] of [[[1,1,1,1],1],[[1,1,1,2],4],[[1,1,2,2],6],[[1,1,2,3],12],[[1,2,3,4],24]]){
+  assert.equal(ranchPermutations({slots:ids.map(id=>({id,quantity:1}))}).length,count);
+}checks++;
+// Identical products with different quantities must retain distinct animal slots.
+{
+  const g={slots:[{id:2,quantity:1},{id:2,quantity:2},{id:2,quantity:1},{id:2,quantity:3}]},caps={0:12,1:1},source=solveRanchGroup(model,g,4,caps);
+  for(const target of ranchPermutations(g)){
+    const r=remapRanchResult(source,g,target);
+    for(let i=0;i<4;i++)assert.equal(r.schedule.filter(t=>t.slot===i&&t.productId===2).length,target.slots[i].quantity);
+    assert.equal(r.optimalMinutes,source.optimalMinutes);
+  }
+}checks++;
 console.log(checks+' exhaustive catalogue and joint-schedule reuse checks passed');
