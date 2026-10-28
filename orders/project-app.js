@@ -1,3 +1,4 @@
+import {prepareConfigCellEdits} from './config-clipboard.js';
 import {resultFeedback} from './fit-feedback.js';
 import {toCSV,toJSON} from './export.js';
 import {renderOrderItems,setupItemInfo} from './item-info.js';
@@ -225,6 +226,15 @@ function changeProjectPrecision(value){
   errors.clear();clearDownload();persist();loadLevel(activeLevel);
   $('matrixMessage').textContent=`精度已应用全部 ${catalog.maxLevel} 级 · 需重新拟合`;
 }
+function pasteConfigCells(cells){
+  if(busy)return;
+  const allowed=new Set(['mix0','mix1','mix2','mean','spreadPercent',...catalog.sources.map(s=>'weight'+s.id)]);
+  if(cells.some(cell=>!allowed.has(cell.key)))throw Error('粘贴包含不可填写的列。');
+  const drafts=prepareConfigCellEdits(project.configs,cells,assignConfigField);
+  if(!drafts.size)return;
+  for(const [level,config] of drafts){project.configs[level]=config;errors.delete(level);}
+  clearDownload();persist();loadLevel(activeLevel);
+}
 function fillConfigColumn(key,value,fromLevel){
   if(busy||!Number.isInteger(fromLevel)||fromLevel<1||fromLevel>catalog.maxLevel)return;let changed=0;
   for(let level=fromLevel;level<=catalog.maxLevel;level++){
@@ -241,6 +251,7 @@ function renderOverview(){
     onEdit:(level,key,value)=>{if(busy)return;const c=project.configs[level];assignConfigField(c,key,value);if(key==='minimumOrderWeight')renderFloorHint();
       c.revision=(c.revision||0)+1;errors.delete(level);clearDownload();persist();
       if(level===activeLevel)loadLevel(level);else{renderNavigation();allLevelPanel.refreshReadouts();renderDashboard();}},
+    onEditCells:pasteConfigCells,
     onFillColumn:fillConfigColumn,
     onAdjust:openConfigLevel,
     onSetAllSources:enabled=>{if(busy)return;let changed=0;for(let level=1;level<=catalog.maxLevel;level++){const c=project.configs[level];if(Boolean(c.sourceEnabled)===enabled)continue;c.sourceEnabled=enabled;c.revision=(c.revision||0)+1;errors.delete(level);changed++;}

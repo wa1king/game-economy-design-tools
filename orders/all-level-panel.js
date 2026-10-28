@@ -1,3 +1,4 @@
+import {createConfigClipboard} from './config-clipboard.js';
 import {resultFeedback,renderFitProblems} from './fit-feedback.js';
 import {normalizedSourceWeights} from './order-engine.js';
 import {normalizedMixWeights} from './mix-weights.js';
@@ -8,6 +9,7 @@ const number=value=>Number(value).toLocaleString('zh-CN',{maximumFractionDigits:
 
 export function createAllLevelPanel(api){
   const head=document.getElementById('allConfigHead'),body=document.getElementById('overviewRows');
+  const clipboard=createConfigClipboard({root:body,getColumns:()=>['mix0','mix1','mix2','mean','spreadPercent',...api.getCatalog().sources.map(s=>'weight'+s.id)],getRowCount:()=>api.getCatalog().maxLevel,isBusy:()=>api.isBusy(),onApply:cells=>api.onEditCells(cells),onRefresh:refreshReadouts,onMessage:text=>{document.getElementById('matrixMessage').textContent=text;}});
   const field=(level,key,value,label,options='')=>`<input data-level="${level}" data-key="${key}" type="number" min="0" step="any" value="${value}" aria-label="Lv ${level} ${escape(label)}" ${options}>`;
   function rowStatus(level){
     const issue=api.getIssue(level);if(issue)return {text:issue.short,title:issue.message,type:'invalid'};
@@ -60,9 +62,9 @@ export function createAllLevelPanel(api){
       const level=i+1,c=api.getConfig(level),info=api.getInfo(level);
       return `<tr data-level="${level}"><th class="frozen-level">Lv ${level}</th><td class="matrix-count">${number(info.orders.length)}</td>${c.mix.map((v,j)=>`<td class="matrix-mix${info.counts[j]?'':' inactive'}">${field(level,'mix'+j,v,(j+1)+'种商品权重',`${disabled} ${!info.counts[j]?'disabled':''}`)}<output data-mix-ratio="${j}"></output></td>`).join('')}<td>${field(level,'mean',c.mean,'累计工时均值',disabled)}<output class="matrix-uniform-mean" data-uniform-mean aria-label="Lv ${level} 拟合前等概率均值" title="本级全部候选订单逐单等概率；不使用种类占比、来源约束或拟合结果。">—</output></td><td><span class="matrix-percent">${field(level,'spreadPercent',Number(spreadPercent(c).toFixed(4)),'工时波动比例',disabled)}<span aria-hidden="true">%</span></span></td><td class="matrix-check"><input type="checkbox" data-level="${level}" data-key="sourceEnabled" aria-label="Lv ${level} 来源参与拟合" ${c.sourceEnabled?'checked':''} ${disabled}></td>${catalog.sources.map((s,j)=>`<td class="matrix-source${info.active[j]?'':' inactive'}">${field(level,'weight'+s.id,c.weights[s.id]??1,s.name+'来源权重',`${disabled} ${!info.active[j]?'disabled':''}`)}<output data-ratio="${j}"></output></td>`).join('')}<td class="matrix-check"><input type="checkbox" data-level="${level}" data-key="minimumOrderWeight" aria-label="Lv ${level} 每单保底" ${c.minimumOrderWeight?'checked':''} ${disabled}></td><td class="matrix-actual" data-actual-mean>—</td><td class="matrix-actual" data-actual-spread>—</td><td class="matrix-actual" data-actual-reward aria-label="Lv ${level} 平均金币奖励">—</td><td class="frozen-state"><span data-row-status></span><button class="text-button" data-open-level="${level}" ${disabled}>查看单级</button></td></tr>`;
     }).join('');
-    document.getElementById('allConfigSummary').textContent=`${catalog.maxLevel} 级 · ${catalog.products.length} 商品 · ${catalog.sources.length} 来源 · Ctrl+Enter 向下填充本列（含当前等级）`;
+    document.getElementById('allConfigSummary').textContent=`${catalog.maxLevel} 级 · ${catalog.products.length} 商品 · ${catalog.sources.length} 来源 · 拖选 / Shift+单击选区 · Ctrl+C / V · Ctrl+Enter 向下填充`;
     body.querySelectorAll('input[data-key],select[data-key]').forEach(el=>{el.setAttribute('aria-keyshortcuts','Control+Enter');el.title='Ctrl+Enter：将当前值填入本列当前等级及后续等级';});
-    refreshReadouts();
+    refreshReadouts();clipboard.refresh();
   }
   body.addEventListener('keydown',event=>{
     if(event.key!=='Enter'||!event.ctrlKey||event.altKey||event.metaKey||event.shiftKey||event.repeat)return;
