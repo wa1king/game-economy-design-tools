@@ -41,8 +41,8 @@ export function prepareConfigCellEdits(configs,cells,assign){
   return drafts;
 }
 
-export function createConfigClipboard({root,getColumns,getRowCount,isBusy,onApply,onRefresh,onMessage}){
-  let anchor=null,end=null,dragging=false;
+export function createConfigClipboard({root,getColumns,getRowCount,isBusy,onApply,onRefresh,onMessage,onSelectionChange=()=>{}}){
+  let anchor=null,end=null,dragging=false,focusing=false;
   const inputAt=(level,column)=>root.querySelector(`input[data-level="${level}"][data-key="${getColumns()[column]}"]`);
   const point=target=>{
     const input=target.closest?.('td')?.querySelector('input[type="number"][data-key]');
@@ -52,13 +52,26 @@ export function createConfigClipboard({root,getColumns,getRowCount,isBusy,onAppl
   const range=()=>anchor&&end?{top:Math.min(anchor.level,end.level),bottom:Math.max(anchor.level,end.level),left:Math.min(anchor.column,end.column),right:Math.max(anchor.column,end.column)}:null;
   function paint(){
     root.querySelectorAll('.matrix-cell-selected,.matrix-cell-anchor').forEach(cell=>cell.classList.remove('matrix-cell-selected','matrix-cell-anchor'));
-    const r=range();if(!r)return;
+    const r=range();onSelectionChange(r);if(!r)return;
     for(let level=r.top;level<=r.bottom;level++)for(let col=r.left;col<=r.right;col++)inputAt(level,col)?.closest('td')?.classList.add('matrix-cell-selected');
     inputAt(anchor.level,anchor.column)?.closest('td')?.classList.add('matrix-cell-anchor');
   }
   function refresh(){
     if(anchor&&(!inputAt(anchor.level,anchor.column)||!inputAt(end.level,end.column)))anchor=end=null;
     paint();
+  }
+  function selectRange(r){
+    if(!r||![r.top,r.bottom,r.left,r.right].every(Number.isInteger)||r.top<1||r.bottom>getRowCount()||r.top>r.bottom||r.left<0||r.right>=getColumns().length||r.left>r.right)return false;
+    anchor={level:r.top,column:r.left};end={level:r.bottom,column:r.right};dragging=false;paint();
+    // Header clicks must leave keyboard copy/paste inside the selected grid.
+    // Focusing an input normally collapses a selection; suppress that here.
+    focusing=true;
+    try{
+      let target;
+      for(let level=r.top;level<=r.bottom&&!target;level++)for(let column=r.left;column<=r.right;column++){const input=inputAt(level,column);if(input&&!input.disabled){target=input;break;}}
+      if(target)target.focus({preventScroll:true});else{root.setAttribute?.('tabindex','-1');root.focus?.({preventScroll:true});}
+    }finally{focusing=false;}
+    onMessage(`已选中 ${r.bottom-r.top+1} 行 × ${r.right-r.left+1} 列数值`);return true;
   }
   root.addEventListener('pointerdown',event=>{
     if(event.button!==0)return;const p=point(event.target);
@@ -68,7 +81,7 @@ export function createConfigClipboard({root,getColumns,getRowCount,isBusy,onAppl
   });
   root.addEventListener('pointerover',event=>{if(!dragging||event.buttons!==1)return;const p=point(event.target);if(p&&(p.level!==end?.level||p.column!==end?.column)){end=p;event.preventDefault();paint();}});
   const finishDrag=()=>{dragging=false;};root.ownerDocument?.addEventListener('pointerup',finishDrag);root.ownerDocument?.addEventListener('pointercancel',finishDrag);
-  root.addEventListener('focusin',event=>{if(dragging)return;const p=point(event.target);if(p){anchor=end=p;paint();}});
+  root.addEventListener('focusin',event=>{if(dragging||focusing)return;const p=point(event.target);if(p){anchor=end=p;paint();}});
   root.addEventListener('selectstart',event=>{const r=range();if(dragging&&r&&(r.top!==r.bottom||r.left!==r.right))event.preventDefault();});
   root.addEventListener('keydown',event=>{if(event.key==='Escape'){anchor=end=null;paint();}});
   root.addEventListener('copy',event=>{
@@ -77,7 +90,7 @@ export function createConfigClipboard({root,getColumns,getRowCount,isBusy,onAppl
     event.preventDefault();event.clipboardData.setData('text/plain',rows.join('\r\n'));onMessage(`已复制 ${r.bottom-r.top+1} 行 × ${r.right-r.left+1} 列数值`);
   });
   root.addEventListener('paste',event=>{
-    const p=point(event.target);if(!p||!event.clipboardData)return;event.preventDefault();
+    const p=point(event.target);if((!p&&!range())||!event.clipboardData)return;event.preventDefault();
     if(isBusy()){onMessage('正在拟合，请等待完成后再粘贴。');return;}
     try{
       const selected=range(),start=selected?{level:selected.top,column:selected.left}:p;
@@ -89,5 +102,5 @@ export function createConfigClipboard({root,getColumns,getRowCount,isBusy,onAppl
       onMessage(`已粘贴 ${plan.cells.length} 个数值${plan.skipped?` · 跳过 ${plan.skipped} 个未开放单元格`:''}`);
     }catch(error){onMessage(error.message);}
   });
-  return {refresh};
+  return {refresh,selectRange,getRange:range};
 }
