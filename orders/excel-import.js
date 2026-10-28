@@ -24,7 +24,7 @@ export function initialSourceConfig(catalog,level,active){
   const weights=Object.fromEntries(catalog.sources.map(s=>[s.id,1]));
   const farm=catalog.sources.findIndex(s=>s.id===0||s.name==='农田'),lands=catalog.landsByLevel?.[level];
   const applied=farm>=0&&Number.isInteger(lands)&&lands>0;
-  if(applied)weights[catalog.sources[farm].id]=lands;
+  if(applied)weights[catalog.sources[farm].id]=lands/2;
   return {weights,sourceEnabled:applied&&Boolean(active[farm])};
 }
 export function catalogFromSheets(sheets,filename='加工链路.xlsx'){
