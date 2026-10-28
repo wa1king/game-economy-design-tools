@@ -19,23 +19,42 @@ export function dashboardRows(api){
 }
 
 function trend(rows,series,label,fixedMax=null,{width=600,height=220,ticks=4,emptyText='拟合后显示趋势'}={}){
-  const W=Math.max(260,Math.round(width)),H=height,p={l:52,r:16,t:18,b:28},w=W-p.l-p.r,h=H-p.t-p.b;
+  const W=Math.max(260,Math.round(width),rows.length*26+68),H=height,p={l:52,r:16,t:28,b:42},w=W-p.l-p.r,h=H-p.t-p.b;
   const values=rows.flatMap(row=>series.map(s=>s.get(row))).filter(Number.isFinite);
   const rawStep=Math.max(1,...values)*1.08/ticks,magnitude=10**Math.floor(Math.log10(rawStep));
   const step=[1,2,2.5,5,10].find(v=>v*magnitude>=rawStep)*magnitude,max=fixedMax??step*ticks;
   const x=i=>p.l+i*w/Math.max(1,rows.length-1),y=v=>p.t+h-v/max*h;
-  let svg=`<svg viewBox="0 0 ${W} ${H}" role="group" aria-label="${esc(label)}"><title>${esc(label)}</title>`;
+  let svg=`<svg viewBox="0 0 ${W} ${H}" style="min-width:${W}px" role="group" aria-label="${esc(label)}"><title>${esc(label)}</title>`;
   if(!values.length)return svg+`<text x="${W/2}" y="${H/2}" text-anchor="middle">${esc(emptyText)}</text></svg>`;
   for(let j=0;j<=ticks;j++)svg+=`<line x1="${p.l}" y1="${y(max*j/ticks)}" x2="${W-p.r}" y2="${y(max*j/ticks)}" stroke="#e5ebe6"/><text x="${p.l-8}" y="${y(max*j/ticks)+4}" text-anchor="end">${num(max*j/ticks)}</text>`;
+  const pointLabels=[];
   const draw=({get,color,dashed,name,unit=''})=>{
     let path='';rows.forEach((row,i)=>{const v=get(row);path+=Number.isFinite(v)?`${i&&Number.isFinite(get(rows[i-1]))?'L':'M'}${x(i)},${y(v)} `:'';});
     svg+=`<path d="${path}" fill="none" stroke="${color}" stroke-width="2.5" ${dashed?'stroke-dasharray="5 4"':''}/>`;
     rows.forEach((row,i)=>{const v=get(row);if(Number.isFinite(v)){
       const title=`Lv ${row.level} · ${name} ${num(v)}${unit} · 查看单级`;
       svg+=`<circle data-open="${row.level}" role="button" tabindex="0" aria-label="${esc(title)}" cx="${x(i)}" cy="${y(v)}" r="4" fill="${color}"><title>${esc(title)}</title></circle>`;
+      pointLabels.push({i,x:x(i),y:y(v),text:num(v)+(unit==='%'?'%':''),color,side:series.length>1&&!dashed?1:-1});
     }});
   };
   series.forEach(draw);
+  // Keep every value visible. Prefer opposite sides for the two series, stagger
+  // neighbours, and move labels into free lanes without covering other markers.
+  const placed=[],overlaps=(a,b)=>a.left<b.right+3&&a.right>b.left-3&&a.top<b.bottom+3&&a.bottom>b.top-3;
+  pointLabels.sort((a,b)=>a.i-b.i).forEach(point=>{
+    const textWidth=[...point.text].reduce((n,c)=>n+(c===','||c==='.'?3:6),0),anchor=point.i===0?'start':point.i===rows.length-1?'end':'middle';
+    const left=point.x-(anchor==='end'?textWidth:anchor==='middle'?textWidth/2:0),right=left+textWidth;
+    const offsets=[point.side*(13+point.i%2*14),point.side*(27+point.i%2*14),-point.side*13,-point.side*27,...Array.from({length:8},(_,i)=>[point.side*(41+i*14),-point.side*(41+i*14)]).flat()];
+    let chosen;
+    for(const offset of offsets){
+      const baseline=Math.max(12,Math.min(H-25,point.y+offset)),box={left,right,top:baseline-10,bottom:baseline+2};
+      if(placed.some(other=>overlaps(box,other))||pointLabels.some(other=>overlaps(box,{left:other.x-4,right:other.x+4,top:other.y-4,bottom:other.y+4})))continue;
+      chosen={baseline,...box};break;
+    }
+    chosen??={baseline:Math.max(12,Math.min(H-25,point.y+offsets[0])),left,right,top:point.y+offsets[0]-10,bottom:point.y+offsets[0]+2};
+    placed.push(chosen);
+    svg+=`<text class="dash-point-value" x="${point.x}" y="${chosen.baseline}" text-anchor="${anchor}" style="--point-color:${point.color}" aria-hidden="true">${esc(point.text)}</text>`;
+  });
   const labelEvery=Math.max(1,Math.ceil((rows.length-1)/Math.max(1,Math.floor(w/34))));
   rows.forEach((row,i)=>{if(i===0||i===rows.length-1||(i%labelEvery===0&&rows.length-1-i>=labelEvery))svg+=`<text x="${x(i)}" y="${H-7}" text-anchor="middle">${row.level}</text>`;});
   return svg+'</svg>';

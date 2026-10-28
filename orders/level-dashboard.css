@@ -39,6 +39,8 @@
 #dashboardContent .dash-charts svg{display:block;width:100%;height:220px;max-height:none;overflow:visible}
 #dashboardContent .dash-charts .dash-crop svg,#dashboardContent .dash-charts .dash-reward svg{height:150px}
 #dashboardContent .dash-charts svg text{font-size:12px;fill:#65766b;font-family:inherit;font-variant-numeric:tabular-nums}
+#dashboardContent .dash-charts>.panel{overflow-x:auto;scrollbar-width:thin}
+#dashboardContent .dash-charts svg text.dash-point-value{font-size:10px;font-weight:600;fill:var(--point-color);stroke:white;stroke-width:3px;paint-order:stroke;stroke-linejoin:round;pointer-events:none}
 #dashboardContent .dash-charts circle[data-open]{cursor:pointer;stroke:#fff;stroke-width:1.5;transition:stroke-width .15s}
 #dashboardContent .dash-charts circle[data-open]:hover{stroke:#cde2d5;stroke-width:5}
 #dashboardContent .dash-charts circle[data-open]:focus-visible{outline:2px solid #27775c;outline-offset:3px}
