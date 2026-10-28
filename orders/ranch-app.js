@@ -7,11 +7,15 @@ import {createProjectStore} from './project-storage.js';
 import {readChainExcel} from './excel-import.js';
 import {prepareRanch,ranchCapacities,groupMetrics} from './ranch-engine.js';
 import {generateRanchLevelGroups,ranchDemandKey,ranchPermutations,remapRanchResult} from './ranch-catalog.js';
-import {loadRanchCache,saveRanchCache} from './ranch-cache.js';
+import {loadRanchCache,saveRanchCache,mergeRanchCache} from './ranch-cache.js';
+import {mergeRanchSettings,notifyRanchChange,watchRanchWorkspace,ranchSource,readRanchTarget,validateRanchTarget} from './ranch-workspace.js';
 const $=id=>document.getElementById(id),esc=v=>String(v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const fmt=(v,d=1)=>v==null?'—':Number(v).toLocaleString('zh-CN',{maximumFractionDigits:d}),letters=['A','B','C','D'],animals=['史莱姆','吞吞貘','陆行鸟','宝箱怪'],colors=['#39866a','#a67b39','#647fac','#a46a80'];
 let base,model,filename,level=20,type='building',families=[],groups=[],current,capacities={},worker,busy=false,page=0,results=new Map(),failures=new Map(),savedSettings={},storageKey,downloadUrl,exportedJSON,cacheKey,buildToken=0,saveTimer,viewRows=[],viewRevision=0,sortedRevision=-1,sortedRows=[],itemInfo,metricCache=new Map(),cacheQueue=Promise.resolve(),quantityEdits={},quantityFits=new Map(),expandedChainId=null,workerKind=null,manualTimer,browserBuildingId=null,graphOverview=true,graphSignature='',slotSignature='',schemeSignature='';
 const groupKey=g=>g.key??ranchDemandKey(g);
+let persistedSettings={},fitCacheSnapshot=new Map(),syncQueued=false,syncing=false,cacheSaveError=null;
+const navigationRequest=globalThis.URLSearchParams?new URLSearchParams(window.location?.search??''):null;
+let navigationApplied=false;
 const representative=g=>groups.find(v=>v.key===groupKey(g))??g;
 const resultFor=(g,detail=false)=>{if(!g)return null;const r=results.get(groupKey(g));return r&&detail?remapRanchResult(r,representative(g),g):r;};
 function fingerprint(value){let h=2166136261;for(const c of JSON.stringify(value)){h^=c.charCodeAt(0);h=Math.imul(h,16777619);}return (h>>>0).toString(16);}
@@ -20,15 +24,17 @@ function persist(){
   if(!model)return;
   (savedSettings.quantityEdits??={})[level]=structuredClone(quantityEdits);(savedSettings.quantityTargetsByLevel??={})[level]=Object.fromEntries(['targetHours','targetTolerance','targetWork','fitCropMax','fitProductMax','quantityBudget'].map(id=>[id,$(id).value]));
   savedSettings={...savedSettings,browser:{type,buildingId:browserBuildingId,familyId:$('family').value,groupId:current?.id},level,cropQuantity:Number($('cropQuantity').value),productQuantity:Number($('productQuantity').value),allowRepeated:$('allowRepeated').checked,searchLimit:$('searchLimit').value,quantityTargets:Object.fromEntries(['targetHours','targetTolerance','targetWork','fitCropMax','fitProductMax','quantityBudget'].map(id=>[id,$(id).value]))};
-  try{localStorage.setItem(storageKey,JSON.stringify(savedSettings));}catch{message('本页设置未能保存，请导出备份。');}
+  try{savedSettings=mergeRanchSettings(persistedSettings,savedSettings,JSON.parse(localStorage.getItem(storageKey)||'{}'));localStorage.setItem(storageKey,JSON.stringify(savedSettings));persistedSettings=structuredClone(savedSettings);quantityEdits=structuredClone(savedSettings.quantityEdits?.[level]??{});restoreQuantityTargets();$('cropQuantity').value=savedSettings.cropQuantity??7;$('productQuantity').value=savedSettings.productQuantity??1;$('allowRepeated').checked=savedSettings.allowRepeated??false;$('searchLimit').value=savedSettings.searchLimit??'2000';notifyRanchChange(storageKey,'settings');}catch{message('本页设置未能保存，请导出备份。');}
 }
-function saveCache(){clearTimeout(saveTimer);if(!cacheKey)return;const key=cacheKey,value={version:2,results:[...results],failures:[...failures],quantityFits:[...quantityFits]};cacheQueue=cacheQueue.catch(()=>{}).then(()=>saveRanchCache(key,value)).catch(()=>message('计算结果暂时无法缓存；本页结果仍可查看和导出。'));}
+function saveCache(){clearTimeout(saveTimer);if(!cacheKey)return;const key=cacheKey,sourceKey=storageKey,changedFits=[...quantityFits].filter(([id,fit])=>JSON.stringify(fit)!==fitCacheSnapshot.get(id)),value={version:2,results:[...results],failures:[...failures],quantityFits:changedFits};cacheQueue=cacheQueue.catch(()=>{}).then(()=>mergeRanchCache(key,value)).then(()=>{cacheSaveError=null;if(cacheKey===key)for(const [id,fit] of changedFits)fitCacheSnapshot.set(id,JSON.stringify(fit));notifyRanchChange(sourceKey,'results');}).catch(error=>{cacheSaveError=error;message('计算结果暂时无法缓存；本页结果仍可查看和导出。');});}
 function scheduleSave(){clearTimeout(saveTimer);saveTimer=setTimeout(saveCache,800);}
-function stop(){clearTimeout(manualTimer);worker?.terminate();worker=null;busy=false;workerKind=null;$('stop').hidden=true;$('solveAll').disabled=!groups.length;$('solveOne').disabled=!current;renderQuantityControls();}
+function stop(){clearTimeout(manualTimer);worker?.terminate();worker=null;busy=false;workerKind=null;$('stop').hidden=true;$('solveAll').disabled=!groups.length;$('solveOne').disabled=!current;renderQuantityControls();if(syncQueued&&!syncing)setTimeout(syncRanchView,0);}
 function install(newBase,name,rules){
   stop();prepareRanch(newBase);base=structuredClone(newBase);model=prepareRanch(base);filename=name||base.filename||'加工链路';if(!itemInfo)itemInfo=setupItemInfo(base,document.querySelector('main'));else{itemInfo.hide();itemInfo.products.clear();base.products.forEach(p=>itemInfo.products.set(p.id,p));}storageKey='ranch-settings-v1:'+fingerprint({products:base.products,sources:base.sources,lands:base.landsByLevel});
   savedSettings={};try{savedSettings=JSON.parse(localStorage.getItem(storageKey)||'{}');}catch{}
+  persistedSettings=structuredClone(savedSettings);
   type=savedSettings.browser?.type==='chain'?'chain':'building';browserBuildingId=savedSettings.browser?.buildingId??null;graphSignature='';slotSignature='';schemeSignature='';level=Math.min(base.maxLevel||20,Math.max(1,savedSettings.level??level));restoreQuantityTargets();$('cropQuantity').value=savedSettings.cropQuantity??rules?.cropQuantity??7;$('productQuantity').value=savedSettings.productQuantity??rules?.productQuantity??1;$('allowRepeated').checked=savedSettings.allowRepeated??false;$('searchLimit').value=savedSettings.searchLimit||'2000';
+  if(!navigationApplied&&navigationRequest){const requested=Number(navigationRequest.get('level'));if(requested>=1&&requested<=base.maxLevel){level=requested;restoreQuantityTargets();}if(['building','chain'].includes(navigationRequest.get('type')))type=navigationRequest.get('type');navigationApplied=true;}
   $('projectName').textContent=filename;$('sourceMeta').textContent=`${base.products.length} 商品 · ${base.products.filter(v=>v.coinValue!=null).length} 个已定价`;$('level').innerHTML=Array.from({length:base.maxLevel||20},(_,i)=>`<option value="${i+1}">Lv ${i+1}</option>`).join('');$('level').value=level;
   $('empty').hidden=true;$('workspace').hidden=false;$('exportButton').disabled=false;capacities={...ranchCapacities(model,level),...(savedSettings.capacities?.[level]||{})};renderCapacities();rebuild();
 }
@@ -53,21 +59,21 @@ function renderSchemeNavigator(){
 function selectScheme(id){
   if(!id)return;clearTimeout(manualTimer);commitSlotInputs(false);current=viewRows.find(g=>g.id===id)??current;renderSelected();renderTable();persist();
 }
-async function rebuild(){
-  saveCache();stop();const token=++buildToken;results=new Map();failures=new Map();quantityFits=new Map();quantityEdits=structuredClone(savedSettings.quantityEdits?.[level]||{});expandedChainId=null;metricCache=new Map();cacheKey=null;current=null;groups=[];viewRows=[];viewRevision++;page=0;graphSignature='';slotSignature='';schemeSignature='';message();
+async function rebuild(autoRun=true,readOnly=false){
+  if(!readOnly)saveCache();stop();const token=++buildToken;results=new Map();failures=new Map();quantityFits=new Map();fitCacheSnapshot=new Map();quantityEdits=structuredClone(savedSettings.quantityEdits?.[level]||{});expandedChainId=null;metricCache=new Map();cacheKey=null;current=null;groups=[];viewRows=[];viewRevision++;page=0;graphSignature='';slotSignature='';schemeSignature='';message();
   try{const catalog=generateRanchLevelGroups(model,level,{cropQuantity:Number($('cropQuantity').value),productQuantity:Number($('productQuantity').value),allowRepeated:$('allowRepeated').checked});groups=catalog.groups.map(g=>{const initialQuantities=g.slots.map(v=>v.quantity),q=quantityEdits[g.id];return {...(Array.isArray(q)&&q.length===4&&q.every(n=>Number.isSafeInteger(n)&&n>=1&&n<=1000)?quantityGroup(g,q):g),initialQuantities};});families=catalog.families;
     $('combinationCount').textContent=fmt(groups.length,0);$('permutationCount').textContent=fmt(groups.reduce((total,g)=>total+ranchPermutations(g).length,0),0);
   }catch(error){families=[];$('combinationCount').textContent='0';$('permutationCount').textContent='0';message(error.message);}
   if(!groups.some(g=>g.types.includes(type))&&groups.some(g=>g.types.includes(type==='building'?'chain':'building')))type=type==='building'?'chain':'building';
-  $('family').value='';current=groups.find(g=>g.id===savedSettings.browser?.groupId)??null;updateFilters();updateView();persist();renderSelected();
+  $('family').value='';current=groups.find(g=>g.id===savedSettings.browser?.groupId)??null;updateFilters();updateView();if(!readOnly)persist();renderSelected();
   if(!groups.length)return;
   cacheKey=ranchImportCacheKey(base,level,{cropQuantity:Number($('cropQuantity').value),productQuantity:Number($('productQuantity').value),allowRepeated:$('allowRepeated').checked},capacities);
   $('candidateSummary').textContent='读取已有计算结果…';
   try{const cached=await loadRanchCache(cacheKey);if(token!==buildToken)return;if(cached?.version===1||cached?.version===2){const valid=new Set(groups.map(g=>g.key));results=new Map((cached.results||[]).filter(([key])=>valid.has(key)));failures=new Map((cached.failures||[]).filter(([key])=>valid.has(key)));quantityFits=new Map((cached.quantityFits||[]).filter(([id])=>groups.some(g=>g.id===id)));}}catch{}
-  if(token!==buildToken)return;
+  if(token!==buildToken)return;fitCacheSnapshot=new Map([...quantityFits].map(([id,fit])=>[id,JSON.stringify(fit)]));
   const missing=base.sources.find(s=>s.level<=level&&!(Number.isSafeInteger(Number(capacities[s.id]))&&Number(capacities[s.id])>0));
   if(missing){$('settings').hidden=false;$('openSettings').setAttribute('aria-expanded','true');message(`请在产能设置填写${missing.name}的实际容量，或重新导入含累计土地的 Excel。`);renderTable();return;}
-  viewRevision++;renderSelected();renderTable();run(groups.filter(g=>!results.get(g.key)?.proven));
+  viewRevision++;renderSelected();renderTable();if(autoRun)run(groups.filter(g=>!results.get(g.key)?.proven));
 }
 function updateView(){
   const selectedFamily=$('family').value,expanded=$('expandPermutations').checked;
@@ -248,6 +254,7 @@ $('level').onchange=()=>{persist();level=Number($('level').value);restoreQuantit
 for(const [id,t] of [['buildingType','building'],['chainType','chain']])$(id).onclick=()=>{clearTimeout(manualTimer);commitSlotInputs(false);type=t;updateFilters();updateView();persist();};
 $('family').onchange=$('expandPermutations').onchange=updateView;$('search').oninput=()=>{page=0;renderTable();};
 $('openSettings').onclick=()=>{$('settings').hidden=!$('settings').hidden;$('openSettings').setAttribute('aria-expanded',String(!$('settings').hidden));};
+$('closeSettings').onclick=()=>{$('settings').hidden=true;$('openSettings').setAttribute('aria-expanded','false');};
 $('applySettings').onclick=()=>{try{const updated={...capacities};for(const input of $('capacities').querySelectorAll('input')){const n=Number(input.value);if(!Number.isSafeInteger(n)||n<1)throw Error('所有已解锁设施的并行容量都必须是正整数。');updated[input.dataset.cap]=n;}for(const id of ['cropQuantity','productQuantity'])if(!Number.isSafeInteger(Number($(id).value))||Number($(id).value)<1)throw Error('需求数量必须是正整数。');capacities=updated;(savedSettings.capacities??={})[level]={...capacities};rebuild();}catch(e){message(e.message);}};
 $('solveOne').onclick=()=>{const g=commitSlotInputs(false);if(g)run([g]);};$('shuffle').onclick=sample;$('solveAll').onclick=()=>run(groups.filter(g=>!results.get(g.key)?.proven));$('stop').onclick=()=>{stop();saveCache();renderSelected();renderTable();};
 $('sort').onchange=$('direction').onchange=()=>{page=0;viewRevision++;renderTable();};$('prev').onclick=()=>{page--;renderTable();};$('next').onclick=()=>{page++;renderTable();};
@@ -262,4 +269,23 @@ $('targetDetails').ontoggle=()=>$('openTargets').setAttribute('aria-expanded',St
 for(const [id,value] of [['compactGraph',true],['levelGraph',false]])$(id).onclick=()=>{graphOverview=value;for(const [button,on] of [['compactGraph',true],['levelGraph',false]]){$(button).classList.toggle('active',on===value);$(button).setAttribute('aria-pressed',String(on===value));}renderSelected();};
 $('exportButton').onclick=()=>{persist();exportData();};$('closeDownload').onclick=()=>{$('downloadArea').hidden=true;};$('copyExport').onclick=async()=>{try{await navigator.clipboard.writeText(exportedJSON);$('exportSummary').textContent='全部需求组 JSON 已复制';}catch{$('exportJson').closest('details').open=true;$('exportSummary').textContent='浏览器未允许复制，请使用保存 JSON 获取完整配置';}};
 window.addEventListener('pagehide',saveCache);
+window.ranchBeforeNavigate=async()=>{if(current&&!commitSlotInputs(false))throw Error('请先填写有效的四单交付数量。');if(model)validateRanchTarget(Object.fromEntries(Object.keys(readRanchTarget(savedSettings,level)).map(id=>[id,$(id).value])));persist();stop();saveCache();await cacheQueue;if(cacheSaveError)throw Error('排产结果尚未保存成功，请重试或先导出备份。');};
+async function syncRanchView(){
+  if(syncing)return;if(busy||document.activeElement?.matches?.('input,select')){syncQueued=true;return;}
+  syncing=true;syncQueued=false;
+  try{
+    await cacheQueue;const source=ranchSource();if(!source?.base)return;
+    if(!model||ranchSettingsKey(source.base)!==storageKey){install(source.base,source.filename,source.rules);return;}
+    const latest=JSON.parse(localStorage.getItem(storageKey)||'{}');
+    savedSettings=latest;persistedSettings=structuredClone(latest);restoreQuantityTargets();
+    $('cropQuantity').value=latest.cropQuantity??7;$('productQuantity').value=latest.productQuantity??1;$('allowRepeated').checked=latest.allowRepeated??false;$('searchLimit').value=latest.searchLimit??'2000';
+    capacities={...ranchCapacities(model,level),...(latest.capacities?.[level]??{})};renderCapacities();await rebuild(false,true);
+  }catch(error){message(error.message);}finally{syncing=false;}
+}
+if(typeof document.addEventListener==='function'){
+  watchRanchWorkspace(syncRanchView);
+  document.addEventListener('focusout',()=>{if(syncQueued)setTimeout(syncRanchView,0);});
+}
 try{const saved=JSON.parse(localStorage.getItem('ranch-source-v1')||'null');if(saved?.kind==='import')install(saved.base,saved.filename);else readCurrent();}catch(e){message(e.message);}
+if(navigationRequest?.get('settings')==='1'){$('settings').hidden=false;$('openSettings').setAttribute('aria-expanded','true');}
+if(navigationRequest?.get('import')==='1'){$('empty').hidden=false;$('empty').scrollIntoView({block:'start'});}

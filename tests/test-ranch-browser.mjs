@@ -12,6 +12,8 @@ import {setupRanchChains} from '../orders/ranch-chain.js';
 import {quantityGroup,quantityOptions} from '../orders/ranch-quantity.js';
 import {renderOrderItems} from '../orders/item-info.js';
 import {calculateRanchImport,canMigrateRanchSettings,backupRanchBeforeImport,ranchSettingsKey,ranchImportCacheKey,readRanchResultBundle} from '../orders/ranch-import.js';
+import {mergeRanchCacheValue} from '../orders/ranch-cache.js';
+import {mergeRanchSettings,readRanchTarget,validateRanchTarget} from '../orders/ranch-workspace.js';
 const p=(id,b,level=1,inputs=[])=>({id,name:'商品'+id,buildingId:b,buildingName:'建筑'+b,level,stepMinutes:5,analysisBatchYield:1,isCrop:b===0,inputs:inputs.map(([id,quantity])=>({id,quantity}))});
 const base={maxLevel:20,sources:[{id:0,name:'田地',level:1},{id:10,name:'磨坊',level:2},{id:20,name:'厨房',level:4}],products:[p(1,0),p(2,0),p(3,0),p(4,0),p(5,10,2,[[1,1]]),p(6,10,2,[[2,1]]),p(7,10,3,[[1,1],[2,1]]),p(8,10,3,[[3,1]]),p(9,20,5,[[5,1],[6,1],[3,1]]),p(10,20,6,[[7,1],[8,1],[4,1]])]};
 const model=prepareRanch(base),catalog=generateRanchLevelGroups(model,20,{allowRepeated:false});
@@ -68,10 +70,10 @@ test('page keeps catalogue and tuning collapsed after the always-visible scheme 
   }
   for(const m of html.matchAll(/<(\w+)\b([^>]*\bid="[^"]+"[^>]*)>/g)){const a=attributes(m[2]),e=new Element(m[1],a);elements.set(e.id,e);}
   for(const id of ['searchLimit','sort','direction','quantityBudget']){const pattern=new RegExp(`<select[^>]*id="${id}"[^>]*>([\\s\\S]*?)<\\/select>`);elements.get(id).innerHTML=html.match(pattern)[1];}
-  const isolatedBase={...base,landsByLevel:{20:30}},memory=new Map([['ranch-source-v1',JSON.stringify({kind:'import',base:isolatedBase,filename:'synthetic.xlsx'})]]),posts=[],scheduleCache=new Map();
+  const isolatedBase={...base,landsByLevel:{20:30}},memory=new Map([['ranch-source-v1',JSON.stringify({kind:'import',base:isolatedBase,filename:'synthetic.xlsx'})]]),posts=[],scheduleCache=new Map(),notices=[];
   const context=vm.createContext({console,structuredClone,prepareRanch,ranchCapacities,groupMetrics,solveRanchGroup,generateRanchLevelGroups,ranchDemandKey,ranchPermutations,remapRanchResult,ranchBrowserScope,ranchSchemeStep,ranchChainData,renderRanchChain,setupRanchChains,quantityGroup,quantityOptions,renderOrderItems,calculateRanchImport,canMigrateRanchSettings,backupRanchBeforeImport,ranchSettingsKey,ranchImportCacheKey,readRanchResultBundle,
     setupItemInfo:base=>({products:new Map(base.products.map(p=>[p.id,p])),hide(){}}),createProjectStore:()=>({load:()=>null}),readChainExcel:()=>{},loadRanchCache:async key=>scheduleCache.get(key),saveRanchCache:async(key,value)=>{scheduleCache.set(key,value);},performance:{now:()=>1000},crypto:{getRandomValues:a=>{a[0]=0;}},setTimeout:()=>1,clearTimeout(){},
-    Worker:class{postMessage(v){posts.push(v);}terminate(){}},localStorage:{getItem:k=>memory.get(k)??null,setItem:(k,v)=>memory.set(k,v)},window:{addEventListener(){}},document:{getElementById:id=>elements.get(id),querySelector:()=>new Element('main'),querySelectorAll:q=>q==='#slots input'?elements.get('slots').inputs:[]}});
+    mergeRanchSettings,readRanchTarget,validateRanchTarget,notifyRanchChange(...args){notices.push(args);},watchRanchWorkspace(){},ranchSource:()=>JSON.parse(memory.get('ranch-source-v1')||'null'),mergeRanchCache:async(key,value)=>scheduleCache.set(key,mergeRanchCacheValue(scheduleCache.get(key),value)),Worker:class{postMessage(v){posts.push(v);}terminate(){}},localStorage:{getItem:k=>memory.get(k)??null,setItem:(k,v)=>memory.set(k,v)},window:{addEventListener(){}},document:{getElementById:id=>elements.get(id),querySelector:()=>new Element('main'),querySelectorAll:q=>q==='#slots input'?elements.get('slots').inputs:[]}});
   vm.runInContext(fs.readFileSync(new URL('../orders/ranch-app.js',import.meta.url),'utf8').replace(/^import .*;\r?\n/gm,''),context);
   await vm.runInContext('rebuild()',context);
   test('app opens a scheme graph without generating the collapsed full table',()=>{
@@ -118,6 +120,28 @@ test('page keeps catalogue and tuning collapsed after the always-visible scheme 
     assert.equal(elements.get('scheduleDetails').tag,'section');assert.equal(elements.get('scheduleDetails').open,false);
     vm.runInContext('results.set(current.key,solveRanchGroup(model,current,level,capacities));renderSelected()',context);assert(elements.get('schedule').innerHTML.includes('<svg'));assert.equal(elements.get('completion').hidden,false);
   });
+  test('repeated local saves retain another page target edits and synchronize stale input values',()=>{
+    vm.runInContext('stop();persist()',context);const key=vm.runInContext('storageKey',context),latest=JSON.parse(memory.get(key));
+    latest.quantityTargetsByLevel[20].targetHours='8';latest.quantityTargets={...latest.quantityTargetsByLevel[20]};latest.quantityTargetsByLevel[19]={...latest.quantityTargetsByLevel[20],targetHours:'7.5'};memory.set(key,JSON.stringify(latest));
+    assert.notEqual(elements.get('targetHours').value,'8');
+    vm.runInContext('persist();persist()',context);const saved=JSON.parse(memory.get(key));assert.equal(saved.quantityTargetsByLevel[20].targetHours,'8');assert.equal(saved.quantityTargetsByLevel[19].targetHours,'7.5');assert.equal(elements.get('targetHours').value,'8');
+  });
+  {
+    vm.runInContext('stop()',context);const key=vm.runInContext('storageKey',context),cacheKey=vm.runInContext('cacheKey',context),selected=vm.runInContext('structuredClone(current)',context),updated=quantityGroup(selected,[4,3,2,1]),latest=JSON.parse(memory.get(key));
+    latest.quantityEdits[20][selected.id]=[4,3,2,1];memory.set(key,JSON.stringify(latest));const capacities=vm.runInContext('structuredClone(capacities)',context),result=solveRanchGroup(model,updated,20,capacities);
+    await vm.runInContext('cacheQueue',context);scheduleCache.set(cacheKey,mergeRanchCacheValue(scheduleCache.get(cacheKey),{results:[[updated.key,result]]}));
+    // A local save may have already merged the new settings before the storage
+    // event is handled; synchronization must still refresh the visible group.
+    vm.runInContext('persist()',context);await vm.runInContext('cacheQueue',context);const postsBefore=posts.length,noticesBefore=notices.length;await vm.runInContext('syncRanchView()',context);await vm.runInContext('cacheQueue',context);
+    test('cross-page quantity updates refresh the selected graph and joint schedule without starting another solve',()=>{
+      assert.equal(vm.runInContext('current.id',context),selected.id);assert.equal(vm.runInContext('current.key',context),updated.key);assert.equal(vm.runInContext('JSON.stringify(current.slots.map(s=>s.quantity))',context),'[4,3,2,1]');assert.equal(posts.length,postsBefore);assert.equal(vm.runInContext('resultFor(current).totalMinutes',context),result.totalMinutes);assert(elements.get('chainGraph').innerHTML.includes('<svg'));
+    });
+    test('reading another page updates emits no write notification that could cause refresh loops',()=>{assert.equal(notices.length,noticesBefore);});
+    await vm.runInContext('window.ranchBeforeNavigate()',context);
+    test('navigation flush retains the newest shared quantities and targets',()=>{
+      const saved=JSON.parse(memory.get(key));assert.deepEqual(saved.quantityEdits[20][selected.id],[4,3,2,1]);assert.equal(saved.quantityTargetsByLevel[20].targetHours,'8');assert(scheduleCache.get(cacheKey).results.some(([k])=>k===updated.key));
+    });
+  }
   {
     const before=memory.get('ranch-source-v1'),newBase={...structuredClone(base),landsByLevel:Object.fromEntries(Array.from({length:20},(_,i)=>[i+1,30]))};newBase.products.forEach(p=>{p.coinValue=p.id;});
     const json=JSON.stringify({schema:'ranch-precomputed-v1',base:newBase,filename:'带价格的新表.xlsx',rules:{cropQuantity:7,productQuantity:1,allowRepeated:false}});

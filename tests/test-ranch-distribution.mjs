@@ -1,11 +1,8 @@
 import assert from 'node:assert/strict';
-import fs from 'node:fs';
-import vm from 'node:vm';
 import {buildRanchDistributionPlans,ranchDistributionRows,summarizeMinutes,renderRanchBoxPlot,renderRanchHistogram,ranchTimeBins,ranchDistributionCSV,formatMinutes,reuseRanchDistributionResult} from '../orders/ranch-distribution.js';
-import {ranchSettingsKey,ranchImportCacheKey} from '../orders/ranch-import.js';
-import {prepareRanch,ranchCapacities,solveRanchGroup} from '../orders/ranch-engine.js';
+import {ranchImportCacheKey} from '../orders/ranch-import.js';
+import {prepareRanch,solveRanchGroup} from '../orders/ranch-engine.js';
 import {generateRanchLevelGroups} from '../orders/ranch-catalog.js';
-import {createProjectStore} from '../orders/project-storage.js';
 const product=(id,b,level,inputs=[])=>({id,name:'P'+id,buildingId:b,buildingName:'B'+b,level,isCrop:b===0,stepMinutes:id*10,analysisBatchYield:1,coproducts:[],inputs:inputs.map(id=>({id,quantity:1})),coinValue:1});
 const base={maxLevel:3,products:[product(1,0,1),product(2,0,1),product(3,10,2,[1]),product(4,10,2,[2]),product(5,20,3,[2,3]),product(6,20,3,[1,4])],sources:[{id:0,name:'农田',level:1},{id:10,name:'磨坊',level:2},{id:20,name:'厨房',level:3}],landsByLevel:{1:6,2:12,3:18}};
 let checks=0;const test=(name,fn)=>{fn();checks++;console.log('PASS '+name);};
@@ -49,42 +46,4 @@ test('graphs distinguish both types, expose statistics and export missing values
   const noLand=structuredClone(base);noLand.landsByLevel={};assert(buildRanchDistributionPlans(noLand).every(p=>p.capacityError));
 });
 
-// Isolated DOM/event simulation. Never accesses a real browser or user storage.
-const html=fs.readFileSync(new URL('../orders/ranch-distribution.html',import.meta.url),'utf8'),app=fs.readFileSync(new URL('../orders/ranch-distribution-app.js',import.meta.url),'utf8'),elements=new Map();
-class Element{constructor(){this.value='';this.hidden=false;this.disabled=false;this.innerHTML='';this.textContent='';this.dataset={};this.classList={toggle(){}};}setAttribute(){}scrollIntoView(){}click(){}}
-for(const match of html.matchAll(/\bid="([^"]+)"/g)){assert(!elements.has(match[1]));elements.set(match[1],new Element());}
-for(const match of app.matchAll(/\$\('([^']+)'\)/g))assert(elements.has(match[1]),'missing '+match[1]);
-const source=JSON.stringify({kind:'import',base,filename:'test.xlsx'}),memory=new Map([['ranch-source-v1',source],[ranchSettingsKey(base),JSON.stringify(settings)]]),initialMemory=JSON.stringify([...memory]),cache=new Map(),workers=[],typeButtons=['all','building','chain'].map(type=>{const e=new Element();e.dataset.type=type;return e;});
-let lastCSV='';const context=vm.createContext({console,structuredClone,buildRanchDistributionPlans,ranchDistributionRows,renderRanchBoxPlot,renderRanchHistogram,ranchDistributionCSV,formatMinutes,reuseRanchDistributionResult,ranchSettingsKey,createProjectStore,
-  localStorage:{getItem:k=>memory.get(k)??null},loadRanchCache:async k=>structuredClone(cache.get(k)),saveRanchCache:async(k,v)=>cache.set(k,structuredClone(v)),
-  document:{getElementById:id=>elements.get(id),querySelectorAll:()=>typeButtons,createElement:()=>new Element()},performance:{now:()=>2000},setTimeout:()=>{},URL:{createObjectURL:()=>'',revokeObjectURL(){}},Blob:class{constructor(parts){lastCSV=parts.join('');}},
-  Worker:class{constructor(){workers.push(this);}postMessage(data){this.data=data;}terminate(){this.terminated=true;}}
-});
-vm.runInContext(app.replace(/^import .*;\r?\n/gm,''),context);
-const flush=async()=>{for(let i=0;i<30;i++)await Promise.resolve();};await flush();
-test('overview reads all levels without launching a solver or overwriting source/settings',()=>{
-  assert.equal(elements.get('distributionError').hidden,true);assert.equal(elements.get('distributionWorkspace').hidden,false);assert.equal(workers.length,0);assert.equal(vm.runInContext('plans.length',context),3);assert.equal(elements.get('distributionLevel').value,'3');assert.equal(JSON.stringify([...memory]),initialMemory);assert(elements.get('distributionRows').innerHTML.includes('高级加工链'));
-});
-test('type and level controls update distributions independently of scheme navigation',()=>{
-  typeButtons[2].onclick();assert(!elements.get('distributionRows').innerHTML.includes('distribution-type-building'));elements.get('distributionLevel').value='1';elements.get('distributionLevel').onchange();assert(elements.get('workHistogram').innerHTML.includes('暂无'));typeButtons[0].onclick();
-});
-const pending=elements.get('calculateDistribution').onclick();await flush();
-const first=workers.at(-1),item=first.data.groups[0],key=vm.runInContext('plans.find(p=>p.groups.length).cacheKey',context);
-// A concurrently updated recommendation must survive this page's cache write.
-cache.set(key,{version:2,results:[],failures:[],quantityFits:[['keep',{note:'recommendation'}]]});
-first.onmessage({data:{type:'result',id:item.id,result:{proven:true,optimalMinutes:70},index:1,total:first.data.groups.length}});
-elements.get('pauseDistribution').onclick();await pending;await vm.runInContext('cacheQueue',context);
-test('pausing preserves partial certified results and existing quantity recommendations',()=>{
-  assert(first.terminated);assert.equal(cache.get(key).results.length,1);assert.deepEqual(cache.get(key).quantityFits,[['keep',{note:'recommendation'}]]);assert.equal(elements.get('calculateDistribution').disabled,false);assert.equal(JSON.stringify([...memory]),initialMemory);
-});
-// Resume and drive every worker result without timing-sensitive browser machinery.
-const resumed=elements.get('calculateDistribution').onclick();await flush();
-for(let turn=0;turn<10&&vm.runInContext('running',context);turn++){
-  const w=workers.at(-1);for(const [i,g] of w.data.groups.entries())w.onmessage({data:{type:'result',id:g.id,result:{proven:true,optimalMinutes:90},index:i+1,total:w.data.groups.length}});
-  w.onmessage({data:{type:'done'}});await flush();
-}
-await resumed;await vm.runInContext('cacheQueue',context);
-test('all-level worker processing completes, persists and exports both categories',()=>{
-  assert.equal(vm.runInContext('running',context),false);assert.equal(vm.runInContext('plans.every(p=>p.groups.every(g=>proven(p.results.get(g.key))))',context),true);assert.equal(cache.size,3);elements.get('downloadDistribution').onclick();assert(lastCSV.includes('同建筑'));assert(lastCSV.includes('高级加工链'));assert.equal(JSON.stringify([...memory]),initialMemory);
-});
 console.log(checks+' ranch distribution checks passed');

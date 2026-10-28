@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>牧场订单 · 全部等级配置</title>
+  <link rel="stylesheet" href="ranch.css">
+  <link rel="stylesheet" href="ranch-shell.css">
+  <link rel="stylesheet" href="ranch-config.css">
+</head>
+<body data-ranch-view="config">
+  <header id="ranchShell"></header>
+  <main class="ranch-config-main">
+    <div id="ranchConfigError" class="ranch-config-error" role="alert" hidden></div>
+    <div id="ranchConfigChanged" class="ranch-config-changed" hidden><span>项目或配置已更新</span><button id="reloadRanchConfig" type="button">读取最新配置</button></div>
+    <section id="ranchConfigEmpty" class="empty" hidden><h1>先导入加工链路表</h1><p>导入后可统一配置各级牧场订单目标。</p><a href="ranch.html">前往导入 →</a></section>
+    <section id="ranchConfigWorkspace" class="ranch-config-panel" hidden>
+      <div class="ranch-config-heading">
+        <div><h1>全部等级配置</h1><p id="ranchConfigSummary">读取项目中…</p></div>
+        <div class="ranch-config-actions"><button id="scheduleRanchLevels" type="button">按当前数量计算</button><button id="fitRanchLevels" class="primary" type="button">按目标配量并计算</button><button id="pauseRanchLevels" type="button" hidden>暂停</button><button id="resumeRanchLevels" class="primary" type="button" hidden>继续计算</button></div>
+      </div>
+      <div class="ranch-config-toolbar"><span>点列头选列 · 点等级选行 · Ctrl+C / V · Ctrl+Enter 向下填充</span><span id="ranchConfigMessage" role="status" aria-live="polite"></span></div>
+      <div id="ranchConfigProgressWrap" class="ranch-config-progress" hidden><progress id="ranchConfigProgress" max="1" value="0" aria-label="全部等级计算进度"></progress><span id="ranchConfigProgressText" role="status" aria-live="polite"></span></div>
+      <div class="ranch-config-scroll">
+        <table id="ranchConfigTable" aria-label="牧场全部等级目标配置">
+          <thead id="ranchConfigHead">
+            <tr class="group-head"><th class="frozen-level" rowspan="2" data-select-all><button type="button" class="matrix-select-trigger" aria-label="选中全部等级数值">等级 ↘</button></th><th colspan="3" data-select-group="targetHours targetTolerance targetWork"><button type="button" class="matrix-select-trigger" aria-label="选中全部时间目标">两类共用时间目标</button></th><th colspan="2" data-select-group="fitCropMax fitProductMax"><button type="button" class="matrix-select-trigger" aria-label="选中全部交付数量上限">每单数量上限</button></th><th rowspan="2">已排产 / 组合数</th><th class="frozen-state" rowspan="2">状态 / 分析</th></tr>
+            <tr class="column-head"><th data-select-column="targetHours"><button type="button" class="matrix-select-trigger" aria-label="选中联合优化时间目标整列">联合优化时间 · 小时</button></th><th data-select-column="targetTolerance"><button type="button" class="matrix-select-trigger" aria-label="选中允许偏差整列">允许偏差 ±分钟</button></th><th data-select-column="targetWork"><button type="button" class="matrix-select-trigger" aria-label="选中累计工时目标整列">累计工时 · 分钟</button></th><th data-select-column="fitCropMax"><button type="button" class="matrix-select-trigger" aria-label="选中作物数量上限整列">作物</button></th><th data-select-column="fitProductMax"><button type="button" class="matrix-select-trigger" aria-label="选中加工品数量上限整列">加工品</button></th></tr>
+          </thead>
+          <tbody id="ranchConfigRows"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+  <script type="module" src="ranch-shell.js"></script>
+  <script type="module" src="ranch-config-app.js"></script>
+</body>
+</html>
