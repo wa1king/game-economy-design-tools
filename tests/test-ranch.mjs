@@ -36,7 +36,7 @@ test('missing coin prices remain unavailable; zero is valid',()=>{
 });
 test('ranch generators allow same-building and direct ancestry unlike normal orders',()=>{
  const m=prepareRanch(base([product(1,1,0),product(2,2,1,[[1,1]],2),product(3,3,1,[[2,1]],3),product(4,4,1,[[1,1]],3),product(5,5,1,[[1,1]],3)]));
- const buildings=ranchFamilies(m,3,'building');assert.equal(buildings.length,2);const workshop=buildings.find(f=>f.productIds.includes(2));const g=generateRanchGroups(m,workshop,{allowRepeated:false});assert.equal(g.length,35);assert(g.some(g=>g.slots.map(v=>v.id).join(',')==='2,3,4,5'));assert(g.some(g=>g.slots.every(v=>v.id===2)));
+ const buildings=ranchFamilies(m,3,'building');assert.equal(buildings.length,1);const workshop=buildings.find(f=>f.productIds.includes(2));const g=generateRanchGroups(m,workshop,{allowRepeated:false});assert.equal(g.length,35);assert(g.some(g=>g.slots.map(v=>v.id).join(',')==='2,3,4,5'));assert(g.some(g=>g.slots.every(v=>v.id===2)));
  const f=ranchFamilies(m,3,'chain').find(v=>v.anchorId===3);assert.deepEqual(f.productIds,[1,2,3]);assert.equal(generateRanchGroups(m,f,{allowRepeated:false}).length,0);
  const repeated=generateRanchGroups(m,f,{allowRepeated:true});assert(repeated.length>0);assert(repeated.every(g=>g.slots.some(v=>v.id===3)&&new Set(g.slots.map(v=>v.id)).size>=2));
  assert.throws(()=>generateRanchGroups(m,workshop,{allowRepeated:true,limit:1}),/未截断/);

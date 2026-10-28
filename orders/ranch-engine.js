@@ -13,14 +13,16 @@ export function prepareRanch(base){
   }
   function chain(id){if(chains.has(id))return chains.get(id);const result=new Set([id]);for(const v of by.get(id).inputs)for(const x of chain(v.id))result.add(x);chains.set(id,result);return result;}
   base.products.forEach(p=>chain(p.id));
-  return {base,by,depths,chains};
+  const fields=new Set(base.sources.filter(s=>s.id===0||s.category==='田地'||s.name==='农田'||s.name==='田地').map(s=>s.id));
+  const cropIds=new Set(base.products.filter(p=>fields.has(p.buildingId)||p.isCrop||p.category==='田地作物'||p.category==='特殊作物'||p.sourceCategory==='田地').map(p=>p.id));
+  return {base,by,depths,chains,cropIds};
 }
 export function ranchCapacities(model,level){
   return Object.fromEntries(model.base.sources.map(s=>[s.id,(s.category==='田地'||s.id===0||s.name==='农田')?(model.base.landsByLevel?.[level]??null):1]));
 }
 export function ranchFamilies(model,level,type){
   const ps=model.base.products.filter(p=>p.level<=level),families=[];
-  if(type==='building')for(const s of model.base.sources){const products=ps.filter(p=>p.buildingId===s.id);if(products.length>=1)families.push({id:'b'+s.id,name:s.name,productIds:products.map(p=>p.id),anchorId:null});}
+  if(type==='building')for(const s of model.base.sources){const products=ps.filter(p=>p.buildingId===s.id&&!model.cropIds.has(p.id));if(products.length>=1)families.push({id:'b'+s.id,name:s.name,productIds:products.map(p=>p.id),anchorId:null});}
   if(type==='chain')for(const p of ps)if(model.depths.get(p.id)>=2){const ids=ps.filter(v=>model.chains.get(p.id).has(v.id)).map(v=>v.id);if(ids.length>=2)families.push({id:'p'+p.id,name:p.name+' · 上游链',productIds:ids,anchorId:p.id});}
   return families;
 }
@@ -30,7 +32,7 @@ export function generateRanchGroups(model,family,{cropQuantity=7,productQuantity
   // Same-building slots always allow repetition, including four identical items.
   // The optional repeat setting applies only to anchored advanced chains.
   const sameBuilding=family.anchorId==null,repeat=sameBuilding||allowRepeated;
-  const groups=[],ids=family.productIds,current=[];
+  const groups=[],ids=family.productIds.filter(id=>!sameBuilding||!model.cropIds.has(id)),current=[];
   function visit(start){
     if(current.length===4){
       if(!sameBuilding&&(new Set(current).size<2||!current.includes(family.anchorId)))return;

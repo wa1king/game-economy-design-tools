@@ -18,7 +18,7 @@ const model=prepareRanch(base),catalog=generateRanchLevelGroups(model,20,{allowR
 let count=0;const test=(name,fn)=>{fn();count++;console.log('PASS '+name);};
 test('same-building route narrows first to building then exactly its available schemes',()=>{
   const s=ranchBrowserScope(model,catalog.families,catalog.groups,{type:'building',buildingId:10});
-  assert.deepEqual(s.buildings.map(b=>b.id),[0,10,20]);assert.equal(s.family.id,'b10');assert.equal(s.groups.length,35);assert(s.groups.every(g=>g.slots.every(v=>model.by.get(v.id).buildingId===10)));
+  assert.deepEqual(s.buildings.map(b=>b.id),[10,20]);assert.equal(s.family.id,'b10');assert.equal(s.groups.length,35);assert(s.groups.every(g=>g.slots.every(v=>model.by.get(v.id).buildingId===10)));
 });
 test('advanced chains group final products by their actual producing building',()=>{
   const a=ranchBrowserScope(model,catalog.families,catalog.groups,{type:'chain',buildingId:20,familyId:'p9'}),b=ranchBrowserScope(model,catalog.families,catalog.groups,{type:'chain',buildingId:20,familyId:'p10'});
@@ -75,8 +75,13 @@ test('page keeps catalogue and tuning collapsed after the always-visible scheme 
   vm.runInContext(fs.readFileSync(new URL('../orders/ranch-app.js',import.meta.url),'utf8').replace(/^import .*;\r?\n/gm,''),context);
   await vm.runInContext('rebuild()',context);
   test('app opens a scheme graph without generating the collapsed full table',()=>{
-    assert.equal(elements.get('message').textContent,'');assert(elements.get('chainGraph').innerHTML.includes('data-auto-fit="true"'));assert.equal(elements.get('rows').innerHTML,'');assert.equal(elements.get('family').value,'b0');assert.equal(posts.at(-1).groups.length,catalog.groups.length);
+    assert.equal(elements.get('message').textContent,'');assert(elements.get('chainGraph').innerHTML.includes('data-auto-fit="true"'));assert.equal(elements.get('rows').innerHTML,'');assert.equal(elements.get('family').value,'b10');assert.equal(posts.at(-1).groups.length,catalog.groups.length);
   });
+  elements.get('level').value='1';elements.get('level').onchange();await Promise.resolve();
+  test('crop-only early levels show an empty same-building view with no stale graph or solve action',()=>{
+    assert.equal(vm.runInContext('groups.length',context),0);assert.equal(elements.get('chainGraph').innerHTML,'');assert.equal(elements.get('solveOne').disabled,true);assert.equal(elements.get('family').value,'');assert(elements.get('buildingNav').innerHTML.includes('暂无'));
+  });
+  elements.get('level').value='20';elements.get('level').onchange();await new Promise(resolve=>setTimeout(resolve,0));
   test('actual building, chain product and next-scheme handlers update the persistent viewer',()=>{
     elements.get('buildingNav').onclick({target:{closest:()=>({dataset:{browseBuilding:'10'}})}});assert.equal(elements.get('family').value,'b10');assert(elements.get('groupTitle').textContent.includes('磨坊'));
     elements.get('chainType').onclick();assert.equal(elements.get('family').value,'p9');assert.equal(elements.get('productFilterRow').hidden,false);

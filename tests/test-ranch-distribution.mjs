@@ -69,7 +69,7 @@ test('type and level controls update distributions independently of scheme navig
   typeButtons[2].onclick();assert(!elements.get('distributionRows').innerHTML.includes('distribution-type-building'));elements.get('distributionLevel').value='1';elements.get('distributionLevel').onchange();assert(elements.get('workHistogram').innerHTML.includes('暂无'));typeButtons[0].onclick();
 });
 const pending=elements.get('calculateDistribution').onclick();await flush();
-const first=workers.at(-1),item=first.data.groups[0],key=vm.runInContext('plans[0].cacheKey',context);
+const first=workers.at(-1),item=first.data.groups[0],key=vm.runInContext('plans.find(p=>p.groups.length).cacheKey',context);
 // A concurrently updated recommendation must survive this page's cache write.
 cache.set(key,{version:2,results:[],failures:[],quantityFits:[['keep',{note:'recommendation'}]]});
 first.onmessage({data:{type:'result',id:item.id,result:{proven:true,optimalMinutes:70},index:1,total:first.data.groups.length}});
