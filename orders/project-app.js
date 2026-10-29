@@ -19,10 +19,13 @@ import {coinValueCoverage} from './coin-values.js';
 import {createOutcomeAnalysis,matchesOutcomeFilter} from './order-analysis-view.js';
 import {fetchSharedSession,restoreSessionSnapshot} from './session-snapshot.js';
 import {createSessionBackupView} from './session-backup-view.js';
+import {normalizeCustomOrders,customOrdersAt} from './custom-orders.js';
+import {createCustomOrdersView} from './custom-orders-view.js';
+import {projectExportSheets,exportProjectWorkbook} from './project-export.js';
 const $=id=>document.getElementById(id),fmt=(v,d=1)=>Number(v).toLocaleString('zh-CN',{maximumFractionDigits:d,minimumFractionDigits:d}),pct=(v,d=2)=>fmt(v*100,d)+'%';
 const escape=value=>String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 let project,catalog,result,worker,itemInfo,activeLevel=20,busy=false,dirty=true,page=0,selectedTimeRange=null,request=0,generation=0;
-let allLevelPanel,levelDashboard,simulator,outcomeAnalysis,gameMode;
+let allLevelPanel,levelDashboard,simulator,outcomeAnalysis,gameMode,customOrdersView;
 function syncSimulators(){simulator?.sync();gameMode?.sync();}
 let selectedOutcomeFilter=null;
 let projectStore;
@@ -36,7 +39,7 @@ function persist(){try{projectStore?.save({...project,activeLevel});}catch(error
 function showEmptyProject(message='导入加工链路 Excel 后开始配置订单'){
   $('emptyProject').hidden=false;$('emptyProjectMessage').textContent=message;
   document.querySelector('.project-toolbar').hidden=true;
-  for(const id of ['levelWorkspace','dashboardPanel','overviewPanel'])$(id).hidden=true;
+  for(const id of ['levelWorkspace','dashboardPanel','overviewPanel','customPanel'])$(id).hidden=true;
   for(const id of ['solveAll','exportProject','toggleRules'])$(id).disabled=true;
   $('projectName').textContent='尚未导入项目';$('catalogMeta').textContent='';
 }
@@ -53,7 +56,7 @@ function defaultConfig(level){
 }
 function installBase(base,filename,keepConfigs=null){
   catalog=buildCatalog(base,keepConfigs?.rules||DEFAULT_RULES);infos.clear();results.clear();errors.clear();
-  project={schemaVersion:'order-project-v3',origin:'excel-import',filename,base,rules:catalog.rules,configs:{}};
+  project={schemaVersion:'order-project-v3',origin:'excel-import',filename,base,rules:catalog.rules,configs:{},customOrders:normalizeCustomOrders(keepConfigs?.customOrders,catalog.maxLevel)};
   for(let level=1;level<=catalog.maxLevel;level++){defaultConfig(level);if(keepConfigs?.configs?.[level]){const saved=keepConfigs.configs[level];project.configs[level]={...project.configs[level],...saved,spreadPercent:spreadPercent(saved)};}}
   if(keepConfigs?.probabilityScale!=null)project.probabilityScale=keepConfigs.probabilityScale;
   migrateProjectPrecision(project);
@@ -258,7 +261,7 @@ function renderOverview(){
       if(changed){clearDownload();persist();loadLevel(activeLevel);}$('matrixMessage').textContent=`已${enabled?'启用':'关闭'}全部 ${catalog.maxLevel} 级来源约束`;},
     onOpen:level=>{if(!busy){loadLevel(level);setView('levels');}}
   });
-  allLevelPanel.render();renderDashboard();
+  allLevelPanel.render();renderDashboard();if(!$('customPanel').hidden)renderCustomOrders();
 }
 function openConfigLevel(level){
   setView('overview');
@@ -266,7 +269,17 @@ function openConfigLevel(level){
   document.querySelectorAll('.config-problem-focus').forEach(el=>el.classList.remove('config-problem-focus'));
   if(row){row.classList.add('config-problem-focus');row.scrollIntoView({behavior:'smooth',block:'center'});}
 }
-function setView(view){$('levelWorkspace').hidden=view!=='levels';$('overviewPanel').hidden=view!=='overview';$('dashboardPanel').hidden=view!=='dashboard';$('viewLevels').classList.toggle('active',view==='levels');$('viewOverview').classList.toggle('active',view==='overview');$('viewDashboard').classList.toggle('active',view==='dashboard');}
+function renderCustomOrders(){
+  if(!customOrdersView)customOrdersView=createCustomOrdersView({getCatalog:()=>catalog,getSelection:()=>project.customOrders,getInfo:info,isBusy:()=>busy,onChange:next=>{
+    projectStore.save({...project,customOrders:next,activeLevel});project.customOrders=next;
+  }});
+  customOrdersView.render();
+}
+function setView(view){
+  for(const [id,key] of [['levelWorkspace','levels'],['overviewPanel','overview'],['dashboardPanel','dashboard'],['customPanel','custom']])$(id).hidden=view!==key;
+  for(const [id,key] of [['viewLevels','levels'],['viewOverview','overview'],['viewDashboard','dashboard'],['viewCustom','custom']])$(id).classList.toggle('active',view===key);
+  if(view==='custom')renderCustomOrders();
+}
 function applyCopy(from,to,sourceLevel=activeLevel){
   const source=structuredClone(project.configs[sourceLevel]);for(let level=from;level<=to;level++)if(level!==sourceLevel)project.configs[level]={...structuredClone(source),revision:revision(level)+1};persist();loadLevel(activeLevel);renderNavigation();renderOverview();notice(`已应用到 Lv ${from}～${to}`);
 }
@@ -277,6 +290,7 @@ $('solve').onclick=()=>solve();$('solveAll').onclick=()=>solve(true);
 $('cancelFit').onclick=()=>{busy=false;setupWorker();setBusy(false);$('batchProgress').textContent='已停止';};
 $('viewLevels').onclick=()=>setView('levels');$('viewOverview').onclick=()=>setView('overview');
 $('viewDashboard').onclick=()=>setView('dashboard');
+$('viewCustom').onclick=()=>setView('custom');
 $('singleLevelSelect').onchange=()=>{if(!busy)loadLevel(Number($('singleLevelSelect').value));};
 $('toggleLevelControls').onclick=()=>{
   const expanded=$('singleLevelControls').hidden;
@@ -317,9 +331,23 @@ $('excelFile').onchange=async()=>{
 };
 $('exportCSV').onclick=()=>{if(result&&!dirty)download(toCSV(catalog,result),`订单权重_Lv${activeLevel}.csv`,'text/csv;charset=utf-8');};
 $('exportJSON').onclick=()=>{if(result&&!dirty)download(toJSON(catalog,result),`订单权重_Lv${activeLevel}.json`,'application/json');};
+function exportLevels(){return Array.from({length:catalog.maxLevel},(_,i)=>{const level=i+1,saved=results.get(level),fresh=saved?.revision===revision(level);return {level,rawSettings:project.configs[level],normalizedTargets:fittedConfig(level),status:fresh?(saved.result.matched?'matched':'approximate'):errors.has(level)?'blocked':'not_fitted',error:errors.get(level)||null,fit:fresh?JSON.parse(toJSON(catalog,saved.result)):null};});}
 $('exportProject').onclick=()=>{
-  const levels=Array.from({length:catalog.maxLevel},(_,i)=>{const level=i+1,saved=results.get(level),fresh=saved?.revision===revision(level);return {level,rawSettings:project.configs[level],normalizedTargets:fittedConfig(level),status:fresh?(saved.result.matched?'matched':'approximate'):errors.has(level)?'blocked':'not_fitted',error:errors.get(level)||null,fit:fresh?JSON.parse(toJSON(catalog,saved.result)):null};});
-  download(JSON.stringify({schemaVersion:'order-project-export-v2',probabilityScale:project.probabilityScale,filename:project.filename,source:catalog.source,rules:project.rules,coinValues:coinValueCoverage(catalog.products),products:catalog.products,sources:catalog.sources,levels},null,2),'逐级订单配置.json','application/json');
+  if(!project)return;
+  const fitted=[...results].filter(([level,saved])=>saved.revision===revision(level)).length,count=Object.values(project.customOrders.levels).reduce((s,ids)=>s+ids.length,0);
+  $('projectExportSummary').textContent=`${fitted} / ${catalog.maxLevel} 级概率结果有效 · ${count} 个定制任务。未拟合或待更新等级见“等级配置”表。`;
+  $('projectExportError').hidden=true;$('projectExportDialog').showModal();
+};
+$('closeProjectExport').onclick=()=>$('projectExportDialog').close();
+$('exportProjectJSON').onclick=()=>{
+  const levels=exportLevels().map(row=>({...row,customTasks:customOrdersAt(catalog,project.customOrders,row.level)}));
+  download(JSON.stringify({schemaVersion:'order-project-export-v3',probabilityScale:project.probabilityScale,filename:project.filename,source:catalog.source,rules:project.rules,coinValues:coinValueCoverage(catalog.products),products:catalog.products,sources:catalog.sources,customOrders:project.customOrders,levels},null,2),'逐级订单配置.json','application/json');
+};
+$('exportWorkbook').onclick=async()=>{
+  $('exportWorkbook').disabled=$('exportProjectJSON').disabled=true;$('projectExportError').hidden=true;
+  try{const sheets=projectExportSheets(catalog,project,exportLevels()),bytes=await exportProjectWorkbook(sheets);download(bytes,'普通订单_概率与定制.xlsx','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');}
+  catch(error){$('projectExportError').textContent=error.message;$('projectExportError').hidden=false;}
+  finally{$('exportWorkbook').disabled=$('exportProjectJSON').disabled=false;}
 };
 async function init(){
   try{projectStore=createProjectStore(localStorage);let saved=projectStore.load();
@@ -335,7 +363,7 @@ async function init(){
       showEmptyProject();return;
     }
     installBase(saved.base,saved.filename,saved);
-    setView('dashboard');await solve(false);
+    setView(new URLSearchParams(location.search).get('view')==='custom'?'custom':'dashboard');await solve(false);
   }catch(error){showEmptyProject(error.message);}
 }
 window.addEventListener('storage',event=>{if(event.key===PROJECT_STORAGE_KEY){$('projectStorageNotice').textContent='另一个页面已更新项目，请刷新后继续。';$('projectStorageNotice').hidden=false;}});

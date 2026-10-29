@@ -1,5 +1,6 @@
 import {isImportedProject,PROJECT_STORAGE_KEY} from './project-storage.js';
 import {buildCatalog} from './order-engine.js';
+import {normalizeCustomOrders} from './custom-orders.js';
 
 export const SESSION_SCHEMA='order-session-snapshot-v1';
 const gameKey=/^order-game-v1:(game-v([12])-\d+-[a-f0-9]+-[a-f0-9]+)$/;
@@ -8,6 +9,7 @@ const clone=value=>JSON.parse(JSON.stringify(value));
 export function validateSessionSnapshot(value){
   if(!value||value.schemaVersion!==SESSION_SCHEMA||!isImportedProject(value.project))throw Error('不是有效的订单项目备份。');
   const snapshot=clone(value),p=snapshot.project,c=buildCatalog(p.base,p.rules);
+  if(p.customOrders!=null)normalizeCustomOrders(p.customOrders,c.maxLevel);
   if(!Number.isInteger(p.activeLevel)||p.activeLevel<1||p.activeLevel>c.maxLevel)throw Error('备份中的当前等级无效。');
   for(let level=1;level<=c.maxLevel;level++){
     const s=p.configs[level];
