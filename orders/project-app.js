@@ -24,6 +24,7 @@ import {createCustomOrdersView} from './custom-orders-view.js';
 import {projectExportSheets,exportProjectWorkbook} from './project-export.js';
 import {isPlaceholderProductName,productNameUpdates,applyProductNameUpdates} from './project-names.js';
 import {createOrderTimingService} from './order-time.js';
+import {restoreMissingProjectMetadata,metadataSourceIssue,supplementProjectMetadata} from './project-metadata.js';
 const $=id=>document.getElementById(id),fmt=(v,d=1)=>Number(v).toLocaleString('zh-CN',{maximumFractionDigits:d,minimumFractionDigits:d}),pct=(v,d=2)=>fmt(v*100,d)+'%';
 const escape=value=>String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 let project,catalog,result,worker,itemInfo,activeLevel=20,busy=false,dirty=true,page=0,selectedTimeRange=null,request=0,generation=0;
@@ -41,6 +42,36 @@ const revision=level=>project.configs[level].revision||0;
 function notice(text,warn=false){$('notice').textContent=text;$('notice').className='notice'+(warn?' warn':'');}
 function status(text,type='neutral'){$('status').textContent=text;$('status').className='status '+type;}
 function persist(){try{projectStore?.save({...project,activeLevel});}catch(error){$('projectStorageNotice').textContent=error.message||'项目保存失败，请导出项目保存。';$('projectStorageNotice').hidden=false;}}
+let metadataSuggestion;
+function refreshMetadataSuggestion(){
+  metadataSuggestion=null;const root=$('projectMetadataNotice');root.hidden=true;if(!project)return;
+  const missingLands=Array.from({length:catalog.maxLevel},(_,i)=>i+1).filter(lv=>!(Number.isSafeInteger(project.base.landsByLevel?.[lv])&&project.base.landsByLevel[lv]>0)).length;
+  const missingPrices=coinValueCoverage(project.base.products).missing;if(!missingLands&&!missingPrices)return;
+  try{const source=JSON.parse(localStorage.getItem('ranch-source-v1')||'null');if(source?.kind==='import'){
+    const update=supplementProjectMetadata(project.base,source.base,{metadataOnly:true});
+    if(update)metadataSuggestion={...update,issue:metadataSourceIssue(project.base,source.base)};
+  }}catch{}
+  const suggestion=metadataSuggestion;
+  $('projectMetadataText').textContent=suggestion?`缺少 ${missingLands} 级土地、${missingPrices} 个单价。可从牧场补齐${suggestion.issue?'（存在配方差异，仅补土地和单价，保留本项目配方）':''}。`:`缺少 ${missingLands} 级土地、${missingPrices} 个单价，请从同项目 Excel 补齐。`;
+  $('projectMetadataUpdate').textContent=suggestion?'补齐土地与单价':'从 Excel 补齐';root.hidden=false;
+}
+function applyMetadata(update){
+  if(busy)throw Error('请等待当前计算结束。');
+  const next=buildCatalog(update.base,project.rules);
+  if(next.orders.length!==catalog.orders.length||next.orders.some((o,i)=>o.id!==catalog.orders[i].id))throw Error('订单库发生变化，无法仅补齐基础信息。');
+  localStorage.setItem('order-project-before-metadata-v1',JSON.stringify({...project,activeLevel}));
+  projectStore.save({...project,base:update.base,activeLevel});
+  gameMode?.releaseSession();project.base=update.base;catalog=next;infos.clear();generation++;setupWorker();itemInfo?.hide();
+  itemInfo.products.clear();catalog.products.forEach(p=>itemInfo.products.set(p.id,p));
+  const coverage=coinValueCoverage(catalog.products);$('catalogMeta').textContent=`${catalog.products.length} 商品 · ${catalog.sources.length} 来源 · 金币 ${coverage.priced}/${coverage.total}`;
+  loadLevel(activeLevel);customOrdersView?.render();refreshMetadataSuggestion();$('batchProgress').textContent=`已补齐 ${update.lands} 级土地、${update.prices} 个单价`;
+}
+$('projectMetadataUpdate').onclick=()=>{try{if(metadataSuggestion)applyMetadata(metadataSuggestion);else $('projectMetadataFile').click();}catch(error){$('projectMetadataText').textContent=error.message;}};
+$('projectMetadataFile').onchange=async()=>{
+  const file=$('projectMetadataFile').files[0];if(!file)return;const target=project;
+  try{const candidate=await readChainExcel(file);if(project!==target)throw Error('当前项目已变化，请重新选择。');const update=supplementProjectMetadata(project.base,candidate,{metadataOnly:true});if(!update)throw Error('没有可补齐的信息，或商品 ID、等级、建筑与本项目不符。');applyMetadata(update);}
+  catch(error){$('projectMetadataText').textContent=error.message;}finally{$('projectMetadataFile').value='';}
+};
 async function refreshNameSuggestion(){
   const target=project,request=++nameRequest;nameSuggestion=null;$('projectNamesNotice').hidden=true;
   const count=target?.base.products.filter(p=>isPlaceholderProductName(p.name)).length??0;if(!count)return;
@@ -102,7 +133,7 @@ function installBase(base,filename,keepConfigs=null){
   $('cropQuantity').value=project.rules.cropQuantity;$('productQuantity').value=project.rules.productQuantity;$('maxKinds').value=project.rules.maxKinds;
   $('singleLevelSelect').innerHTML=Array.from({length:catalog.maxLevel},(_,i)=>`<option value="${i+1}">Lv ${i+1}</option>`).join('');
   $('emptyProject').hidden=true;document.querySelector('.project-toolbar').hidden=false;$('exportProject').disabled=false;
-  $('rulesPending').hidden=true;persist();loadLevel(activeLevel);void refreshNameSuggestion();
+  $('rulesPending').hidden=true;persist();loadLevel(activeLevel);void refreshNameSuggestion();refreshMetadataSuggestion();
 }
 function setupWorker(){
   worker?.terminate();for(const job of jobs.values())job.reject(Error('计算已取消'));jobs.clear();
@@ -397,7 +428,9 @@ async function init(){
       }
       showEmptyProject();return;
     }
+    const repaired=restoreMissingProjectMetadata(saved,localStorage);if(repaired)saved=repaired.project;
     installBase(saved.base,saved.filename,saved);
+    if(repaired)$('batchProgress').textContent=`已从同配方牧场项目补齐 ${repaired.lands} 级土地、${repaired.prices} 个金币单价`;
     setView(new URLSearchParams(location.search).get('view')==='custom'?'custom':'dashboard');await solve(false);
   }catch(error){showEmptyProject(error.message);}
 }

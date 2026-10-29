@@ -1,6 +1,6 @@
 import {customOrdersAt,customOrderOverview,editCustomOrders,filterCustomLibrary} from './custom-orders.js';
 import {renderOrderItems} from './item-info.js';
-import {ordinaryOrderReward} from './coin-values.js';
+import {ordinaryOrderReward,unitCoinValue} from './coin-values.js';
 const esc=value=>String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const num=value=>value==null?'—':Number(value).toLocaleString('zh-CN',{maximumFractionDigits:1});
 export function createCustomOrdersView(api){
@@ -23,6 +23,12 @@ export function createCustomOrdersView(api){
     if(t&&Number.isFinite(t.feasibleMinutes))return `<span title="尚未证明最优，显示排产下界至可行完工时间">${num(t.lowerMinutes)}～${num(t.feasibleMinutes)}${withUnit?' 分':''}</span>`;
     return '<span class="hint">计算中…</span>';
   }
+  function rewardText(order){
+    const value=ordinaryOrderReward(order,products);
+    if(value!==null)return num(value);
+    const missing=order.items.filter(i=>unitCoinValue(products.get(i.id))===null).map(i=>products.get(i.id)?.name??i.id);
+    return `<span class="error-text" title="缺少金币单价：${esc(missing.join('、'))}。请补齐基础信息，不需要重配订单。">缺少单价</span>`;
+  }
   function overviewRows(lv,entries){
     const rowCount=Math.max(1,Math.ceil(entries.length/3));
     return Array.from({length:rowCount},(_,row)=>`<tr class="${row?'custom-overview-continuation':'custom-overview-level'}">
@@ -32,7 +38,7 @@ export function createCustomOrdersView(api){
         if(!entry)return '<td class="custom-overview-order custom-overview-empty">—</td>';
         if(!entry.order)return `<td class="custom-overview-order"><small class="custom-order-id">订单 ${entry.sequence} · ${esc(entry.id)}</small><span class="error-text">当前等级或规则下不可用</span></td>`;
         const order=entry.order;
-        return `<td class="custom-overview-order"><div class="custom-overview-items">${renderOrderItems(order,products)}</div><div class="custom-overview-metrics"><span class="custom-optimal">优化 <b>${timingText(order,lv,true)}</b></span><span>累计 ${num(order.cumulativeMinutes)} 分</span><span>复杂度 ${num(order.cumulativeComplexity)}</span><span>${num(ordinaryOrderReward(order,products))} 金币</span></div>${row?`<small class="custom-order-id">订单 ${entry.sequence}</small>`:''}</td>`;
+        return `<td class="custom-overview-order"><div class="custom-overview-items">${renderOrderItems(order,products)}</div><div class="custom-overview-metrics"><span class="custom-optimal">优化 <b>${timingText(order,lv,true)}</b></span><span>累计 ${num(order.cumulativeMinutes)} 分</span><span>复杂度 ${num(order.cumulativeComplexity)}</span><span>${rewardText(order)} 金币</span></div>${row?`<small class="custom-order-id">订单 ${entry.sequence}</small>`:''}</td>`;
       }).join('')}
       ${row?'':`<td rowspan="${rowCount}" class="custom-overview-action"><button type="button" class="text-button" data-custom-open="${lv}">挑选订单 →</button></td>`}
     </tr>`).join('');
@@ -46,12 +52,12 @@ export function createCustomOrdersView(api){
     api.ensureTimings?.([...valid.map(e=>e.order),...orders.slice(page*size,(page+1)*size)],level);
     if(mode==='overview')for(let lv=1;lv<=catalog.maxLevel;lv++)api.ensureTimings?.(customOrdersAt(catalog,selection(),lv).flatMap(e=>e.order?[e.order]:[]),lv);
     $('customLibraryCount').textContent=`${num(orders.length)} / ${num(api.getInfo(level).orders.length)}`;
-    $('customLibraryRows').innerHTML=orders.slice(page*size,(page+1)*size).map(o=>`<tr class="${chosen.has(o.id)?'custom-row-picked':''}"><td><button type="button" class="custom-pick-button" data-custom-add="${esc(o.id)}" ${chosen.has(o.id)||api.isBusy()?'disabled':''}>${chosen.has(o.id)?'已选':'添加'}</button></td><td><small class="custom-order-id">${esc(o.id)}</small>${renderOrderItems(o,products)}</td><td class="custom-optimal">${timingText(o,level)}</td><td>${num(o.cumulativeMinutes)}</td><td>${o.cumulativeComplexity}</td><td>${num(ordinaryOrderReward(o,products))}</td></tr>`).join('')||'<tr><td colspan="6" class="custom-empty">没有符合筛选条件的订单</td></tr>';
+    $('customLibraryRows').innerHTML=orders.slice(page*size,(page+1)*size).map(o=>`<tr class="${chosen.has(o.id)?'custom-row-picked':''}"><td><button type="button" class="custom-pick-button" data-custom-add="${esc(o.id)}" ${chosen.has(o.id)||api.isBusy()?'disabled':''}>${chosen.has(o.id)?'已选':'添加'}</button></td><td><small class="custom-order-id">${esc(o.id)}</small>${renderOrderItems(o,products)}</td><td class="custom-optimal">${timingText(o,level)}</td><td>${num(o.cumulativeMinutes)}</td><td>${o.cumulativeComplexity}</td><td>${rewardText(o)}</td></tr>`).join('')||'<tr><td colspan="6" class="custom-empty">没有符合筛选条件的订单</td></tr>';
     $('customPageInfo').textContent=`第 ${page+1} / ${pages} 页 · ${num(orders.length)} 单`;$('customPrev').disabled=page===0;$('customNext').disabled=page>=pages-1;
     $('customAddPage').disabled=api.isBusy()||!pageOrders().some(o=>!chosen.has(o.id));$('customClear').disabled=api.isBusy()||!entries.length;
     $('customPickedCount').textContent=entries.length;
     $('customPickedStats').textContent=valid.length?`平均 ${num(valid.reduce((s,e)=>s+e.order.cumulativeMinutes,0)/valid.length)} 分 · 平均复杂度 ${num(valid.reduce((s,e)=>s+e.order.cumulativeComplexity,0)/valid.length)}`:'尚未选择任务';
-    $('customPickedRows').innerHTML=entries.map((entry,i)=>`<article class="custom-picked-card${entry.order?'':' invalid'}"><div class="custom-picked-title"><b>${i+1}</b><small>${esc(entry.id)}</small><div><button type="button" data-custom-up="${esc(entry.id)}" aria-label="任务${i+1}上移" ${!i||api.isBusy()?'disabled':''}>↑</button><button type="button" data-custom-down="${esc(entry.id)}" aria-label="任务${i+1}下移" ${i===entries.length-1||api.isBusy()?'disabled':''}>↓</button><button type="button" data-custom-remove="${esc(entry.id)}" aria-label="移除任务${i+1}" ${api.isBusy()?'disabled':''}>移除</button></div></div><div>${entry.order?renderOrderItems(entry.order,products):'<span class="error-text">当前等级或规则下不可用，请移除</span>'}</div>${entry.order?`<p>优化 ${timingText(entry.order,level,true)} · 累计 ${num(entry.order.cumulativeMinutes)} 分 · 复杂度 ${entry.order.cumulativeComplexity} · ${num(ordinaryOrderReward(entry.order,products))} 金币</p>`:''}</article>`).join('')||'<div class="custom-empty">从左侧订单库添加任务</div>';
+    $('customPickedRows').innerHTML=entries.map((entry,i)=>`<article class="custom-picked-card${entry.order?'':' invalid'}"><div class="custom-picked-title"><b>${i+1}</b><small>${esc(entry.id)}</small><div><button type="button" data-custom-up="${esc(entry.id)}" aria-label="任务${i+1}上移" ${!i||api.isBusy()?'disabled':''}>↑</button><button type="button" data-custom-down="${esc(entry.id)}" aria-label="任务${i+1}下移" ${i===entries.length-1||api.isBusy()?'disabled':''}>↓</button><button type="button" data-custom-remove="${esc(entry.id)}" aria-label="移除任务${i+1}" ${api.isBusy()?'disabled':''}>移除</button></div></div><div>${entry.order?renderOrderItems(entry.order,products):'<span class="error-text">当前等级或规则下不可用，请移除</span>'}</div>${entry.order?`<p>优化 ${timingText(entry.order,level,true)} · 累计 ${num(entry.order.cumulativeMinutes)} 分 · 复杂度 ${entry.order.cumulativeComplexity} · ${rewardText(entry.order)} 金币</p>`:''}</article>`).join('')||'<div class="custom-empty">从左侧订单库添加任务</div>';
     const overview=customOrderOverview(catalog,selection());
     $('customSummary').textContent=`已定制 ${overview.filter(r=>r.count).length} / ${catalog.maxLevel} 级 · 共 ${num(overview.reduce((s,r)=>s+r.count,0))} 个任务`;
     const byId=new Map(catalog.orders.map(order=>[order.id,order]));
