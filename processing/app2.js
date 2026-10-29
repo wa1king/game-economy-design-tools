@@ -220,8 +220,8 @@ document.addEventListener('change',event=>{
 });
 $('turnoverCsv').onclick=()=>{
  const config=ChainTurnover.settings(model),data=ChainTurnover.rows(model),cell=x=>'"'+String(x).replace(/"/g,'""')+'"';
- const rows=[['周转容量：仅直接加工投料，各商品最大值不可相加；'+(config.includeActive?'等待队列+在产1件':'队列已含在产位')],['等级','状态','全仓单次投料上限/件',...model.buildings.map(b=>b.name+'等待长度'),...model.products.map(p=>p.name+'/件')]];
- for(const row of data)rows.push([row.level,row.complete?'完整':'配方待设计：仅为下限',row.total,...model.buildings.map(b=>row.queues.get(b.id)??'未解锁'),...model.products.map(p=>row.capacities.get(p.id)??'未解锁')]);
+ const rows=[['预期仓容=单次投料+作物种类×12+加工品种类×2；各商品投料最大值不可相加；'+(config.includeActive?'等待队列+在产1件':'队列已含在产位')],['等级','状态','全仓单次投料上限/件','作物种类数','加工品种类数','作物备货/件','加工品备货/件','订单备货合计/件','预期仓容/件',...model.buildings.map(b=>b.name+'等待长度'),...model.products.map(p=>p.name+'/件')]];
+ for(const row of data)rows.push([row.level,row.complete?'完整':'配方待设计：仅为下限',row.total,row.cropKinds,row.productKinds,row.cropStock,row.productStock,row.orderStock,row.expectedCapacity,...model.buildings.map(b=>row.queues.get(b.id)??'未解锁'),...model.products.map(p=>row.capacities.get(p.id)??'未解锁')]);
  download('\uFEFF'+rows.map(row=>row.map(cell).join(',')).join('\r\n'),'商品周转容量_'+date()+'.csv','text/csv;charset=utf-8');toast('已导出全部20级周转容量和队列设置');
 };
 

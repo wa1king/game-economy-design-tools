@@ -55,7 +55,12 @@
     }
    }
    // Each SKU maximum may require a different recipe; total is computed separately.
-   return{level,capacities,details,queues,total,invalid,complete:invalid.length===0};
+   const unlocked=design.products.filter(p=>p.level<=level);
+   const cropKinds=unlocked.filter(p=>p.building===0).length,productKinds=unlocked.length-cropKinds;
+   // Stock two orders per unlocked kind: six crops or one processed item per order.
+   const cropStock=safe(cropKinds*6*2),productStock=safe(productKinds*1*2),orderStock=safe(cropStock+productStock);
+   const expectedCapacity=safe(total+orderStock);
+   return{level,capacities,details,queues,total,cropKinds,productKinds,cropStock,productStock,orderStock,expectedCapacity,invalid,complete:invalid.length===0};
   });
  }
  const api={settings,setQueue,rows,DEFAULT_WAIT};

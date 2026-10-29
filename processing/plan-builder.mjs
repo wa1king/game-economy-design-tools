@@ -274,43 +274,51 @@ for(let j=1;j<N;j++)if(P[j].building!==P[j-1].building)r(channels,5,4+j,channelT
 S[channels].freezePanes.freezeRows(7);S[channels].freezePanes.freezeColumns(3);S[channels].tabColor='#6E8C7B';
 
 // Direct recipe queue consumption, not recursive BOM quantities.
-const queueConfig=Turnover.settings(D),queueBuildings=[...D.buildings].sort((a,b)=>a.level-b.level||a.id-b.id),firstSku=3+queueBuildings.length;
+const queueConfig=Turnover.settings(D),queueBuildings=[...D.buildings].sort((a,b)=>a.level-b.level||a.id-b.id),firstQueue=9,firstSku=firstQueue+queueBuildings.length;
 v(turnover,1,1,'各等级商品周转容量');
-v(turnover,2,1,'各商品独立最大值不能相加。全仓上限按各建筑总投料最大配方计算。');
+v(turnover,2,1,'预期仓容＝单次投料上限＋订单备货；每种作物6件×2单，每种加工品1件×2单。');
 v(turnover,3,1,'另计在产位（0/1）');r(turnover,3,1,1,2).merge();v(turnover,3,3,queueConfig.includeActive?1:0);
-v(turnover,4,1,'黄色为等待长度。网页修改会覆盖后续等级；Excel各级输入独立。仅计直接加工投料。');
-band(turnover,5,['等级','全仓投料上限/件',...queueBuildings.map(b=>b.name+'等待长度'),...P.map(p=>p.name)]);
+v(turnover,4,1,'黄色为等待长度。网页修改会覆盖后续等级；Excel各级输入独立。投料仅计直接配方；各商品独立上限不可相加。');
+band(turnover,5,['等级','单次投料上限/件','作物种类数','加工品种类数','作物备货/件','加工品备货/件','订单备货合计/件','预期仓容/件',...queueBuildings.map(b=>b.name+'等待长度'),...P.map(p=>p.name)]);
 v(turnover,6,1,'商品/建筑ID');
-queueBuildings.forEach((b,k)=>v(turnover,6,3+k,'建筑:'+b.id));P.forEach((p,j)=>v(turnover,6,firstSku+j,p.id));
+queueBuildings.forEach((b,k)=>v(turnover,6,firstQueue+k,'建筑:'+b.id));P.forEach((p,j)=>v(turnover,6,firstSku+j,p.id));
 
 for(let level=1;level<=20;level++){
  const row=level+6;v(turnover,row,1,level);
- queueBuildings.forEach((b,k)=>v(turnover,row,3+k,queueConfig.queues[b.id][level-1]));
- const validQueues='AND(OR($C$3=0,$C$3=1),'+queueBuildings.map((b,k)=>{const q=C(k+2)+row;return `ISNUMBER(${q}),${q}>=0,MOD(${q},1)=0`}).concat(['TRUE']).join(',')+')';
+ queueBuildings.forEach((b,k)=>v(turnover,row,firstQueue+k,queueConfig.queues[b.id][level-1]));
+ const validQueues='AND(OR($C$3=0,$C$3=1),'+queueBuildings.map((b,k)=>{const q=C(firstQueue+k-1)+row;return `ISNUMBER(${q}),${q}>=0,MOD(${q},1)=0`}).concat(['TRUE']).join(',')+')';
  function expression(upIndex){return 'SUM('+queueBuildings.map((building,k)=>{
   const candidates=P.map((p,j)=>p.building===building.id?j:null).filter(j=>j!==null);
   const amounts=candidates.map(j=>{
    const count=upIndex===null?'-SUM('+P.map((p,i)=>i!==j?m(matStart+i,j,true):null).filter(Boolean).concat(['0']).join(',')+')':upIndex===j?'0':'-'+m(matStart+upIndex,j,true);
    return `IF(${m(7,j,true)}<=$A${row},${count},0)`;
   });
-  return `IF($A${row}>=${building.level},(${C(k+2)}${row}+$C$3)*MAX(0${amounts.length?','+amounts.join(','):''}),0)`;
+  return `IF($A${row}>=${building.level},(${C(firstQueue+k-1)}${row}+$C$3)*MAX(0${amounts.length?','+amounts.join(','):''}),0)`;
  }).concat(['0']).join(',')+')'}
  const guard=inner=>`=IF('${main}'!$D$3<>"配方有效","待修正",IF(${validQueues},${inner},"队列待修正"))`;
  const formulas=[guard(expression(null)),...queueBuildings.map(()=>''),...P.map((p,j)=>guard(`IF($A${row}<${m(7,j,true)},"—",${expression(j)})`))];
- // Inputs occupy C onward; only B and SKU columns are formulas.
+ // Queue inputs start at I; summary and SKU columns are formulas.
  f(turnover,row,2,formulas[0]);r(turnover,row,firstSku,1,N).formulas=[formulas.slice(1+queueBuildings.length)];
+ const kinds=crop=>'SUM('+P.map((p,j)=>(p.building===0)===crop?`IF(${m(7,j,true)}<=$A${row},1,0)`:null).filter(Boolean).concat(['0']).join(',')+')';
+ f(turnover,row,3,'='+kinds(true));f(turnover,row,4,'='+kinds(false));
+ f(turnover,row,5,`=C${row}*6*2`);f(turnover,row,6,`=D${row}*1*2`);
+ f(turnover,row,7,`=SUM(E${row}:F${row})`);
+ f(turnover,row,8,`=IF(ISNUMBER(B${row}),B${row}+G${row},B${row})`);
 }
 const turnUsed=S[turnover].getUsedRange();turnUsed.format.font={name:'Arial',size:10,color:'#263B4B'};turnUsed.format.rowHeight=25;turnUsed.format.verticalAlignment='center';
 r(turnover,1,1).format.font={name:'Arial',size:14,bold:true};r(turnover,1,1).format.rowHeight=30;
 r(turnover,5,1,1,firstSku+N-1).format.fill='#344054';r(turnover,5,1,1,firstSku+N-1).format.font={name:'Arial',size:10,bold:true,color:'#FFFFFF'};r(turnover,5,1,1,firstSku+N-1).format.rowHeight=38;r(turnover,5,1,1,firstSku+N-1).format.wrapText=true;r(turnover,5,1,1,firstSku+N-1).format.horizontalAlignment='center';
-[10,23,...Array(queueBuildings.length).fill(17),...Array(N).fill(13)].forEach((width,j)=>r(turnover,1,j+1,26).format.columnWidth=width);
+[10,19,12,14,15,15,17,17,...Array(queueBuildings.length).fill(17),...Array(N).fill(13)].forEach((width,j)=>r(turnover,1,j+1,26).format.columnWidth=width);
 r(turnover,3,3).format.fill='#FFF4D6';r(turnover,3,3).format.font.color='#245D8C';
-if(queueBuildings.length){r(turnover,7,3,20,queueBuildings.length).format.fill='#FFF4D6';r(turnover,7,3,20,queueBuildings.length).format.font.color='#245D8C'}
+if(queueBuildings.length){r(turnover,7,firstQueue,20,queueBuildings.length).format.fill='#FFF4D6';r(turnover,7,firstQueue,20,queueBuildings.length).format.font.color='#245D8C'}
 r(turnover,7,2,20,1).format.fill='#F0F6F3';r(turnover,7,2,20,1).format.font.bold=true;
 r(turnover,7,1,20,firstSku+N-1).setNumberFormat('0');r(turnover,7,2,20,1).setNumberFormat('0" 件"');r(turnover,7,firstSku,20,N).setNumberFormat('0" 件"');
 r(turnover,7,firstSku,20,N).format.horizontalAlignment='right';r(turnover,7,1,20,firstSku+N-1).format.borders={insideHorizontal:{style:'thin',color:'#E8EFE8'},insideVertical:{style:'thin',color:'#E5ECE3'}};
 for(let j=0;j<N;j++){r(turnover,5,firstSku+j,2,1).format.fill=color(P[j]);r(turnover,5,firstSku+j,2,1).format.font.color='#263B4B';if(!j||P[j].building!==P[j-1].building)r(turnover,5,firstSku+j,22,1).format.borders={left:{style:'medium',color:'#8093A0'}}}
 for(const row of [7,12,17,22])r(turnover,row,1,1,firstSku+N-1).format.borders={top:{style:'medium',color:'#8093A0'}};
+r(turnover,7,3,20,2).setNumberFormat('0" 种"');r(turnover,7,5,20,4).setNumberFormat('0" 件"');
+r(turnover,5,8,22,1).format.borders={left:{style:'medium',color:'#8093A0'},right:{style:'medium',color:'#8093A0'}};
+r(turnover,7,8,20,1).format.fill='#DDEEE5';r(turnover,7,8,20,1).format.font.bold=true;
 S[turnover].freezePanes.freezeRows(6);S[turnover].freezePanes.freezeColumns(2);S[turnover].tabColor='#6E8C7B';
 
 // Price inputs and the short, traceable build share one sheet. Existing matrix rows stay fixed.
@@ -387,7 +395,7 @@ S[pricing].tabColor='#6E8C7B';
   cache(main,mainPriceRow,c,price.price);cache(main,mainPriceRow+1,c,price.priceEstimated?'含估算':'配置值');
  }
  for(let level=1;level<=20;level++)cache(levels,level+4,3,D.lands_by_level[String(level)]);
- for(const row of Turnover.rows(D)){cache(turnover,row.level+6,2,row.total);for(let j=0;j<N;j++)cache(turnover,row.level+6,firstSku+j,row.capacities.get(P[j].id)??'—');}
+ for(const row of Turnover.rows(D)){cache(turnover,row.level+6,2,row.total);[row.cropKinds,row.productKinds,row.cropStock,row.productStock,row.orderStock,row.expectedCapacity].forEach((value,k)=>cache(turnover,row.level+6,3+k,value));for(let j=0;j<N;j++)cache(turnover,row.level+6,firstSku+j,row.capacities.get(P[j].id)??'—');}
  return {names,operations:wb.operations,caches,array:{sheet:calc,row:7,col:first,height:N,width:N}};
 
 }

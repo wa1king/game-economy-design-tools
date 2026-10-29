@@ -161,9 +161,10 @@ def read_excel(data):
             queue=wb['05_周转容量'];active=queue.cell(3,3).value
             if active not in (0,1) or isinstance(active,bool):raise ValueError('05表的在产位开关须为0或1。')
             settings={'includeActive':bool(active),'queues':{}}
-            for col in range(3,3+len(buildings)):
+            if queue.max_column is None:queue.calculate_dimension(force=True)
+            for col in range(3,queue.max_column+1):
                 key=queue.cell(6,col).value
-                if not isinstance(key,str) or not key.startswith('建筑:'):raise ValueError('05表建筑ID格式不正确。')
+                if not isinstance(key,str) or not key.startswith('建筑:'):continue
                 values=[]
                 for level in range(1,21):
                     value=queue.cell(level+6,col).value
