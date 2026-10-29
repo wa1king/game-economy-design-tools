@@ -11,7 +11,7 @@ export function createCustomOrdersView(api){
   <div class="custom-filters custom-filter-ranges"><label>累计工时 <input id="customMinTime" type="number" min="0" placeholder="最小" aria-label="最小累计工时"> — <input id="customMaxTime" type="number" min="0" placeholder="最大" aria-label="最大累计工时"> 分</label><label>复杂度 <input id="customMinComplexity" type="number" min="0" placeholder="最小" aria-label="最小累计复杂度"> — <input id="customMaxComplexity" type="number" min="0" placeholder="最大" aria-label="最大累计复杂度"></label><div class="custom-sort"><select id="customSort" aria-label="定制订单排序字段"><option value="id">订单编号</option><option value="cumulativeMinutes">累计工时</option><option value="cumulativeComplexity">累计复杂度</option><option value="itemTypes">商品种类数</option><option value="coinValue">金币总值</option></select><select id="customDirection" aria-label="定制订单排序方向"><option value="asc">升序</option><option value="desc">降序</option></select><button id="customReset" type="button" class="quiet">重置筛选</button></div></div>
   <div class="custom-table-scroll"><table class="custom-table"><thead><tr><th>选择</th><th>订单 / 商品</th><th title="空仓联合排产；农田按当前等级累计土地，每个加工建筑1条生产线">优化时间 · 分</th><th>累计工时 · 分</th><th>累计复杂度</th><th>金币奖励</th></tr></thead><tbody id="customLibraryRows"></tbody></table></div><div class="pagination"><span id="customPageInfo"></span><div><button id="customPrev" class="quiet" type="button">上一页</button><button id="customNext" class="quiet" type="button">下一页</button></div></div></section>
   <aside class="panel custom-picked"><div class="panel-heading"><h3>已选任务 <span id="customPickedCount"></span></h3><button id="customClear" class="quiet" type="button">清空本级</button></div><div id="customPickedStats" class="custom-picked-stats"></div><div id="customPickedRows" class="custom-picked-rows"></div></aside></div>
-  <section id="customOverview" class="panel" hidden><div class="table-scroll"><table class="custom-overview-table"><thead><tr><th>等级</th><th>已选任务</th><th>平均优化时间 · 分</th><th>平均累计工时 · 分</th><th>平均复杂度</th><th>状态</th><th></th></tr></thead><tbody id="customOverviewRows"></tbody></table></div></section>`;
+  <section id="customOverview" class="panel" hidden><div class="table-scroll"><table class="custom-overview-table"><thead><tr><th scope="col">等级</th><th scope="col">订单 1</th><th scope="col">订单 2</th><th scope="col">订单 3</th><th scope="col">操作</th></tr></thead><tbody id="customOverviewRows"></tbody></table></div></section>`;
   const $=id=>root.querySelector('#'+id),fields={search:'customSearch',kinds:'customKinds',source:'customSource',selected:'customSelected',minTime:'customMinTime',maxTime:'customMaxTime',minComplexity:'customMinComplexity',maxComplexity:'customMaxComplexity',sort:'customSort',direction:'customDirection'};
   const selection=()=>api.getSelection(),selectedIds=()=>new Set(selection()?.levels?.[level]??[]);
   const filtered=()=>filterCustomLibrary(api.getInfo(level).orders,products,query,selectedIds());
@@ -23,9 +23,19 @@ export function createCustomOrdersView(api){
     if(t&&Number.isFinite(t.feasibleMinutes))return `<span title="尚未证明最优，显示排产下界至可行完工时间">${num(t.lowerMinutes)}～${num(t.feasibleMinutes)}${withUnit?' 分':''}</span>`;
     return '<span class="hint">计算中…</span>';
   }
-  function meanTiming(lv){
-    const entries=customOrdersAt(catalog,selection(),lv).filter(e=>e.order),all=entries.map(e=>api.getTiming?.(e.order,lv)),times=all.filter(t=>t?.proven);
-    return times.length?`${num(times.reduce((sum,t)=>sum+t.optimalMinutes,0)/times.length)}<small class="hint"> · ${times.length}/${entries.length} 已证明</small>`:!entries.length?'—':all.some(t=>!t)?'计算中…':all.every(t=>t.error)?'无法排产':'未证最优';
+  function overviewRows(lv,entries){
+    const rowCount=Math.max(1,Math.ceil(entries.length/3));
+    return Array.from({length:rowCount},(_,row)=>`<tr class="${row?'custom-overview-continuation':'custom-overview-level'}">
+      ${row?'':`<td rowspan="${rowCount}" class="custom-overview-level-label"><b>Lv ${lv}</b></td>`}
+      ${Array.from({length:3},(_,col)=>{
+        const entry=entries[row*3+col];
+        if(!entry)return '<td class="custom-overview-order custom-overview-empty">—</td>';
+        if(!entry.order)return `<td class="custom-overview-order"><small class="custom-order-id">订单 ${entry.sequence} · ${esc(entry.id)}</small><span class="error-text">当前等级或规则下不可用</span></td>`;
+        const order=entry.order;
+        return `<td class="custom-overview-order"><div class="custom-overview-items">${renderOrderItems(order,products)}</div><div class="custom-overview-metrics"><span class="custom-optimal">优化 <b>${timingText(order,lv,true)}</b></span><span>累计 ${num(order.cumulativeMinutes)} 分</span><span>复杂度 ${num(order.cumulativeComplexity)}</span><span>${num(ordinaryOrderReward(order,products))} 金币</span></div>${row?`<small class="custom-order-id">订单 ${entry.sequence}</small>`:''}</td>`;
+      }).join('')}
+      ${row?'':`<td rowspan="${rowCount}" class="custom-overview-action"><button type="button" class="text-button" data-custom-open="${lv}">挑选订单 →</button></td>`}
+    </tr>`).join('');
   }
   function message(text='',error=false){$('customMessage').hidden=!text;$('customMessage').textContent=text;$('customMessage').classList.toggle('error-text',error);}
   function edit(action,ids=[]){try{if(api.isBusy())throw Error('请等待当前计算结束。');api.onChange(editCustomOrders(selection(),catalog,level,action,ids));message('已保存');refreshResults();}catch(error){message(error.message,true);}}
@@ -44,7 +54,8 @@ export function createCustomOrdersView(api){
     $('customPickedRows').innerHTML=entries.map((entry,i)=>`<article class="custom-picked-card${entry.order?'':' invalid'}"><div class="custom-picked-title"><b>${i+1}</b><small>${esc(entry.id)}</small><div><button type="button" data-custom-up="${esc(entry.id)}" aria-label="任务${i+1}上移" ${!i||api.isBusy()?'disabled':''}>↑</button><button type="button" data-custom-down="${esc(entry.id)}" aria-label="任务${i+1}下移" ${i===entries.length-1||api.isBusy()?'disabled':''}>↓</button><button type="button" data-custom-remove="${esc(entry.id)}" aria-label="移除任务${i+1}" ${api.isBusy()?'disabled':''}>移除</button></div></div><div>${entry.order?renderOrderItems(entry.order,products):'<span class="error-text">当前等级或规则下不可用，请移除</span>'}</div>${entry.order?`<p>优化 ${timingText(entry.order,level,true)} · 累计 ${num(entry.order.cumulativeMinutes)} 分 · 复杂度 ${entry.order.cumulativeComplexity} · ${num(ordinaryOrderReward(entry.order,products))} 金币</p>`:''}</article>`).join('')||'<div class="custom-empty">从左侧订单库添加任务</div>';
     const overview=customOrderOverview(catalog,selection());
     $('customSummary').textContent=`已定制 ${overview.filter(r=>r.count).length} / ${catalog.maxLevel} 级 · 共 ${num(overview.reduce((s,r)=>s+r.count,0))} 个任务`;
-    $('customOverviewRows').innerHTML=overview.map(r=>`<tr><td>Lv ${r.level}</td><td>${r.count}</td><td class="custom-optimal">${meanTiming(r.level)}</td><td>${num(r.meanMinutes)}</td><td>${num(r.meanComplexity)}</td><td class="${r.invalid?'error-text':''}">${r.invalid?`${r.invalid} 项不可用`:r.count?'已配置':'未配置'}</td><td><button type="button" class="text-button" data-custom-open="${r.level}">挑选订单 →</button></td></tr>`).join('');
+    const byId=new Map(catalog.orders.map(order=>[order.id,order]));
+    $('customOverviewRows').innerHTML=overview.map(r=>overviewRows(r.level,customOrdersAt(catalog,selection(),r.level,byId))).join('');
   }
   function render(){
     catalog=api.getCatalog();if(!catalog)return;products=new Map(catalog.products.map(p=>[p.id,p]));level=Math.min(level,catalog.maxLevel);
