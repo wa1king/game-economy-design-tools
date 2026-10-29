@@ -2,7 +2,7 @@
 
 #allConfigTable .group-head .source-group{text-align:left}#allConfigTable .source-group span{position:sticky;left:84px;display:inline-block;padding:0 5px}
 
-#levelWorkspace.project-workspace{grid-template-columns:340px minmax(0,1fr)}#levelWorkspace .level-nav{display:none}#levelWorkspace .controls,#levelWorkspace .results{grid-column:auto;grid-row:auto}#singleLevelSelect{padding:5px 8px;border:1px solid var(--line);border-radius:5px;background:#fff;color:var(--green);font-size:12px}.level-heading{flex-wrap:wrap}.level-heading #poolHint{width:100%}@media(max-width:950px){#levelWorkspace.project-workspace{display:block}#levelWorkspace .controls{margin-bottom:18px}}
+#levelWorkspace.project-workspace{grid-template-columns:340px minmax(0,1fr)}#levelWorkspace .level-nav{display:none}#levelWorkspace .controls,#levelWorkspace .results{grid-column:auto;grid-row:auto}.level-selector{padding:5px 8px;border:1px solid var(--line);border-radius:5px;background:#fff;color:var(--green);font-size:12px}.level-heading{flex-wrap:wrap}.level-heading #poolHint{width:100%}@media(max-width:950px){#levelWorkspace.project-workspace{display:block}#levelWorkspace .controls{margin-bottom:18px}}
 
 #allConfigTable .matrix-all-toggle{display:flex;align-items:center;justify-content:center;gap:4px;margin-top:3px;font-size:10px;line-height:1.2;color:var(--green);cursor:pointer}#allConfigTable .matrix-all-toggle input{width:13px;height:13px;margin:0;cursor:pointer}
 
