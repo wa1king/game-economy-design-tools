@@ -1,12 +1,12 @@
 import {customOrdersAt,normalizeCustomOrders} from './custom-orders.js';
 import {ordinaryOrderReward} from './coin-values.js';
 const n=value=>Number.isFinite(value)?value:null;
-export function projectExportSheets(catalog,project,levels){
+export function projectExportSheets(catalog,project,levels,getTiming=()=>null){
   const products=new Map(catalog.products.map(p=>[p.id,p])),selection=normalizeCustomOrders(project.customOrders,catalog.maxLevel);
   if(levels.reduce((sum,row)=>sum+(row.fit?.orders.length??0),1)>1048576||Object.values(selection.levels).reduce((sum,ids)=>sum+ids.length,1)>1048576)throw Error('订单数量超过 Excel 单表行数上限，请减少导出等级或候选订单。');
   const common=['订单ID','商品内容','商品种类数','最低等级','累计工时分钟','累计复杂度','商品金币总值','订单金币奖励',...Array.from({length:3},(_,i)=>[`商品${i+1}ID`,`商品${i+1}名称`,`商品${i+1}数量`]).flat()];
   const commonRow=o=>[o.id,o.description,o.itemTypes,o.minimumLevel,o.cumulativeMinutes,o.cumulativeComplexity,n(o.coinValue),ordinaryOrderReward(o,products),...Array.from({length:3},(_,i)=>{const item=o.items[i];return item?[item.id,products.get(item.id)?.name??'',item.quantity]:[null,null,null];}).flat()];
-  const probability=[['等级',...common,'生成概率','生成权重','权重总数','可生成',...catalog.sources.map(s=>s.name+'工时分钟')]],custom=[['等级','任务顺序',...common,...catalog.sources.map(s=>s.name+'工时分钟')]],summary=[['等级','概率订单状态','概率订单数量','定制任务数量','定制可用数量','定制不可用数量','累计工时目标分钟','工时波动比例%','来源约束','概率权重总数']];
+  const probability=[['等级',...common,'生成概率','生成权重','权重总数','可生成',...catalog.sources.map(s=>s.name+'工时分钟')]],custom=[['等级','任务顺序',...common,'优化时间分钟','排产下界分钟','可行完工时间分钟','排产状态',...catalog.sources.map(s=>s.name+'工时分钟')]],summary=[['等级','概率订单状态','概率订单数量','定制任务数量','定制可用数量','定制不可用数量','累计工时目标分钟','工时波动比例%','来源约束','概率权重总数']];
   let unavailable=0;
   for(const entry of levels){
     const {level,status,fit}=entry,chosen=customOrdersAt(catalog,selection,level),valid=chosen.filter(e=>e.order);
@@ -14,7 +14,7 @@ export function projectExportSheets(catalog,project,levels){
     const labels={matched:'目标达标',approximate:'近似解',blocked:'无法拟合',not_fitted:'未拟合 / 结果待更新'};
     summary.push([level,labels[status]??status,fit?.orders.length??0,chosen.length,valid.length,chosen.length-valid.length,project.configs[level].mean,project.configs[level].spreadPercent,project.configs[level].sourceEnabled?'启用':'关闭',project.probabilityScale]);
     if(fit)for(const o of fit.orders)probability.push([level,...commonRow(o),o.probability,o.relativeWeight,o.weightScale,o.generationAllowed?'是':'否',...o.sourceMinutes]);
-    for(const e of valid)custom.push([level,e.sequence,...commonRow(e.order),...e.order.sourceMinutes]);
+    for(const e of valid){const t=getTiming(e.order,level);custom.push([level,e.sequence,...commonRow(e.order),n(t?.optimalMinutes),n(t?.lowerMinutes),n(t?.feasibleMinutes),t?.error?'无法排产：'+t.error:t?.proven?'已证明最优':t?'未证最优':'未计算',...e.order.sourceMinutes]);}
   }
   if(unavailable)throw Error(`有 ${unavailable} 项定制任务在当前等级或规则下不可用，请在“定制订单”中移除后再导出。`);
   return [

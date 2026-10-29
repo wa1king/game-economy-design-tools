@@ -9,3 +9,5 @@
 .source-fit-state{font-size:10px;color:#a16b3a;margin:9px 0 0}.source-fit-state.enabled{color:var(--green)}#spreadMagnitude{color:var(--green);font-size:12px;margin:8px 0 3px}#spreadPreview{font-size:10px;margin:3px 0 0}#sourceFitSummary{display:block;margin-top:5px}.source-result-head .values{font-variant-numeric:tabular-nums}
 .mix-weight label small{display:block;font-size:10px;color:var(--muted);line-height:1.4}
 .uniform-baseline{display:flex;justify-content:space-between;gap:8px;margin:-2px 0 13px;color:var(--muted);font-size:10px;line-height:1.5}.uniform-baseline output{font-variant-numeric:tabular-nums;white-space:nowrap;color:#527762}
+
+.project-names-notice{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px}.project-names-notice button{font-size:12px;white-space:nowrap;padding:6px 12px}

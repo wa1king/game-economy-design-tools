@@ -46,21 +46,29 @@ export function generateRanchGroups(model,family,{cropQuantity=7,productQuantity
 }
 function validateGroup(model,group,level){
   if(group.slots?.length!==4)throw Error('需求组必须有四个固定动物位。');
-  for(const item of group.slots){const p=model.by.get(item.id);if(!p)throw Error('需求组含未知商品。');if(p.level>level)throw Error(`${p.name}尚未解锁。`);positive(item.quantity,p.name+'需求量');}
+  validateDemand(model,group.slots,level);
+}
+function validateDemand(model,items,level){
+  if(!Array.isArray(items)||!items.length)throw Error('订单缺少交付商品。');
+  for(const item of items){const p=model.by.get(item.id);if(!p)throw Error('订单含未知商品。');if(p.level>level)throw Error(`${p.name}尚未解锁。`);positive(item.quantity,p.name+'需求量');}
 }
 export function groupMetrics(model,group,level){
   validateGroup(model,group,level);
+  return productionDemandMetrics(model,group.slots,level);
+}
+export function productionDemandMetrics(model,items,level){
+  validateDemand(model,items,level);
   const counts=new Map(),work=new Map(model.base.sources.map(s=>[s.id,0]));
-  for(const v of group.slots)counts.set(v.id,(counts.get(v.id)||0)+v.quantity);
+  for(const v of items)counts.set(v.id,(counts.get(v.id)||0)+v.quantity);
   for(const p of [...model.base.products].sort((a,b)=>model.depths.get(b.id)-model.depths.get(a.id))){
     const n=counts.get(p.id)||0;if(!n)continue;
     work.set(p.buildingId,work.get(p.buildingId)+n*p.stepMinutes);
     for(const v of p.inputs)counts.set(v.id,(counts.get(v.id)||0)+n*v.quantity);
   }
-  const slots=group.slots.map(v=>({name:model.by.get(v.id).name,complexity:model.chains.get(v.id).size,...v}));
+  const slots=items.map(v=>({name:model.by.get(v.id).name,complexity:model.chains.get(v.id).size,...v}));
   const totalMinutes=[...work.values()].reduce((a,b)=>a+b,0);
   if(!Number.isFinite(totalMinutes))throw Error('需求展开工时超出可计算范围。');
-  return {totalMinutes,complexity:slots.reduce((a,b)=>a+b.complexity,0),coinValue:orderCoinValue({items:group.slots},model.by),slots,sourceMinutes:Object.fromEntries(work),counts:Object.fromEntries(counts)};
+  return {totalMinutes,complexity:slots.reduce((a,b)=>a+b.complexity,0),coinValue:orderCoinValue({items},model.by),slots,sourceMinutes:Object.fromEntries(work),counts:Object.fromEntries(counts)};
 }
 function timeScale(products){
   let scale=1;
@@ -69,7 +77,10 @@ function timeScale(products){
   return scale;
 }
 export function expandRanchTasks(model,group,level,capacities){
-  validateGroup(model,group,level);const tasks=[],edges=[],roots=[],scale=timeScale(model.base.products);
+  validateGroup(model,group,level);return expandProductionTasks(model,group.slots,level,capacities);
+}
+export function expandProductionTasks(model,items,level,capacities){
+  validateDemand(model,items,level);const tasks=[],edges=[],roots=[],scale=timeScale(model.base.products);
   function add(id,slot){
     if(tasks.length>=1200)throw Error('本组展开超过1200个生产任务，请降低需求数量后计算。');
     const p=model.by.get(id),resource=String(p.buildingId),duration=Math.round(p.stepMinutes*scale);
@@ -79,7 +90,7 @@ export function expandRanchTasks(model,group,level,capacities){
     for(const input of p.inputs)for(let j=0;j<input.quantity;j++)edges.push([add(input.id,slot),i]);
     return i;
   }
-  group.slots.forEach((item,slot)=>{const terminals=[];for(let i=0;i<item.quantity;i++)terminals.push(add(item.id,slot));roots.push(terminals);});
+  items.forEach((item,slot)=>{const terminals=[];for(let i=0;i<item.quantity;i++)terminals.push(add(item.id,slot));roots.push(terminals);});
   const total=tasks.reduce((s,t)=>s+t.duration,0);if(!Number.isSafeInteger(total))throw Error('总工时超出精确计算范围。');
   return {tasks,edges,roots,scale};
 }
@@ -148,7 +159,11 @@ export function validateRanchSchedule(tasks,edges,starts,capacities){
   return true;
 }
 export function solveRanchGroup(model,group,level,capacities,{timeLimitMs=2000,nodeLimit=10000}={}){
-  const metrics=groupMetrics(model,group,level),{tasks,edges,roots,scale}=expandRanchTasks(model,group,level,capacities),b=bounds(tasks,edges,capacities),heap=new Heap(),seen=new Set();
+  validateGroup(model,group,level);
+  const result=solveProductionDemand(model,group.slots,level,capacities,{timeLimitMs,nodeLimit});result.assumptions.objective='all_four_slots_ready';return result;
+}
+export function solveProductionDemand(model,items,level,capacities,{timeLimitMs=2000,nodeLimit=10000}={}){
+  const metrics=productionDemandMetrics(model,items,level),{tasks,edges,roots,scale}=expandProductionTasks(model,items,level,capacities),b=bounds(tasks,edges,capacities),heap=new Heap(),seen=new Set();
   const begin=performance.now();let best=feasible(tasks,b,capacities),nodes=0,truncatedLower=null;
   heap.push({edges,b});seen.add(edges.map(v=>v.join(':')).sort().join('|'));
   search:while(heap.a.length&&heap.a[0].b.lower<best.span){
@@ -169,5 +184,5 @@ export function solveRanchGroup(model,group,level,capacities,{timeLimitMs=2000,n
   return {...metrics,optimalMinutes:proven?best.span/scale:null,feasibleMinutes:best.span/scale,lowerMinutes:lower/scale,proven,nodes,elapsedMs:Math.round(performance.now()-begin),taskCount:tasks.length,
     slotCompletionMinutes:roots.map(ids=>Math.max(...ids.map(i=>best.starts[i]+tasks[i].duration))/scale),
     schedule:tasks.map((t,i)=>({...t,start:best.starts[i]/scale,end:(best.starts[i]+t.duration)/scale,duration:t.duration/scale})).sort((a,b)=>a.start-b.start||a.id-b.id),
-    assumptions:{inventory:'empty',facilitiesAvailableAt:0,actionsMinutes:0,capacities:{...capacities},objective:'all_four_slots_ready',yield:1}};
+    assumptions:{inventory:'empty',facilitiesAvailableAt:0,actionsMinutes:0,capacities:{...capacities},objective:'all_requested_items_ready',yield:1}};
 }

@@ -23,12 +23,13 @@ function harness(){
  const c=buildCatalog({maxLevel:2,sources:[{id:0,name:'农田'}],products:[{id:1,name:'小麦',level:1,buildingId:0,isCrop:true,stepMinutes:2,analysisBatchYield:1,coinValue:1,inputs:[]},{id:2,name:'玉米',level:2,buildingId:0,isCrop:true,stepMinutes:5,analysisBatchYield:1,coinValue:2,inputs:[]}]});
  let selection=custom.normalizeCustomOrders(),busy=false,failSave=false;
  const context={document:{getElementById:()=>root},...custom,renderOrderItems,ordinaryOrderReward};vm.runInNewContext(source,context);
- const view=context.create({getCatalog:()=>c,getSelection:()=>selection,getInfo:level=>levelInfo(c,level),isBusy:()=>busy,onChange:next=>{if(failSave)throw Error('另一个页面已更新项目');selection=next;}});view.render();
+ const view=context.create({getCatalog:()=>c,getSelection:()=>selection,getInfo:level=>levelInfo(c,level),isBusy:()=>busy,getTiming:()=>({proven:true,optimalMinutes:12}),onChange:next=>{if(failSave)throw Error('另一个页面已更新项目');selection=next;}});view.render();
  const click=dataset=>listeners.get('click')({target:{closest:()=>({dataset,disabled:false})}});
- return {view,elements,get selection(){return selection;},click,setBusy:value=>busy=value,setSaveFailure:value=>failSave=value};
+ return {view,elements,root,get selection(){return selection;},click,setBusy:value=>busy=value,setSaveFailure:value=>failSave=value};
 }
 test('select, reorder and remove tasks update the chosen panel and all-level overview',()=>{
  const h=harness();h.click({customAdd:'S1-1'});assert.deepEqual([...h.selection.levels[1]],['S1-1']);assert.equal(h.elements.get('customPickedCount').textContent,1);
+ assert(!h.root.innerHTML.includes('<th>种类</th>'));assert(h.elements.get('customLibraryRows').innerHTML.includes('custom-optimal">12</td>'));assert(h.elements.get('customPickedRows').innerHTML.includes('优化 12 分'));
  h.elements.get('customLevel').value='2';h.elements.get('customLevel').onchange();h.click({customAdd:'S1-1'});h.click({customAdd:'S1-2'});h.click({customUp:'S1-2'});
  assert.deepEqual([...h.selection.levels[2]],['S1-2','S1-1']);assert(h.elements.get('customOverviewRows').innerHTML.includes('Lv 2'));assert(h.elements.get('customSummary').textContent.includes('共 3 个任务'));
  h.click({customRemove:'S1-2'});assert.deepEqual([...h.selection.levels[2]],['S1-1']);

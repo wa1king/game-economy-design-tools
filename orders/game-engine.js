@@ -51,7 +51,7 @@ export function gameSignature(catalog,result,level=result?.config?.level){
   integer(level,1,200,'等级');fitData(catalog,result);
   if(result.config.level!==level)throw Error('拟合等级与模拟等级不一致。');
   const value=JSON.stringify({version:GAME_VERSION,level,lands:landCount(catalog,level),
-    products:catalog.products.map(p=>[p.id,p.name,p.level,p.buildingId,crop(p),p.stepMinutes,p.analysisBatchYield,p.inputs,p.coproducts||[],p.orderQuantity,p.coinValue]),
+    products:catalog.products.map(p=>[p.id,p.gameIdentityName??p.name,p.level,p.buildingId,crop(p),p.stepMinutes,p.analysisBatchYield,p.inputs,p.coproducts||[],p.orderQuantity,p.coinValue]),
     sources:catalog.sources.map(s=>[s.id,s.name,s.level]),
     orders:catalog.orders.map((o,i)=>[o.id,o.items,o.cumulativeMinutes,result.probabilities[i]])});
   let a=2166136261,b=0x9e3779b9;
