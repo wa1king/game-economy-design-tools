@@ -5,12 +5,12 @@ import {fit} from '../orders/solver.js';
 import {applyProbabilityPrecision} from '../orders/probability-precision.js';
 import {createFitCache,fitCacheInput} from '../orders/fit-cache.js';
 const base={maxLevel:2,sources:[{id:0,name:'农田'}],products:[{id:1,name:'麦',level:1,buildingId:0,isCrop:true,stepMinutes:2,analysisBatchYield:1,inputs:[]},{id:2,name:'玉米',level:2,buildingId:0,isCrop:true,stepMinutes:5,analysisBatchYield:1,inputs:[]}]};
-const catalog=buildCatalog(base),config={level:1,mix:[100,0,0],mean:14,variance:0,sigma:0,sourceEnabled:false,shares:[100],shapeStrength:400,minimumOrderWeight:false,probabilityScale:10000};
+const catalog=buildCatalog(base),config={level:1,mix:[100,0,0],mean:12,variance:0,sigma:0,sourceEnabled:false,shares:[100],shapeStrength:400,minimumOrderWeight:false,probabilityScale:10000};
 const fitted=()=>applyProbabilityPrecision(catalog,fit(catalog,config),10000);
 const store=()=>{const map=new Map();return {map,get:async k=>structuredClone(map.get(k)),set:async(k,v)=>{map.set(k,structuredClone(v));}};};
 test('completed fits survive a new cache instance with their final probabilities and all statistics intact',async()=>{
  const storage=store(),r=fitted();await createFitCache({storage}).save(catalog,config,r);
- const loaded=await createFitCache({storage}).get(catalog,{...config,rawMixWeights:[5,0,0]});assert.deepEqual(loaded.probabilities,r.probabilities);assert.deepEqual(loaded.integerWeights,r.integerWeights);assert.equal(loaded.mean,14);assert.equal(loaded.matched,r.matched);assert.equal(loaded.config.rawMixWeights[0],5);
+ const loaded=await createFitCache({storage}).get(catalog,{...config,rawMixWeights:[5,0,0]});assert.deepEqual(loaded.probabilities,r.probabilities);assert.deepEqual(loaded.integerWeights,r.integerWeights);assert.equal(loaded.mean,12);assert.equal(loaded.matched,r.matched);assert.equal(loaded.config.rawMixWeights[0],5);
  loaded.probabilities[0]=0;assert.equal((await createFitCache({storage}).get(catalog,config)).probabilities[0],1);
 });
 test('only affected level inputs invalidate the cache; labels, prices and revision counters do not',async()=>{

@@ -1,3 +1,4 @@
+import {DEFAULT_CROP_QUANTITY} from './order-quantity-rules.js';
 import {prepareRanch,ranchCapacities,solveRanchGroup} from './ranch-engine.js';
 import {generateRanchLevelGroups} from './ranch-catalog.js';
 import {quantityGroup} from './ranch-quantity.js';
@@ -29,7 +30,7 @@ export function backupRanchBeforeImport(storage,settings,project=null){
 export async function calculateRanchImport(payload,{settings={},onProgress=()=>{},solve=solveRanchGroup}={}){
   const bundle=readRanchResultBundle(payload),base=structuredClone(bundle.base),model=prepareRanch(base);
   const chosen=settings.cropQuantity!=null?settings:bundle.rules??{};
-  const rules={cropQuantity:Number(chosen.cropQuantity??7),productQuantity:Number(chosen.productQuantity??1),allowRepeated:chosen.allowRepeated??false,sameBuildingRepeated:true,sameBuildingNoCrops:true};
+  const rules={cropQuantity:Number(chosen.cropQuantity??DEFAULT_CROP_QUANTITY),productQuantity:Number(chosen.productQuantity??1),allowRepeated:chosen.allowRepeated??false,sameBuildingRepeated:true,sameBuildingNoCrops:true};
   if(typeof rules.allowRepeated!=='boolean')throw Error('重复商品规则必须为勾选状态。');
   const migrated=structuredClone(settings),plans=[];
   for(let level=1;level<=(base.maxLevel??20);level++){

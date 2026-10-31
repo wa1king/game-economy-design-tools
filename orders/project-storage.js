@@ -1,3 +1,4 @@
+import {migrateOrdinaryCropQuantity} from './order-quantity-rules.js';
 import {readSharedChainSource,SHARED_CHAIN_KEY,matchingChainIds} from './shared-chain-source.js';
 export const PROJECT_STORAGE_KEY='order-project-v3';
 const LEGACY_PROJECT_KEY='taoyuan-order-project-v2';
@@ -18,6 +19,7 @@ export function createProjectStore(storage){
       if(!raw)return shared?{origin:'excel-import',base:shared.base,filename:shared.filename,configs:{},customOrders:{}}:null;
       let saved;try{saved=JSON.parse(raw);}catch{throw Error('已保存项目无法读取，请重新导入 Excel。');}
       if(!isImportedProject(saved))return shared?{origin:'excel-import',base:shared.base,filename:shared.filename,configs:{},customOrders:{}}:null;
+      saved=migrateOrdinaryCropQuantity(saved);
       if(!shared)return saved;
       const compatible=matchingChainIds(saved.base,shared.base);
       return compatible?{...saved,base:shared.base,filename:shared.filename}:{...saved,base:shared.base,filename:shared.filename,configs:{},customOrders:{}};

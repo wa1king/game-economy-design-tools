@@ -1,3 +1,4 @@
+import {DEFAULT_CROP_QUANTITY} from './order-quantity-rules.js';
 // Ranch demand groups have four fixed slots. They do not use normal-order exclusions.
 import {validateProducts} from './order-engine.js';
 import {orderCoinValue} from './coin-values.js';
@@ -26,7 +27,7 @@ export function ranchFamilies(model,level,type){
   if(type==='chain')for(const p of ps)if(model.depths.get(p.id)>=2){const ids=ps.filter(v=>model.chains.get(p.id).has(v.id)).map(v=>v.id);if(ids.length>=2)families.push({id:'p'+p.id,name:p.name+' · 上游链',productIds:ids,anchorId:p.id});}
   return families;
 }
-export function generateRanchGroups(model,family,{cropQuantity=7,productQuantity=1,allowRepeated=true,limit=30000}={}){
+export function generateRanchGroups(model,family,{cropQuantity=DEFAULT_CROP_QUANTITY,productQuantity=1,allowRepeated=true,limit=30000}={}){
   positive(cropQuantity,'作物数量');positive(productQuantity,'加工品数量');
   if(!family)return [];
   // Same-building slots always allow repetition, including four identical items.

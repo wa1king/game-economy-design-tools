@@ -1,3 +1,4 @@
+import {DEFAULT_CROP_QUANTITY} from './order-quantity-rules.js';
 import {eligibleOrder} from './probability-floor.js';
 import {ordinaryOrderReward} from './coin-values.js';
 
@@ -60,7 +61,7 @@ export function gameSignature(catalog,result,level=result?.config?.level){
 }
 
 function orderQuantity(catalog,p){
-  return integer(p.orderQuantity??(crop(p)?catalog.rules?.cropQuantity??7:catalog.rules?.productQuantity??1),1,1000000000,'单商品订单需求量');
+  return integer(p.orderQuantity??(crop(p)?catalog.rules?.cropQuantity??DEFAULT_CROP_QUANTITY:catalog.rules?.productQuantity??1),1,1000000000,'单商品订单需求量');
 }
 
 function unlockedSources(catalog,level){return catalog.sources.filter(s=>catalog.products.some(p=>p.level<=level&&!crop(p)&&String(p.buildingId)===String(s.id)));}

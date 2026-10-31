@@ -1,6 +1,7 @@
+import {DEFAULT_CROP_QUANTITY} from './order-quantity-rules.js';
 import {addOrderComplexity} from './order-complexity.js';
 import {orderCoinValue} from './coin-values.js';
-export const DEFAULT_RULES={cropQuantity:7,productQuantity:1,maxKinds:3,singleWindow:10};
+export const DEFAULT_RULES={cropQuantity:DEFAULT_CROP_QUANTITY,productQuantity:1,maxKinds:3,singleWindow:10};
 export function validateProducts(base){
   const by=new Map(),names=new Set(),sources=new Map(base.sources.map(s=>[s.id,s]));
   for(const p of base.products){

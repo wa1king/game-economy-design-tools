@@ -1,3 +1,4 @@
+import {readRanchSettings,RANCH_QUANTITY_RULES_KEY} from './order-quantity-rules.js';
 import {readSharedChainSource,SHARED_CHAIN_KEY} from './shared-chain-source.js';
 import {prepareRanch,groupMetrics} from './ranch-engine.js';
 import {ranchSettingsKey} from './ranch-import.js';
@@ -28,7 +29,7 @@ export function ranchSource(storage=globalThis.localStorage){
 export async function loadRanchWorkspace(deps={}){
   const storage=deps.storage??globalThis.localStorage,source=ranchSource(storage);
   if(!source?.base)return null;
-  const base=structuredClone(source.base),storageKey=ranchSettingsKey(base),settings=readJSON(storage,storageKey)??{},model=prepareRanch(base),plans=buildRanchDistributionPlans(base,settings);
+  const base=structuredClone(source.base),storageKey=ranchSettingsKey(base),settings=readRanchSettings(storage,storageKey),model=prepareRanch(base),plans=buildRanchDistributionPlans(base,settings);
   const services={storage,loadCache:deps.loadCache??loadRanchCache,mergeCache:deps.mergeCache??mergeRanchCache,workerFactory:deps.workerFactory??(()=>new Worker('./ranch-worker.js',{type:'module'}))};
   for(const plan of plans){
     plan.metrics??=new Map(plan.groups.map(g=>[g.key,groupMetrics(model,g,plan.level)]));
@@ -39,7 +40,7 @@ export async function loadRanchWorkspace(deps={}){
   return {base,filename:source.filename??base.filename??'加工链路',storageKey,settings,model,plans,services};
 }
 export function saveRanchTargets(ws,cells){
-  const next=readJSON(ws.services.storage,ws.storageKey)??structuredClone(ws.settings),drafts=new Map();
+  const next=readRanchSettings(ws.services.storage,ws.storageKey),drafts=new Map();
   for(const {level,key,value} of cells){
     if(!Number.isInteger(level)||level<1||level>ws.base.maxLevel||!targetKeys.includes(key))throw Error('目标配置包含无效等级或列。');
     if(!drafts.has(level))drafts.set(level,readRanchTarget(next,level));
@@ -67,7 +68,7 @@ export function mergeRanchSettings(previous,edited,latest){
 export function watchRanchWorkspace(callback){
   let timer;
   const queue=()=>{clearTimeout(timer);timer=setTimeout(callback,120);};
-  const changed=e=>{if(!e.key||e.key==='ranch-workspace-revision-v1'||e.key===SHARED_CHAIN_KEY||e.key==='ranch-source-v1'||e.key.startsWith('ranch-settings-v1:'))queue();};
+  const changed=e=>{if(!e.key||e.key==='ranch-workspace-revision-v1'||e.key===RANCH_QUANTITY_RULES_KEY||e.key===SHARED_CHAIN_KEY||e.key==='ranch-source-v1'||e.key.startsWith('ranch-settings-v1:'))queue();};
   const visible=()=>{if(document.visibilityState==='visible')queue();};
   window.addEventListener('storage',changed);window.addEventListener('focus',queue);window.addEventListener('pageshow',queue);document.addEventListener('visibilitychange',visible);
   return ()=>{clearTimeout(timer);window.removeEventListener('storage',changed);window.removeEventListener('focus',queue);window.removeEventListener('pageshow',queue);document.removeEventListener('visibilitychange',visible);};
@@ -99,7 +100,7 @@ export async function calculateRanchWorkspace(ws,{mode='schedule',signal,onProgr
   const changed=plan=>{onChange();if(Date.now()-lastSave>1500){lastSave=Date.now();queueSave(plan);}};
   const progress=(plan,phase,index,total,message)=>onProgress({level:plan.level,index,total,phase,message,totalLevels:ws.plans.length});
   const persistQuantity=(plan,group,fit,options)=>{
-    const settings=readJSON(ws.services.storage,ws.storageKey)??structuredClone(ws.settings);
+    const settings=readRanchSettings(ws.services.storage,ws.storageKey);
     (settings.quantityEdits??={})[plan.level]??={};settings.quantityEdits[plan.level][group.id]=group.slots.map(v=>v.quantity);
     const target=readRanchTarget(settings,plan.level);
     if(target.targetWork.trim()==='')(settings.workRatios??={})[JSON.stringify([plan.level,plan.capacities])]=options.targetWorkMinutes/options.targetMinutes;

@@ -1,3 +1,4 @@
+import {DEFAULT_CROP_QUANTITY} from './order-quantity-rules.js';
 import {prepareRanch,ranchCapacities,groupMetrics} from './ranch-engine.js';
 import {generateRanchLevelGroups,remapRanchResult} from './ranch-catalog.js';
 import {quantityGroup} from './ranch-quantity.js';
@@ -22,7 +23,7 @@ export function summarizeMinutes(values){
 // Uses the same source/rule/capacity keys as the scheme page, without mutating
 // either its settings or ordinary-order storage. Saved per-group quantities win.
 export function buildRanchDistributionPlans(base,settings={}){
-  const model=prepareRanch(base),rules={cropQuantity:Number(settings.cropQuantity??7),productQuantity:Number(settings.productQuantity??1),allowRepeated:settings.allowRepeated??false};
+  const model=prepareRanch(base),rules={cropQuantity:Number(settings.cropQuantity??DEFAULT_CROP_QUANTITY),productQuantity:Number(settings.productQuantity??1),allowRepeated:settings.allowRepeated??false};
   if(!Number.isSafeInteger(base.maxLevel)||base.maxLevel<1||base.maxLevel>200)throw Error('最高等级需为1至200。');
   return Array.from({length:base.maxLevel},(_,i)=>{
     const level=i+1,capacities={...ranchCapacities(model,level),...(settings.capacities?.[level]??{})},edits=settings.quantityEdits?.[level]??{};
