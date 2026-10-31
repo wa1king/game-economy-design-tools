@@ -24,6 +24,7 @@ import {createCustomOrdersView} from './custom-orders-view.js';
 import {projectExportSheets,exportProjectWorkbook} from './project-export.js';
 import {isPlaceholderProductName,productNameUpdates,applyProductNameUpdates} from './project-names.js';
 import {createOrderTimingService} from './order-time.js';
+import {createFitCache} from './fit-cache.js';
 import {restoreMissingProjectMetadata,metadataSourceIssue,supplementProjectMetadata} from './project-metadata.js';
 const $=id=>document.getElementById(id),fmt=(v,d=1)=>Number(v).toLocaleString('zh-CN',{maximumFractionDigits:d,minimumFractionDigits:d}),pct=(v,d=2)=>fmt(v*100,d)+'%';
 const escape=value=>String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -34,6 +35,7 @@ let selectedOutcomeFilter=null;
 let projectStore;
 let nameSuggestion,nameRequest=0;
 let orderTimingService;
+const fitCache=createFitCache({onError:()=>{ $('projectStorageNotice').textContent='拟合结果未能保存到浏览器，请检查存储空间；当前页面结果仍可使用。';$('projectStorageNotice').hidden=false;}});
 function orderTimings(){return orderTimingService??=createOrderTimingService({onChange:()=>{if(!$('customPanel').hidden)customOrdersView?.refreshTimings();}});}
 const results=new Map(),errors=new Map(),infos=new Map(),jobs=new Map(),colors=['#75a28b','#3f8268','#244f40'];
 const info=level=>{if(!infos.has(level))infos.set(level,levelInfo(catalog,level));return infos.get(level);};
@@ -205,15 +207,31 @@ function validateConfig(c){
   const mixIssue=mixWeightsIssue(c.rawMixWeights,info(c.level).counts);if(mixIssue)throw Error(mixIssue);
   if(!info(c.level).orders.length)throw Error('该等级没有符合排除规则的订单。');
 }
+function useFitResult(level,r,rev){
+  results.set(level,{revision:rev,result:r});errors.delete(level);
+  if(level===activeLevel){result=r;dirty=revision(level)!==rev;renderResult();showResultStatus();$('exportCSV').disabled=$('exportJSON').disabled=dirty;}
+}
+async function restoreFitResults(){
+  const gen=generation;let count=0;
+  for(let level=1;level<=catalog.maxLevel;level++){
+    const c=fittedConfig(level),rev=revision(level),r=await fitCache.get(catalog,c);
+    if(gen!==generation)return;
+    if(r&&rev===revision(level)){useFitResult(level,r,rev);count++;}
+  }
+  if(!busy)setBusy(false);renderNavigation();renderOverview();$('batchProgress').textContent=count?`已读取 ${count} 级保存结果`:'尚无保存结果 · 点击拟合后自动保存';
+}
 async function computeLevel(level){
   const c=fittedConfig(level),rev=revision(level),gen=generation;validateConfig(c);
+  const cached=await fitCache.get(catalog,c);
+  if(gen!==generation||rev!==revision(level))throw Error('当前配置已改变，请重新操作。');
+  if(cached){useFitResult(level,cached,rev);renderNavigation();renderOverview();return {result:cached,reused:true};}
   const id=++request;
   const raw=await new Promise((resolve,reject)=>{jobs.set(id,{resolve,reject,level});worker.postMessage({type:'fit',config:c,request:id});});
-  if(gen!==generation)throw Error('订单库已改变，请重新拟合。');
+  if(gen!==generation||rev!==revision(level))throw Error('当前配置已改变，请重新拟合。');
   if(raw.blocked)throw Error(raw.reason);
-  const r=applyProbabilityPrecision(catalog,raw,c.probabilityScale);results.set(level,{revision:rev,result:r});errors.delete(level);
-  if(level===activeLevel){result=r;dirty=revision(level)!==rev;renderResult();showResultStatus();$('exportCSV').disabled=$('exportJSON').disabled=dirty;}
-  renderNavigation();renderOverview();return r;
+  const r=applyProbabilityPrecision(catalog,raw,c.probabilityScale);useFitResult(level,r,rev);
+  await fitCache.save(catalog,c,r);
+  renderNavigation();renderOverview();return {result:r,reused:false};
 }
 function setBusy(value){
   $('importFirstProject').disabled=value;
@@ -227,13 +245,13 @@ function setBusy(value){
   renderNavigation();renderOverview();syncSimulators();
 }
 async function solve(all=false){
-  if(busy||!project)return;setBusy(true);let failures=0;
+  if(busy||!project)return;setBusy(true);let failures=0,reused=0,computed=0;
   const levels=all?Array.from({length:catalog.maxLevel},(_,i)=>i+1):[activeLevel];
   for(const level of levels){
     if(!busy)break;$('batchProgress').textContent=`Lv ${level} / ${catalog.maxLevel}`;
-    try{await computeLevel(level);}catch(error){if(!busy)break;failures++;errors.set(level,error.message);if(level===activeLevel){result=null;clearResult();status('无法拟合','warn');notice(error.message,true);dirty=true;$('exportCSV').disabled=$('exportJSON').disabled=true;}}
+    try{const outcome=await computeLevel(level);if(outcome.reused)reused++;else computed++;}catch(error){if(!busy)break;failures++;errors.set(level,error.message);if(level===activeLevel){result=null;clearResult();status('无法拟合','warn');notice(error.message,true);dirty=true;$('exportCSV').disabled=$('exportJSON').disabled=true;}}
   }
-  setBusy(false);$('batchProgress').textContent=all?`已完成 ${levels.length} 级${failures?' · '+failures+' 级需调整':''}`:'';renderOverview();
+  setBusy(false);$('batchProgress').textContent=`复用 ${reused} 级 · 新拟合 ${computed} 级${failures?' · '+failures+' 级需调整':''}`;renderOverview();
 }
 function clearResult(){
   syncSimulators();
@@ -392,7 +410,7 @@ $('projectNamesFile').onchange=async()=>{
 };
 $('excelFile').onchange=async()=>{
   const file=$('excelFile').files[0];if(!file)return;setBusy(true);$('cancelFit').hidden=true;$('batchProgress').textContent='读取 Excel…';
-  try{const base=await readChainExcel(file);if(projectStore)projectStore.acceptLatest();else projectStore=createProjectStore(localStorage);$('projectStorageNotice').hidden=true;installBase(base,file.name);setView('overview');const coins=coinValueCoverage(base.products);$('batchProgress').textContent=`已导入 ${base.products.length} 种商品 · 金币 ${coins.priced}/${coins.total}`;}catch(error){if(project){notice(error.message,true);$('batchProgress').textContent='导入失败';}else showEmptyProject(error.message);}finally{setBusy(false);$('excelFile').value='';}
+  try{const base=await readChainExcel(file);if(projectStore)projectStore.acceptLatest();else projectStore=createProjectStore(localStorage);$('projectStorageNotice').hidden=true;const keep=project&&JSON.stringify(project.base.products.map(p=>p.id).sort((a,b)=>a-b))===JSON.stringify(base.products.map(p=>p.id).sort((a,b)=>a-b))?project:null;installBase(base,file.name,keep);setView('overview');await restoreFitResults();const coins=coinValueCoverage(base.products);$('batchProgress').textContent=`已导入 ${base.products.length} 种商品 · 金币 ${coins.priced}/${coins.total}`;}catch(error){if(project){notice(error.message,true);$('batchProgress').textContent='导入失败';}else showEmptyProject(error.message);}finally{setBusy(false);$('excelFile').value='';}
 };
 $('exportCSV').onclick=()=>{if(result&&!dirty)download(toCSV(catalog,result),`订单权重_Lv${activeLevel}.csv`,'text/csv;charset=utf-8');};
 $('exportJSON').onclick=()=>{if(result&&!dirty)download(toJSON(catalog,result),`订单权重_Lv${activeLevel}.json`,'application/json');};
@@ -424,14 +442,14 @@ async function init(){
     if(!saved){
       if(new URLSearchParams(location.search).get('project')==='current'){
         const response=await fetch('../current-design.xlsx');if(!response.ok)throw Error('当前数值表读取失败');
-        const base=await readChainExcel(new File([await response.blob()],'当前加工链路数值表.xlsx'));installBase(base,'当前加工链路数值表.xlsx');setView('dashboard');await solve(false);return;
+        const base=await readChainExcel(new File([await response.blob()],'当前加工链路数值表.xlsx'));installBase(base,'当前加工链路数值表.xlsx');setView('dashboard');await restoreFitResults();return;
       }
       showEmptyProject();return;
     }
     const repaired=restoreMissingProjectMetadata(saved,localStorage);if(repaired)saved=repaired.project;
     installBase(saved.base,saved.filename,saved);
     if(repaired)$('batchProgress').textContent=`已从同配方牧场项目补齐 ${repaired.lands} 级土地、${repaired.prices} 个金币单价`;
-    setView(new URLSearchParams(location.search).get('view')==='custom'?'custom':'dashboard');await solve(false);
+    setView(new URLSearchParams(location.search).get('view')==='custom'?'custom':'dashboard');await restoreFitResults();
   }catch(error){showEmptyProject(error.message);}
 }
 window.addEventListener('storage',event=>{if(event.key===PROJECT_STORAGE_KEY){$('projectStorageNotice').textContent='另一个页面已更新项目，请刷新后继续。';$('projectStorageNotice').hidden=false;}});
@@ -445,7 +463,7 @@ createSessionBackupView({
   restore:async snapshot=>{
     if(busy)throw Error('请先等待拟合结束。');
     gameMode.releaseSession();restoreSessionSnapshot(localStorage,snapshot,{overwrite:true});
-    projectStore=createProjectStore(localStorage);const saved=projectStore.load();installBase(saved.base,saved.filename,saved);setView('dashboard');await solve(false);
+    projectStore=createProjectStore(localStorage);const saved=projectStore.load();installBase(saved.base,saved.filename,saved);setView('dashboard');await restoreFitResults();
   }
 });
 init();
