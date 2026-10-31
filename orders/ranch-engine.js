@@ -1,4 +1,5 @@
 import {DEFAULT_CROP_QUANTITY} from './order-quantity-rules.js';
+import {ranchWorkRules} from './ranch-work-rules.js';
 // Ranch demand groups have four fixed slots. They do not use normal-order exclusions.
 import {validateProducts} from './order-engine.js';
 import {orderCoinValue} from './coin-values.js';
@@ -6,7 +7,7 @@ import {orderCoinValue} from './coin-values.js';
 const gcd=(a,b)=>b?gcd(b,a%b):a;
 const compare=(a,b)=>{for(let i=0;i<a.length;i++){if(a[i]<b[i])return -1;if(a[i]>b[i])return 1;}return 0;};
 const positive=(v,label)=>{if(!Number.isSafeInteger(v)||v<1)throw Error(`${label}必须是正整数。`);return v;};
-export function prepareRanch(base){
+export function prepareRanch(base,rules={}){
   const {by,depths}=validateProducts(base),chains=new Map();
   for(const p of base.products){
     if(p.analysisBatchYield!==1||(p.coproducts||[]).length)throw Error('牧场精确排产当前支持单次产出1件、无副产的配方；不能将多产出配方当成单件计算。');
@@ -16,7 +17,7 @@ export function prepareRanch(base){
   base.products.forEach(p=>chain(p.id));
   const fields=new Set(base.sources.filter(s=>s.id===0||s.category==='田地'||s.name==='农田'||s.name==='田地').map(s=>s.id));
   const cropIds=new Set(base.products.filter(p=>fields.has(p.buildingId)||p.isCrop||p.category==='田地作物'||p.category==='特殊作物'||p.sourceCategory==='田地').map(p=>p.id));
-  return {base,by,depths,chains,cropIds};
+  return {base,by,depths,chains,cropIds,orderWorkRules:ranchWorkRules(rules)};
 }
 export function ranchCapacities(model,level){
   return Object.fromEntries(model.base.sources.map(s=>[s.id,(s.category==='田地'||s.id===0||s.name==='农田')?(model.base.landsByLevel?.[level]??null):1]));

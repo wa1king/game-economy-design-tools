@@ -20,13 +20,13 @@ test('time band is primary and common accumulated work is secondary within it',(
   assert(quantityRank(candidate(330,900),o)[1]<quantityRank(candidate(360,1100),o)[1]);assert(quantityRank(candidate(320,900),o)[0]>quantityRank(candidate(360,1100),o)[0]);assert(quantityRank(candidate(360,900),o)[0]===0);
 });
 test('joint quantity fitting reaches 120 minutes while balancing all four orders',()=>{
-  const m=prepareRanch(base([product(1,10,1),product(2,20,2),product(3,30,3),product(4,40,4)])),g=group([1,2,3,4]),caps={1:1,2:1,3:1,4:1},before=JSON.stringify(g),r=solveRanchGroup(m,g,20,caps),fit=fitRanchQuantities(m,g,20,caps,{targetMinutes:120,toleranceMinutes:0,targetWorkMinutes:300,productMax:6,cropMax:6,timeLimitMs:4000},r),best=fit.recommendations[0];
-  assert.equal(best.result.optimalMinutes,120);assert.equal(best.result.totalMinutes,350);assert.equal(fit.within,true);assert.equal(fit.quantitySearchProven,false);assert.equal(JSON.stringify(g),before);
-  for(const v of fit.recommendations){assert(v.group.slots.every(s=>s.quantity>=1&&s.quantity<=6));const t=expandRanchTasks(m,v.group,20,caps),starts=Array(t.tasks.length);for(const task of v.result.schedule)starts[task.id]=Math.round(task.start*t.scale);assert(validateRanchSchedule(t.tasks,t.edges,starts,caps));assert.equal(solveRanchGroup(m,v.group,20,caps).optimalMinutes,v.result.optimalMinutes);}
+  const m=prepareRanch(base([product(1,10,1),product(2,20,2),product(3,30,3),product(4,40,4)])),g=group([1,2,3,4]),caps={1:1,2:1,3:1,4:1},before=JSON.stringify(g),r=solveRanchGroup(m,g,20,caps),fit=fitRanchQuantities(m,g,20,caps,{targetMinutes:120,toleranceMinutes:0,targetWorkMinutes:300,productMax:12,cropMax:12,timeLimitMs:4000},r),best=fit.recommendations[0];
+  assert.equal(best.result.optimalMinutes,120);assert.equal(best.result.totalMinutes,400);assert.equal(fit.within,true);assert.equal(fit.quantitySearchProven,false);assert.equal(JSON.stringify(g),before);
+  for(const v of fit.recommendations){assert(v.group.slots.every(s=>s.quantity>=1&&s.quantity<=12));const t=expandRanchTasks(m,v.group,20,caps),starts=Array(t.tasks.length);for(const task of v.result.schedule)starts[task.id]=Math.round(task.start*t.scale);assert(validateRanchSchedule(t.tasks,t.edges,starts,caps));assert.equal(solveRanchGroup(m,v.group,20,caps).optimalMinutes,v.result.optimalMinutes);}
 });
 test('same building queues quantities rather than summing isolated optimal times',()=>{
-  const m=prepareRanch(base([product(1,10,1),product(2,20,1),product(3,30,1),product(4,40,1)])),g=group([1,2,3,4]),fit=fitRanchQuantities(m,g,20,{1:1},{targetMinutes:120,toleranceMinutes:0,targetWorkMinutes:120,productMax:3,timeLimitMs:2000});
-  assert.equal(fit.recommendations[0].result.optimalMinutes,120);assert.equal(fit.recommendations[0].result.totalMinutes,120);
+  const m=prepareRanch(base([product(1,10,1),product(2,20,1),product(3,30,1),product(4,40,1)])),g=group([1,2,3,4]),fit=fitRanchQuantities(m,g,20,{1:1},{targetMinutes:150,toleranceMinutes:0,targetWorkMinutes:150,productMax:4,timeLimitMs:2000});
+  assert.equal(fit.recommendations[0].result.optimalMinutes,150);assert.equal(fit.recommendations[0].result.totalMinutes,150);
 });
 test('four identical products keep four quantities while sharing one workshop queue',()=>{
   const m=prepareRanch(base([product(1,10,1)])),g=group([1,1,1,1]),caps={1:1},fit=fitRanchQuantities(m,g,20,caps,{targetMinutes:80,toleranceMinutes:0,targetWorkMinutes:80,productMax:3,timeLimitMs:2000}),best=fit.recommendations[0];
@@ -35,7 +35,7 @@ test('four identical products keep four quantities while sharing one workshop qu
 });
 
 test('baseline outside the quantity bounds cannot become a recommendation',()=>{
-  const m=prepareRanch(base([product(1,10,1),product(2,20,2),product(3,30,3),product(4,40,4)])),g=group([1,2,3,4],[9,9,9,9]),caps={1:1,2:1,3:1,4:1},fit=fitRanchQuantities(m,g,20,caps,{productMax:2,targetWorkMinutes:300,timeLimitMs:2000},solveRanchGroup(m,g,20,caps));assert(fit.recommendations.every(v=>v.group.slots.every(s=>s.quantity<=2)));
+  const m=prepareRanch(base([product(1,10,1),product(2,20,2),product(3,30,3),product(4,40,4)])),g=group([1,2,3,4],[9,9,9,9]),caps={1:1,2:1,3:1,4:1},fit=fitRanchQuantities(m,g,20,caps,{productMax:4,targetWorkMinutes:300,timeLimitMs:2000},solveRanchGroup(m,g,20,caps));assert(fit.recommendations.every(v=>v.group.slots.every(s=>s.quantity<=4)));
 });
 test('minimum already too slow gives a valid reason and no false target hit',()=>{
   const m=prepareRanch(base([product(1,100,1),product(2,100,1),product(3,100,1),product(4,100,1)])),fit=fitRanchQuantities(m,group([1,2,3,4]),20,{1:1},{productMax:2,targetWorkMinutes:400,timeLimitMs:2000});assert.equal(fit.within,false);assert(fit.reason.includes('各1个'));assert.equal(fit.recommendations[0].result.optimalMinutes,400);

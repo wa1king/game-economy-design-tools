@@ -1,3 +1,4 @@
+import {ranchWorkRules,ranchWorkRangeText} from './ranch-work-rules.js';
 import {DEFAULT_CROP_QUANTITY,readRanchSettings} from './order-quantity-rules.js';
 import {writeSharedChainSource} from './shared-chain-source.js';
 import {createRanchLevelCatalog} from './ranch-level-catalog.js';
@@ -36,7 +37,7 @@ function persist(){
   if(!model)return;
   (savedSettings.quantityEdits??={})[level]=structuredClone(quantityEdits);(savedSettings.quantityTargetsByLevel??={})[level]=Object.fromEntries(['targetHours','targetTolerance','targetWork','fitCropMax','fitProductMax','quantityBudget'].map(id=>[id,$(id).value]));
   savedSettings={...savedSettings,browser:{type,buildingId:browserBuildingId,familyId:$('family').value,groupId:current?.id},level,cropQuantity:Number($('cropQuantity').value),productQuantity:Number($('productQuantity').value),allowRepeated:$('allowRepeated').checked,searchLimit:$('searchLimit').value,quantityTargets:Object.fromEntries(['targetHours','targetTolerance','targetWork','fitCropMax','fitProductMax','quantityBudget'].map(id=>[id,$(id).value]))};
-  try{savedSettings=mergeRanchSettings(persistedSettings,savedSettings,readRanchSettings(localStorage,storageKey));localStorage.setItem(storageKey,JSON.stringify(savedSettings));persistedSettings=structuredClone(savedSettings);quantityEdits=structuredClone(savedSettings.quantityEdits?.[level]??{});restoreQuantityTargets();$('cropQuantity').value=savedSettings.cropQuantity??DEFAULT_CROP_QUANTITY;$('productQuantity').value=savedSettings.productQuantity??1;$('allowRepeated').checked=savedSettings.allowRepeated??false;$('searchLimit').value=savedSettings.searchLimit??'2000';notifyRanchChange(storageKey,'settings');}catch{message('本页设置未能保存，请导出备份。');}
+  try{savedSettings=mergeRanchSettings(persistedSettings,savedSettings,readRanchSettings(localStorage,storageKey));localStorage.setItem(storageKey,JSON.stringify(savedSettings));persistedSettings=structuredClone(savedSettings);model.orderWorkRules=ranchWorkRules(savedSettings);quantityEdits=structuredClone(savedSettings.quantityEdits?.[level]??{});restoreQuantityTargets();$('cropQuantity').value=savedSettings.cropQuantity??DEFAULT_CROP_QUANTITY;$('productQuantity').value=savedSettings.productQuantity??1;$('allowRepeated').checked=savedSettings.allowRepeated??false;$('searchLimit').value=savedSettings.searchLimit??'2000';notifyRanchChange(storageKey,'settings');}catch{message('本页设置未能保存，请导出备份。');}
 }
 function saveCache(){clearTimeout(saveTimer);if(!cacheKey)return;const key=cacheKey,sourceKey=storageKey,changedFits=[...quantityFits].filter(([id,fit])=>JSON.stringify(fit)!==fitCacheSnapshot.get(id)),value={version:2,results:[...results],failures:[...failures],quantityFits:changedFits};cacheQueue=cacheQueue.catch(()=>{}).then(()=>mergeRanchCache(key,value)).then(()=>{cacheSaveError=null;if(cacheKey===key)for(const [id,fit] of changedFits)fitCacheSnapshot.set(id,JSON.stringify(fit));notifyRanchChange(sourceKey,'results');}).catch(error=>{cacheSaveError=error;message('计算结果暂时无法缓存；本页结果仍可查看和导出。');});}
 function scheduleSave(){clearTimeout(saveTimer);saveTimer=setTimeout(saveCache,800);}
@@ -44,7 +45,7 @@ function stop(){clearTimeout(manualTimer);worker?.terminate();worker=null;busy=f
 function install(newBase,name,rules){
   stop();prepareRanch(newBase);base=structuredClone(newBase);model=prepareRanch(base);filename=name||base.filename||'加工链路';if(!itemInfo)itemInfo=setupItemInfo(base,document.querySelector('main'));else{itemInfo.hide();itemInfo.products.clear();base.products.forEach(p=>itemInfo.products.set(p.id,p));}storageKey='ranch-settings-v1:'+fingerprint({products:base.products,sources:base.sources,lands:base.landsByLevel});
   savedSettings={};try{savedSettings=readRanchSettings(localStorage,storageKey);}catch{}
-  persistedSettings=structuredClone(savedSettings);
+  persistedSettings=structuredClone(savedSettings);model.orderWorkRules=ranchWorkRules(savedSettings);
   type=savedSettings.browser?.type==='chain'?'chain':'building';browserBuildingId=savedSettings.browser?.buildingId??null;graphSignature='';slotSignature='';schemeSignature='';level=Math.min(base.maxLevel||20,Math.max(1,savedSettings.level??level));restoreQuantityTargets();$('cropQuantity').value=savedSettings.cropQuantity??rules?.cropQuantity??DEFAULT_CROP_QUANTITY;$('productQuantity').value=savedSettings.productQuantity??rules?.productQuantity??1;$('allowRepeated').checked=savedSettings.allowRepeated??false;$('searchLimit').value=savedSettings.searchLimit??'2000';
   if(!navigationApplied&&navigationRequest){const requested=Number(navigationRequest.get('level'));if(requested>=1&&requested<=base.maxLevel){level=requested;restoreQuantityTargets();}if(['building','chain'].includes(navigationRequest.get('type')))type=navigationRequest.get('type');navigationApplied=true;}
   $('projectName').textContent=filename;$('sourceMeta').textContent=`${base.products.length} 商品 · ${base.products.filter(v=>v.coinValue!=null).length} 个已定价`;$('level').innerHTML=Array.from({length:base.maxLevel||20},(_,i)=>`<option value="${i+1}">Lv ${i+1}</option>`).join('');$('level').value=level;
@@ -165,7 +166,7 @@ function renderQuantityControls(){
 function readQuantityTargets(){
   const work=$('targetWork').value.trim()===''?autoWorkReference():Number($('targetWork').value);
   if(!(work>0))throw Error('无法估算共同累计工时，请填写累计工时目标。');
-  return quantityOptions({targetMinutes:Number($('targetHours').value)*60,toleranceMinutes:Number($('targetTolerance').value),targetWorkMinutes:work,cropMax:Number($('fitCropMax').value),productMax:Number($('fitProductMax').value),timeLimitMs:Number($('quantityBudget').value)});
+  return quantityOptions({...ranchWorkRules(savedSettings),targetMinutes:Number($('targetHours').value)*60,toleranceMinutes:Number($('targetTolerance').value),targetWorkMinutes:work,cropMax:Number($('fitCropMax').value),productMax:Number($('fitProductMax').value),timeLimitMs:Number($('quantityBudget').value)});
 }
 function quantityComparison(g,r,m){
   const T=Number($('targetHours').value)*60,tol=Number($('targetTolerance').value),work=$('targetWork').value.trim()===''?autoWorkReference():Number($('targetWork').value),delta=r?.proven?r.optimalMinutes-T:null,hit=r&&r.lowerMinutes>=T-tol&&r.feasibleMinutes<=T+tol;
@@ -173,7 +174,7 @@ function quantityComparison(g,r,m){
 }
 function setGroupQuantities(id,quantities,result=null){
   const index=groups.findIndex(g=>g.id===id);if(index<0)throw Error('当前等级中找不到该商品组合。');
-  const old=groups[index],updated=quantityGroup(old,quantities);if(result&&!orderWorkBalance(model,updated).valid)throw Error('每单累计工时必须占整组的15%～35%。');if(result&&!hasEqualProductQuantities(updated))throw Error('同一组合内相同商品必须使用相同数量。');groups[index]=updated;quantityEdits[id]=[...quantities];
+  const old=groups[index],updated=quantityGroup(old,quantities);if(result&&!orderWorkBalance(model,updated).valid)throw Error(`每单累计工时必须占整组的${ranchWorkRangeText(savedSettings)}。`);if(result&&!hasEqualProductQuantities(updated))throw Error('同一组合内相同商品必须使用相同数量。');groups[index]=updated;quantityEdits[id]=[...quantities];
   failures.delete(old.key);if(!hasEqualProductQuantities(updated))failures.set(updated.key,'相同商品数量不一致，请按目标重新配量。');
   if(result){results.set(updated.key,result);failures.delete(updated.key);}
   if(current&&(current.id===id||groupKey(current)===old.key))current=updated;
@@ -271,7 +272,7 @@ async function syncRanchView(){
     await cacheQueue;const source=ranchSource();if(!source?.base)return;
     if(!model||ranchSettingsKey(source.base)!==storageKey){install(source.base,source.filename,source.rules);return;}
     const latest=readRanchSettings(localStorage,storageKey);
-    savedSettings=latest;persistedSettings=structuredClone(latest);restoreQuantityTargets();
+    savedSettings=latest;model.orderWorkRules=ranchWorkRules(latest);persistedSettings=structuredClone(latest);restoreQuantityTargets();
     $('cropQuantity').value=latest.cropQuantity??DEFAULT_CROP_QUANTITY;$('productQuantity').value=latest.productQuantity??1;$('allowRepeated').checked=latest.allowRepeated??false;$('searchLimit').value=latest.searchLimit??'2000';
     capacities={...ranchCapacities(model,level),...(latest.capacities?.[level]??{})};renderCapacities();await rebuild(false,true);
   }catch(error){message(error.message);}finally{syncing=false;}
