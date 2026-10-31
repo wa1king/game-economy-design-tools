@@ -11,6 +11,6 @@ test('shared rule apply updates only rules and the chosen level capacity, retain
 test('invalid quantities, levels and capacities are rejected without partial writes',()=>{
  for(const patch of [{cropQuantity:0},{productQuantity:1.5},{level:4},{searchLimit:'123'},{capacities:{0:18,1:0}}])assert.throws(()=>applyRanchRuleDraft(base,previous,{...draft,...patch}));assert.deepEqual(previous.capacities[2],{0:12,1:1});
 });
-test('analysis loads shared modal first and keeps level-only export below the common actions',()=>{
- const html=fs.readFileSync(new URL('../orders/ranch.html',import.meta.url),'utf8'),actions=html.match(/<section class="workspace-actionbar"[\s\S]*?<\/section>/)[0];assert(actions.includes('使用普通订单数据'));assert(actions.includes('导入 Excel / 结果'));assert(actions.includes('id="openSettings"'));assert(!actions.includes('exportButton'));assert(!html.includes('<section id="settings"'));assert(html.indexOf('src="ranch-shell.js"')<html.indexOf('src="ranch-app.js"'));
+test('analysis loads shared modal first and puts import/export in the global header',()=>{
+ const html=fs.readFileSync(new URL('../orders/ranch.html',import.meta.url),'utf8'),actions=html.match(/<section class="workspace-actionbar"[\s\S]*?<\/section>/)[0];const header=html.match(/<header\b[\s\S]*?<\/header>/)[0];assert(!html.includes('使用普通订单数据'));assert(header.includes('id="importButton"'));assert(header.includes('id="exportRanchExcel"'));assert(actions.includes('id="openSettings"'));assert(!actions.includes('exportButton'));assert(!html.includes('<section id="settings"'));assert(html.indexOf('src="ranch-shell.js"')<html.indexOf('src="ranch-app.js"'));
 });

@@ -1,3 +1,4 @@
+import {writeSharedChainSource} from '../orders/shared-chain-source.js';
 import {RANCH_RULES_FORM} from '../orders/ranch-rules-dialog.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -73,8 +74,8 @@ test('page keeps catalogue and tuning collapsed after the always-visible scheme 
   for(const id of ['searchLimit','sort','direction','quantityBudget']){const pattern=new RegExp(`<select[^>]*id="${id}"[^>]*>([\\s\\S]*?)<\\/select>`);elements.get(id).innerHTML=html.match(pattern)[1];}
   const isolatedBase={...base,landsByLevel:{20:30}},memory=new Map([['ranch-source-v1',JSON.stringify({kind:'import',base:isolatedBase,filename:'synthetic.xlsx'})]]),posts=[],scheduleCache=new Map(),notices=[];
   const context=vm.createContext({console,createRanchLevelCatalog:()=>({refresh(){}}),structuredClone,prepareRanch,ranchCapacities,groupMetrics,solveRanchGroup,generateRanchLevelGroups,ranchDemandKey,ranchPermutations,remapRanchResult,ranchBrowserScope,ranchSchemeStep,ranchChainData,renderRanchChain,setupRanchChains,quantityGroup,quantityOptions,renderOrderItems,calculateRanchImport,canMigrateRanchSettings,backupRanchBeforeImport,ranchSettingsKey,ranchImportCacheKey,readRanchResultBundle,
-    setupItemInfo:base=>({products:new Map(base.products.map(p=>[p.id,p])),hide(){}}),createProjectStore:()=>({load:()=>null}),readChainExcel:()=>{},loadRanchCache:async key=>scheduleCache.get(key),saveRanchCache:async(key,value)=>{scheduleCache.set(key,value);},performance:{now:()=>1000},crypto:{getRandomValues:a=>{a[0]=0;}},setTimeout:()=>1,clearTimeout(){},
-    mergeRanchSettings,readRanchTarget,validateRanchTarget,notifyRanchChange(...args){notices.push(args);},watchRanchWorkspace(){},ranchSource:()=>JSON.parse(memory.get('ranch-source-v1')||'null'),mergeRanchCache:async(key,value)=>scheduleCache.set(key,mergeRanchCacheValue(scheduleCache.get(key),value)),Worker:class{postMessage(v){posts.push(v);}terminate(){}},localStorage:{getItem:k=>memory.get(k)??null,setItem:(k,v)=>memory.set(k,v)},window:{addEventListener(){}},document:{getElementById:id=>elements.get(id),querySelector:()=>new Element('main'),querySelectorAll:q=>q==='#slots input'?elements.get('slots').inputs:[]}});
+    setupItemInfo:base=>({products:new Map(base.products.map(p=>[p.id,p])),hide(){}}),createProjectStore:()=>({load:()=>null}),writeSharedChainSource:(b,n)=>writeSharedChainSource(b,n,{getItem:k=>memory.get(k)??null,setItem:(k,v)=>memory.set(k,v)}),readChainExcel:async file=>file.base,loadRanchCache:async key=>scheduleCache.get(key),saveRanchCache:async(key,value)=>{scheduleCache.set(key,value);},performance:{now:()=>1000},crypto:{getRandomValues:a=>{a[0]=0;}},setTimeout:()=>1,clearTimeout(){},
+    mergeRanchSettings,readRanchTarget,validateRanchTarget,notifyRanchChange(...args){notices.push(args);},watchRanchWorkspace(){},ranchSource:()=>JSON.parse(memory.get('order-shared-chain-v1')||memory.get('ranch-source-v1')||'null'),mergeRanchCache:async(key,value)=>scheduleCache.set(key,mergeRanchCacheValue(scheduleCache.get(key),value)),Worker:class{postMessage(v){posts.push(v);}terminate(){}},localStorage:{getItem:k=>memory.get(k)??null,setItem:(k,v)=>memory.set(k,v)},window:{addEventListener(){}},document:{getElementById:id=>elements.get(id),querySelector:()=>new Element('main'),querySelectorAll:q=>q==='#slots input'?elements.get('slots').inputs:[]}});
   vm.runInContext(fs.readFileSync(new URL('../orders/ranch-app.js',import.meta.url),'utf8').replace(/^import .*;\r?\n/gm,''),context);
   await vm.runInContext('rebuild()',context);
   test('app opens a scheme graph without generating the collapsed full table',()=>{
@@ -145,15 +146,19 @@ test('page keeps catalogue and tuning collapsed after the always-visible scheme 
   }
   {
     const before=memory.get('ranch-source-v1'),newBase={...structuredClone(base),landsByLevel:Object.fromEntries(Array.from({length:20},(_,i)=>[i+1,30]))};newBase.products.forEach(p=>{p.coinValue=p.id;});
-    const json=JSON.stringify({schema:'ranch-precomputed-v1',base:newBase,filename:'带价格的新表.xlsx',rules:{cropQuantity:7,productQuantity:1,allowRepeated:false}});
-    elements.get('importFile').files=[{name:'results.json',size:json.length,text:async()=>json}];await elements.get('importFile').onchange();await vm.runInContext('cacheQueue',context);await new Promise(resolve=>setTimeout(resolve,0));
-    test('import backs up the old source, preserves targets and activates all-level recalculated caches',()=>{
-      assert.equal(elements.get('workspace').inert,false);assert.equal(elements.get('importButton').disabled,false);assert.equal(JSON.parse(memory.get('ranch-source-v1')).filename,'带价格的新表.xlsx');assert.equal(elements.get('sourceMeta').textContent,'10 商品 · 10 个已定价');assert(elements.get('message').textContent.includes('全部等级'));const backup=JSON.parse(memory.get(memory.get('ranch-last-import-backup-v1')));assert.equal(JSON.stringify(backup.source),before);assert.equal(scheduleCache.get(vm.runInContext('cacheKey',context)).results.length,catalog.groups.length);assert.equal(vm.runInContext('results.size',context),catalog.groups.length);
+    const postsBefore=posts.length;
+    elements.get('importFile').files=[{name:'新表.xlsx',size:1000,base:newBase}];await elements.get('importFile').onchange();await vm.runInContext('cacheQueue',context);await new Promise(resolve=>setTimeout(resolve,0));
+    test('Excel import shares source, preserves targets and quantities, and does not run all-level solves',()=>{
+      assert.equal(elements.get('workspace').inert,false);assert.equal(elements.get('importButton').disabled,false);
+      assert.equal(JSON.parse(memory.get('order-shared-chain-v1')).filename,'新表.xlsx');assert.equal(elements.get('sourceMeta').textContent,'10 商品 · 10 个已定价');
+      assert.equal(JSON.stringify(JSON.parse(memory.get('order-shared-chain-before-import-v1')).ranch),before);
+      assert.equal(posts.length,postsBefore);assert.equal(vm.runInContext('results.size',context),0);
+      const settings=JSON.parse(memory.get(vm.runInContext('storageKey',context)));assert.equal(settings.quantityTargetsByLevel[20].targetHours,'8');
     });
-    // Reimport the same source must not overwrite the newly seeded complete
-    // result cache with the previous page's partial cache.
-    elements.get('importFile').files=[{name:'results.json',size:json.length,text:async()=>json}];await elements.get('importFile').onchange();await vm.runInContext('cacheQueue',context);await new Promise(resolve=>setTimeout(resolve,0));
-    test('same-source reimport retains a complete cache instead of restoring stale partial results',()=>{assert.equal(vm.runInContext('results.size',context),catalog.groups.length);});
+    const cacheKey=vm.runInContext('cacheKey',context),group=vm.runInContext('current',context),fake=solveRanchGroup(prepareRanch(newBase),group,20,vm.runInContext('capacities',context),{timeLimitMs:30,nodeLimit:100});
+    scheduleCache.set(cacheKey,{version:2,results:[[group.key,fake]],failures:[],quantityFits:[]});
+    elements.get('importFile').files=[{name:'新表.xlsx',size:1000,base:newBase}];await elements.get('importFile').onchange();await vm.runInContext('cacheQueue',context);await new Promise(resolve=>setTimeout(resolve,0));
+    test('same-source reimport retains matching cached schedules without recomputing',()=>{assert.equal(vm.runInContext('results.size',context),1);assert.equal(posts.length,postsBefore);});
   }
 }
 console.log(count+' scheme browser checks passed');

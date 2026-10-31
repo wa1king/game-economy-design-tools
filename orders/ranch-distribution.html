@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="zh-CN">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>牧场订单 · 全部等级面板</title><link rel="stylesheet" href="ranch.css"><link rel="stylesheet" href="ranch-shell.css"><link rel="stylesheet" href="ranch-distribution.css"></head>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>牧场订单 · 全部等级面板</title><link rel="stylesheet" href="ranch.css"><link rel="stylesheet" href="ranch-shell.css"><link rel="stylesheet" href="ranch-distribution.css"><script src="vendor/jszip.min.js"></script></head>
 <body data-ranch-view="dashboard">
 <header id="ranchShell"></header>
 <main class="ranch-dashboard">
@@ -20,7 +20,7 @@
       <section class="panel"><div class="panel-heading"><h2>累计复杂度 <span>平均值</span></h2></div><div id="complexityPlot" class="distribution-scroll"></div></section>
       <section class="panel"><div class="panel-heading"><h2>四单金币总值 <span>平均值</span></h2><span id="coinCoverageNote" class="muted"></span></div><div id="coinPlot" class="distribution-scroll"></div></section>
     </div>
-    <section class="panel distribution-level-table"><div class="panel-heading"><div><h2>逐级对照</h2><span class="muted">目标内比例以已证明组合为分母 · 点击等级查看方案</span></div><button id="downloadDistribution" disabled>导出统计 CSV</button></div><div class="distribution-table-scroll"><table class="distribution-table"><thead><tr><th rowspan="2">等级 / 类型</th><th rowspan="2">组合</th><th colspan="3">排产进度</th><th colspan="3">联合优化时间 · 分钟</th><th colspan="2">累计工时 · 分钟</th><th rowspan="2">平均复杂度</th><th rowspan="2">平均金币</th></tr><tr><th>已证明</th><th>待计算</th><th>待证明</th><th>目标范围</th><th>中位 / 均值 · 范围</th><th>目标内</th><th>目标</th><th>中位 / 均值 · 范围</th></tr></thead><tbody id="distributionRows"></tbody></table></div></section>
+    <section class="panel distribution-level-table"><div class="panel-heading"><div><h2>逐级对照</h2><span class="muted">目标内比例以已证明组合为分母 · 点击等级查看方案</span></div><button id="downloadDistribution" hidden disabled>导出统计 CSV</button></div><div class="distribution-table-scroll"><table class="distribution-table"><thead><tr><th rowspan="2">等级 / 类型</th><th rowspan="2">组合</th><th colspan="3">排产进度</th><th colspan="3">联合优化时间 · 分钟</th><th colspan="2">累计工时 · 分钟</th><th rowspan="2">平均复杂度</th><th rowspan="2">平均金币</th></tr><tr><th>已证明</th><th>待计算</th><th>待证明</th><th>目标范围</th><th>中位 / 均值 · 范围</th><th>目标内</th><th>目标</th><th>中位 / 均值 · 范围</th></tr></thead><tbody id="distributionRows"></tbody></table></div></section>
     <details class="panel distribution-detail"><summary>查看单级分段分布</summary><div class="panel-heading"><span id="selectedDistributionMeta" class="muted"></span><label>等级 <select id="distributionLevel" aria-label="查看分布的等级"></select></label></div><div class="distribution-chart-grid"><div><h3>联合优化时间</h3><div id="optimizedHistogram"></div></div><div><h3>累计工时</h3><div id="workHistogram"></div></div></div></details>
   </div>
 </main>

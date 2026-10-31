@@ -95,9 +95,9 @@ export function createRanchConfigPage(api={}){
     const task=performRun(mode);activeRun=task;
     const clear=()=>{if(activeRun===task)activeRun=null;};task.then(clear,clear);return task;
   }
-  async function beforeNavigate(){
+  async function beforeNavigate({leaving=true}={}){
     if(!commit(doc.activeElement)||invalid.size){const text=[...invalid.values()][0]||'请先修正无效数值。';error(text);throw Error(text);}
-    navigating=true;const pending=activeRun;
+    navigating=leaving;const pending=activeRun;
     try{if(pending){controller?.abort();refresh();await pending;if(lastRunError)throw lastRunError;}}
     catch(e){navigating=false;error(e.message);throw e;}
   }
@@ -118,5 +118,5 @@ export function createRanchConfigPage(api={}){
 
 if(typeof document!=='undefined'&&document.getElementById('ranchConfigWorkspace')){
   const page=createRanchConfigPage();
-  if(typeof window!=='undefined'){window.ranchBeforeNavigate=()=>page.beforeNavigate();window.addEventListener('pagehide',()=>page.dispose(),{once:true});}
+  if(typeof window!=='undefined'){window.ranchBeforeNavigate=options=>page.beforeNavigate(options);window.addEventListener('pagehide',()=>page.dispose(),{once:true});}
 }

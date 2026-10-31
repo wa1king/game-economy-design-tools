@@ -1,3 +1,4 @@
+import {writeSharedChainSource,readSharedChainSource,matchingChainIds,SHARED_CHAIN_KEY} from './shared-chain-source.js';
 import {prepareConfigCellEdits} from './config-clipboard.js';
 import {resultFeedback} from './fit-feedback.js';
 import {toCSV,toJSON} from './export.js';
@@ -25,7 +26,7 @@ import {projectExportSheets,exportProjectWorkbook} from './project-export.js';
 import {isPlaceholderProductName,productNameUpdates,applyProductNameUpdates} from './project-names.js';
 import {createOrderTimingService} from './order-time.js';
 import {createFitCache} from './fit-cache.js';
-import {restoreMissingProjectMetadata,metadataSourceIssue,supplementProjectMetadata} from './project-metadata.js';
+import {metadataSourceIssue,supplementProjectMetadata} from './project-metadata.js';
 const $=id=>document.getElementById(id),fmt=(v,d=1)=>Number(v).toLocaleString('zh-CN',{maximumFractionDigits:d,minimumFractionDigits:d}),pct=(v,d=2)=>fmt(v*100,d)+'%';
 const escape=value=>String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 let project,catalog,result,worker,itemInfo,activeLevel=20,busy=false,dirty=true,page=0,selectedTimeRange=null,request=0,generation=0;
@@ -62,7 +63,7 @@ function applyMetadata(update){
   const next=buildCatalog(update.base,project.rules);
   if(next.orders.length!==catalog.orders.length||next.orders.some((o,i)=>o.id!==catalog.orders[i].id))throw Error('订单库发生变化，无法仅补齐基础信息。');
   localStorage.setItem('order-project-before-metadata-v1',JSON.stringify({...project,activeLevel}));
-  projectStore.save({...project,base:update.base,activeLevel});
+  writeSharedChainSource(update.base,project.filename);projectStore.acceptLatest();projectStore.save({...project,base:update.base,activeLevel});
   gameMode?.releaseSession();project.base=update.base;catalog=next;infos.clear();generation++;setupWorker();itemInfo?.hide();
   itemInfo.products.clear();catalog.products.forEach(p=>itemInfo.products.set(p.id,p));
   const coverage=coinValueCoverage(catalog.products);$('catalogMeta').textContent=`${catalog.products.length} 商品 · ${catalog.sources.length} 来源 · 金币 ${coverage.priced}/${coverage.total}`;
@@ -90,7 +91,7 @@ function updateProductNames(updates){
   if(busy)throw Error('请等待当前计算结束。');
   const base=applyProductNameUpdates(project.base,updates),next=buildCatalog(base,project.rules);
   if(next.orders.length!==catalog.orders.length||next.orders.some((o,i)=>o.id!==catalog.orders[i].id))throw Error('订单库发生变化，无法只更新名称。');
-  projectStore.save({...project,base,activeLevel});
+  writeSharedChainSource(base,project.filename);projectStore.acceptLatest();projectStore.save({...project,base,activeLevel});
   gameMode?.releaseSession();project.base=base;catalog=next;infos.clear();generation++;setupWorker();itemInfo?.hide();
   itemInfo.products.clear();catalog.products.forEach(p=>itemInfo.products.set(p.id,p));
   loadLevel(activeLevel);$('batchProgress').textContent=`已更新 ${updates.length} 个商品名称`;void refreshNameSuggestion();
@@ -410,7 +411,7 @@ $('projectNamesFile').onchange=async()=>{
 };
 $('excelFile').onchange=async()=>{
   const file=$('excelFile').files[0];if(!file)return;setBusy(true);$('cancelFit').hidden=true;$('batchProgress').textContent='读取 Excel…';
-  try{const base=await readChainExcel(file);if(projectStore)projectStore.acceptLatest();else projectStore=createProjectStore(localStorage);$('projectStorageNotice').hidden=true;const keep=project&&JSON.stringify(project.base.products.map(p=>p.id).sort((a,b)=>a-b))===JSON.stringify(base.products.map(p=>p.id).sort((a,b)=>a-b))?project:null;installBase(base,file.name,keep);setView('overview');await restoreFitResults();const coins=coinValueCoverage(base.products);$('batchProgress').textContent=`已导入 ${base.products.length} 种商品 · 金币 ${coins.priced}/${coins.total}`;}catch(error){if(project){notice(error.message,true);$('batchProgress').textContent='导入失败';}else showEmptyProject(error.message);}finally{setBusy(false);$('excelFile').value='';}
+  try{const base=await readChainExcel(file);buildCatalog(base,project?.rules||DEFAULT_RULES);writeSharedChainSource(base,file.name);if(projectStore)projectStore.acceptLatest();else projectStore=createProjectStore(localStorage);$('projectStorageNotice').hidden=true;const keep=project&&JSON.stringify(project.base.products.map(p=>p.id).sort((a,b)=>a-b))===JSON.stringify(base.products.map(p=>p.id).sort((a,b)=>a-b))?project:null;installBase(base,file.name,keep);setView('overview');await restoreFitResults();const coins=coinValueCoverage(base.products);$('batchProgress').textContent=`已导入 ${base.products.length} 种商品 · 金币 ${coins.priced}/${coins.total}`;}catch(error){if(project){notice(error.message,true);$('batchProgress').textContent='导入失败';}else showEmptyProject(error.message);}finally{setBusy(false);$('excelFile').value='';}
 };
 $('exportCSV').onclick=()=>{if(result&&!dirty)download(toCSV(catalog,result),`订单权重_Lv${activeLevel}.csv`,'text/csv;charset=utf-8');};
 $('exportJSON').onclick=()=>{if(result&&!dirty)download(toJSON(catalog,result),`订单权重_Lv${activeLevel}.json`,'application/json');};
@@ -442,17 +443,27 @@ async function init(){
     if(!saved){
       if(new URLSearchParams(location.search).get('project')==='current'){
         const response=await fetch('../current-design.xlsx');if(!response.ok)throw Error('当前数值表读取失败');
-        const base=await readChainExcel(new File([await response.blob()],'当前加工链路数值表.xlsx'));installBase(base,'当前加工链路数值表.xlsx');setView('dashboard');await restoreFitResults();return;
+        const base=await readChainExcel(new File([await response.blob()],'当前加工链路数值表.xlsx'));writeSharedChainSource(base,'当前加工链路数值表.xlsx');projectStore.acceptLatest();installBase(base,'当前加工链路数值表.xlsx');setView('dashboard');await restoreFitResults();return;
       }
       showEmptyProject();return;
     }
-    const repaired=restoreMissingProjectMetadata(saved,localStorage);if(repaired)saved=repaired.project;
     installBase(saved.base,saved.filename,saved);
-    if(repaired)$('batchProgress').textContent=`已从同配方牧场项目补齐 ${repaired.lands} 级土地、${repaired.prices} 个金币单价`;
     setView(new URLSearchParams(location.search).get('view')==='custom'?'custom':'dashboard');await restoreFitResults();
   }catch(error){showEmptyProject(error.message);}
 }
-window.addEventListener('storage',event=>{if(event.key===PROJECT_STORAGE_KEY){$('projectStorageNotice').textContent='另一个页面已更新项目，请刷新后继续。';$('projectStorageNotice').hidden=false;}});
+let sharedSourcePending=false;
+async function syncSharedSource(){
+  if(!project||busy||document.activeElement?.matches('input,select,textarea'))return;
+  const source=readSharedChainSource();if(!source||(JSON.stringify(source.base)===JSON.stringify(project.base)&&source.filename===project.filename)){sharedSourcePending=false;return;}
+  gameMode.releaseSession();projectStore.acceptLatest();const latest=projectStore.load(),keep=matchingChainIds(latest?.base??project.base,source.base)?latest:null;
+  installBase(source.base,source.filename,keep);sharedSourcePending=false;await restoreFitResults();
+}
+window.addEventListener('storage',event=>{
+  if(event.key===SHARED_CHAIN_KEY){sharedSourcePending=true;void syncSharedSource().catch(error=>notice(error.message,true));}
+  else if(event.key===PROJECT_STORAGE_KEY){$('projectStorageNotice').textContent='另一个页面已更新项目，请刷新后继续。';$('projectStorageNotice').hidden=false;}
+});
+window.addEventListener('focus',()=>{void syncSharedSource().catch(error=>notice(error.message,true));});
+document.addEventListener('focusout',()=>{if(sharedSourcePending)setTimeout(()=>{void syncSharedSource().catch(error=>notice(error.message,true));},0);});
 $('clearOutcomeFilter').onclick=()=>{selectedOutcomeFilter=null;page=0;renderTable();};
 $('showNormalTarget').onchange=()=>{if(result)drawChart();};
 outcomeAnalysis=createOutcomeAnalysis(filter=>{selectedOutcomeFilter=filter;selectedTimeRange=null;$('search').value='';page=0;drawHalfHourChart();renderTable();$('ordersPanel').scrollIntoView({behavior:'smooth',block:'start'});});
@@ -462,7 +473,7 @@ createSessionBackupView({
   getProject:()=>project?{...project,activeLevel}:null,download,
   restore:async snapshot=>{
     if(busy)throw Error('请先等待拟合结束。');
-    gameMode.releaseSession();restoreSessionSnapshot(localStorage,snapshot,{overwrite:true});
+    gameMode.releaseSession();restoreSessionSnapshot(localStorage,snapshot,{overwrite:true});writeSharedChainSource(snapshot.project.base,snapshot.project.filename);
     projectStore=createProjectStore(localStorage);const saved=projectStore.load();installBase(saved.base,saved.filename,saved);setView('dashboard');await restoreFitResults();
   }
 });

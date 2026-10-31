@@ -1,4 +1,4 @@
-import {createProjectStore} from './project-storage.js';
+import {readSharedChainSource,SHARED_CHAIN_KEY} from './shared-chain-source.js';
 import {prepareRanch,groupMetrics} from './ranch-engine.js';
 import {ranchSettingsKey} from './ranch-import.js';
 import {buildRanchDistributionPlans,reuseRanchDistributionResult} from './ranch-distribution.js';
@@ -23,8 +23,7 @@ export function notifyRanchChange(storageKey,reason='results',storage=globalThis
   try{storage.setItem('ranch-workspace-revision-v1',JSON.stringify({storageKey,reason,id:Date.now()+':'+Math.random()}));}catch{}
 }
 export function ranchSource(storage=globalThis.localStorage){
-  const source=readJSON(storage,'ranch-source-v1');
-  return source?.kind==='import'?source:createProjectStore(storage).load();
+  return readSharedChainSource(storage);
 }
 export async function loadRanchWorkspace(deps={}){
   const storage=deps.storage??globalThis.localStorage,source=ranchSource(storage);
@@ -68,7 +67,7 @@ export function mergeRanchSettings(previous,edited,latest){
 export function watchRanchWorkspace(callback){
   let timer;
   const queue=()=>{clearTimeout(timer);timer=setTimeout(callback,120);};
-  const changed=e=>{if(!e.key||e.key==='ranch-workspace-revision-v1'||e.key==='ranch-source-v1'||e.key.startsWith('ranch-settings-v1:'))queue();};
+  const changed=e=>{if(!e.key||e.key==='ranch-workspace-revision-v1'||e.key===SHARED_CHAIN_KEY||e.key==='ranch-source-v1'||e.key.startsWith('ranch-settings-v1:'))queue();};
   const visible=()=>{if(document.visibilityState==='visible')queue();};
   window.addEventListener('storage',changed);window.addEventListener('focus',queue);window.addEventListener('pageshow',queue);document.addEventListener('visibilitychange',visible);
   return ()=>{clearTimeout(timer);window.removeEventListener('storage',changed);window.removeEventListener('focus',queue);window.removeEventListener('pageshow',queue);document.removeEventListener('visibilitychange',visible);};

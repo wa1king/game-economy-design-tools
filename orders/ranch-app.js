@@ -1,10 +1,10 @@
+import {writeSharedChainSource} from './shared-chain-source.js';
 import {createRanchLevelCatalog} from './ranch-level-catalog.js';
-import {calculateRanchImport,canMigrateRanchSettings,backupRanchBeforeImport,ranchSettingsKey,ranchImportCacheKey,readRanchResultBundle} from './ranch-import.js';
+import {ranchSettingsKey,ranchImportCacheKey} from './ranch-import.js';
 import {ranchBrowserScope,ranchSchemeStep} from './ranch-browser.js';
 import {ranchChainData,renderRanchChain,setupRanchChains} from './ranch-chain.js';
 import {quantityGroup,quantityOptions} from './ranch-quantity.js';
 import {renderOrderItems,setupItemInfo} from './item-info.js';
-import {createProjectStore} from './project-storage.js';
 import {readChainExcel} from './excel-import.js';
 import {prepareRanch,ranchCapacities,groupMetrics} from './ranch-engine.js';
 import {generateRanchLevelGroups,ranchDemandKey,ranchPermutations,remapRanchResult} from './ranch-catalog.js';
@@ -12,7 +12,7 @@ import {loadRanchCache,saveRanchCache,mergeRanchCache} from './ranch-cache.js';
 import {mergeRanchSettings,notifyRanchChange,watchRanchWorkspace,ranchSource,readRanchTarget,validateRanchTarget} from './ranch-workspace.js';
 const $=id=>document.getElementById(id),esc=v=>String(v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const fmt=(v,d=1)=>v==null?'—':Number(v).toLocaleString('zh-CN',{maximumFractionDigits:d}),letters=['A','B','C','D'],animals=['史莱姆','吞吞貘','陆行鸟','宝箱怪'],colors=['#39866a','#a67b39','#647fac','#a46a80'];
-let base,model,filename,level=20,type='building',families=[],groups=[],current,capacities={},worker,busy=false,page=0,results=new Map(),failures=new Map(),savedSettings={},storageKey,downloadUrl,exportedJSON,cacheKey,buildToken=0,saveTimer,viewRows=[],viewRevision=0,sortedRevision=-1,sortedRows=[],itemInfo,metricCache=new Map(),cacheQueue=Promise.resolve(),quantityEdits={},quantityFits=new Map(),expandedChainId=null,workerKind=null,manualTimer,browserBuildingId=null,graphOverview=true,graphSignature='',slotSignature='',schemeSignature='';
+let base,model,filename,level=20,type='building',families=[],groups=[],current,capacities={},worker,busy=false,page=0,results=new Map(),failures=new Map(),savedSettings={},storageKey,cacheKey,buildToken=0,saveTimer,viewRows=[],viewRevision=0,sortedRevision=-1,sortedRows=[],itemInfo,metricCache=new Map(),cacheQueue=Promise.resolve(),quantityEdits={},quantityFits=new Map(),expandedChainId=null,workerKind=null,manualTimer,browserBuildingId=null,graphOverview=true,graphSignature='',slotSignature='',schemeSignature='';
 const groupKey=g=>g.key??ranchDemandKey(g);
 let persistedSettings={},fitCacheSnapshot=new Map(),syncQueued=false,syncing=false,cacheSaveError=null;
 const levelCatalog=createRanchLevelCatalog({
@@ -47,9 +47,9 @@ function install(newBase,name,rules){
   type=savedSettings.browser?.type==='chain'?'chain':'building';browserBuildingId=savedSettings.browser?.buildingId??null;graphSignature='';slotSignature='';schemeSignature='';level=Math.min(base.maxLevel||20,Math.max(1,savedSettings.level??level));restoreQuantityTargets();$('cropQuantity').value=savedSettings.cropQuantity??rules?.cropQuantity??7;$('productQuantity').value=savedSettings.productQuantity??rules?.productQuantity??1;$('allowRepeated').checked=savedSettings.allowRepeated??false;$('searchLimit').value=savedSettings.searchLimit||'2000';
   if(!navigationApplied&&navigationRequest){const requested=Number(navigationRequest.get('level'));if(requested>=1&&requested<=base.maxLevel){level=requested;restoreQuantityTargets();}if(['building','chain'].includes(navigationRequest.get('type')))type=navigationRequest.get('type');navigationApplied=true;}
   $('projectName').textContent=filename;$('sourceMeta').textContent=`${base.products.length} 商品 · ${base.products.filter(v=>v.coinValue!=null).length} 个已定价`;$('level').innerHTML=Array.from({length:base.maxLevel||20},(_,i)=>`<option value="${i+1}">Lv ${i+1}</option>`).join('');$('level').value=level;
-  $('empty').hidden=true;$('workspace').hidden=false;$('exportButton').disabled=false;capacities={...ranchCapacities(model,level),...(savedSettings.capacities?.[level]||{})};renderCapacities();rebuild();
+  $('empty').hidden=true;$('workspace').hidden=false;capacities={...ranchCapacities(model,level),...(savedSettings.capacities?.[level]||{})};renderCapacities();rebuild(false);
 }
-function readCurrent(){const project=createProjectStore(localStorage).load();if(!project)throw Error('当前还没有导入订单项目，请选择加工链路 Excel。');install(project.base,project.filename,project.rules);localStorage.setItem('ranch-source-v1',JSON.stringify({kind:'current'}));}
+
 function renderCapacities(){$('capacities').innerHTML=base.sources.filter(s=>s.level<=level).map(s=>`<label>${esc(s.name)} <input data-cap="${s.id}" aria-label="${esc(s.name)}并行容量" type="number" min="1" max="1000" value="${capacities[s.id]??''}" placeholder="待填"></label>`).join('');}
 function updateFilters(){
   for(const [id,t] of [['buildingType','building'],['chainType','chain']]){$(id).classList.toggle('active',type===t);$(id).setAttribute('aria-pressed',String(type===t));}
@@ -99,7 +99,7 @@ function renderSelected(){
   if(!current){$('slots').innerHTML='';slotSignature='';graphSignature='';for(const id of ['optimal','totalMinutes','complexity','coins'])$(id).textContent='—';renderSchedule(null);$('chainGraph').innerHTML='';$('chainMeta').textContent='';$('quantityRecommendations').hidden=true;$('solveState').textContent='无候选';renderSchemeNavigator();return;}
   if(signature!==slotSignature){$('slots').innerHTML=current.slots.map((v,i)=>{const p=model.by.get(v.id);return `<article class="slot"><div class="slot-top"><b>动物 ${letters[i]}</b><span>${animals[i]}</span></div><strong class="slot-product">${renderOrderItems({items:[v]},itemInfo.products)}</strong><label class="slot-quantity">交付数量<input type="number" min="1" max="1000" step="1" data-quantity="${i}" aria-label="动物${letters[i]}交付数量" value="${v.quantity}" ${busy?'disabled':''}></label><div class="slot-info"><span>${esc(p.buildingName)} · Lv ${p.level}</span><span>单步 ${fmt(p.stepMinutes)}分 · 复杂度 ${model.chains.get(p.id).size}</span></div></article>`;}).join('');slotSignature=signature;}
   const m=metrics(current),r=resultFor(current,true),error=failures.get(groupKey(current));$('totalMinutes').textContent=fmt(m.totalMinutes);$('complexity').textContent=fmt(m.complexity,0);$('coins').textContent=fmt(m.coinValue);$('coinNote').textContent=m.coinValue==null?'存在未导入金币单价的商品':'数量 × 导入金币单价 · 非Token奖励';
-  $('optimalLabel').textContent=r&&!r.proven?'四单可行完工时间':'四单联合优化时间';$('optimal').textContent=r?fmt(r.proven?r.optimalMinutes:r.feasibleMinutes):'—';$('optimalNote').textContent=r?(r.proven?'已证明最优 · 四单全部备齐':`最优时间范围 ${fmt(r.lowerMinutes)}～${fmt(r.feasibleMinutes)}分`):'空仓 · 等待后台计算';$('solveState').textContent=error?'计算失败':r?(r.proven?'已证明最优':'待证明最优'):busy?'计算中':'待计算';$('solveState').className='badge'+(error||r&&!r.proven?' warn':'');renderSchedule(r);const graph=ranchChainData(model,current,level),nextGraphSignature=JSON.stringify([graphOverview,graph.nodes,graph.edges]);if(nextGraphSignature!==graphSignature){$('chainGraph').innerHTML=renderRanchChain(graph,{overview:graphOverview});setupRanchChains($('chainGraph'));graphSignature=nextGraphSignature;}$('chainMeta').textContent=`${graph.nodes.length} 种商品 · ${graph.edges.length} 条配方关系`;renderRecommendations();renderQuantityControls();renderSchemeNavigator();
+  $('optimalLabel').textContent=r&&!r.proven?'四单可行完工时间':'四单联合优化时间';$('optimal').textContent=r?fmt(r.proven?r.optimalMinutes:r.feasibleMinutes):'—';$('optimalNote').textContent=r?(r.proven?'已证明最优 · 四单全部备齐':`最优时间范围 ${fmt(r.lowerMinutes)}～${fmt(r.feasibleMinutes)}分`):'空仓 · 尚未排产';$('solveState').textContent=error?'计算失败':r?(r.proven?'已证明最优':'待证明最优'):busy?'计算中':'待计算';$('solveState').className='badge'+(error||r&&!r.proven?' warn':'');renderSchedule(r);const graph=ranchChainData(model,current,level),nextGraphSignature=JSON.stringify([graphOverview,graph.nodes,graph.edges]);if(nextGraphSignature!==graphSignature){$('chainGraph').innerHTML=renderRanchChain(graph,{overview:graphOverview});setupRanchChains($('chainGraph'));graphSignature=nextGraphSignature;}$('chainMeta').textContent=`${graph.nodes.length} 种商品 · ${graph.edges.length} 条配方关系`;renderRecommendations();renderQuantityControls();renderSchemeNavigator();
 }
 function renderSchedule(result){
   if(!result){$('schedule').innerHTML='<div class="placeholder">计算本组后查看建筑时间轴</div>';$('completion').hidden=true;$('scheduleMeta').textContent='A / B / C / D 标识对应动物位的生产任务';return;}
@@ -153,10 +153,6 @@ function run(items){
   worker.postMessage({base,groups:items.map(g=>({...g,id:g.key})),level,capacities,timeLimitMs:Number($('searchLimit').value)});renderTable();
 }
 function sample(){if(!viewRows.length)return;const random=new Uint32Array(1);crypto.getRandomValues(random);current=viewRows[Math.floor(random[0]/4294967296*viewRows.length)];renderSelected();renderTable();persist();}
-function exportData(){
-  if(!model)return;const payload={schema:'ranch-level-catalog-v2',source:{filename,sha256:base.source?.sha256??null},level,capacities,quantityTargets:savedSettings.quantityTargets??null,rules:{cropQuantity:Number($('cropQuantity').value),productQuantity:Number($('productQuantity').value),allowRepeated:$('allowRepeated').checked,sameBuildingRepeated:true,sameBuildingNoCrops:true},assumptions:{inventory:0,actionsMinutes:0,facilitiesAvailableAt:0,warehouseCapacity:'unlimited',singleYield:true,scope:'production_only_not_digesting',slots:'all_fixed_A_B_C_D_permutations',scheduleReuse:'identical_product_quantities_only'},families,combinationCount:groups.length,permutationCount:groups.reduce((s,g)=>s+ranchPermutations(g).length,0),products:base.products,groups:groups.map(g=>({...g,metrics:metrics(g),quantitySearch:quantityFits.get(g.id)??null,scheduleResult:results.get(g.key)??null,error:failures.get(g.key)??null,permutations:ranchPermutations(g).map(p=>({id:p.id,slots:p.slots,scheduleKey:g.key}))}))};
-  const json=JSON.stringify(payload,null,2);exportedJSON=json;$('exportJson').value=JSON.stringify({...payload,preview:true,previewNote:'仅展示前8组摘要；保存JSON或复制JSON可取得全部商品、排列与排程。',products:payload.products.length,groups:payload.groups.slice(0,8).map(g=>({...g,quantitySearch:g.quantitySearch?{options:g.quantitySearch.options,within:g.quantitySearch.within,reason:g.quantitySearch.reason}:null,permutations:undefined,scheduleResult:g.scheduleResult?{proven:g.scheduleResult.proven,optimalMinutes:g.scheduleResult.optimalMinutes,lowerMinutes:g.scheduleResult.lowerMinutes,feasibleMinutes:g.scheduleResult.feasibleMinutes,totalMinutes:g.scheduleResult.totalMinutes}:null}))},null,2);if(downloadUrl)URL.revokeObjectURL(downloadUrl);downloadUrl=URL.createObjectURL(new Blob([json],{type:'application/json'}));$('downloadLink').href=downloadUrl;$('downloadLink').download=`牧场全部订单_Lv${level}.json`;$('downloadArea').hidden=false;$('exportSummary').textContent=`Lv ${level} · 全部 ${fmt(groups.length,0)} 个组合 · 含完整动物位排列及已计算排程`;
-}
 
 function restoreQuantityTargets(){
   const defaults={targetHours:'6',targetTolerance:'30',targetWork:'',fitCropMax:'42',fitProductMax:'12',quantityBudget:'2500'},saved=savedSettings.quantityTargetsByLevel?.[level]??(Number(savedSettings.level)===level?savedSettings.quantityTargets:null);
@@ -241,28 +237,20 @@ $('resetOneQuantity').onclick=()=>current&&resetQuantityGroups([representative(c
 $('resetLevelQuantities').onclick=()=>resetQuantityGroups([...groups]);
 $('recommendationCards').onclick=event=>{const button=event.target.closest('[data-recommendation]');if(!button||!current)return;const g=representative(current),candidate=quantityFits.get(g.id)?.recommendations[Number(button.dataset.recommendation)];if(!candidate)return;stop();setGroupQuantities(g.id,candidate.group.slots.map(v=>v.quantity),candidate.result);persist();saveCache();updateView();};
 for(const id of ['targetHours','targetTolerance','targetWork','fitCropMax','fitProductMax','quantityBudget'])$(id).onchange=()=>{persist();viewRevision++;renderTable();renderRecommendations();};
-$('importButton').onclick=$('importEmpty').onclick=()=>$('importFile').click();$('readCurrent').onclick=$('readProject').onclick=()=>{try{readCurrent();}catch(e){message(e.message);}};
+$('importButton').onclick=$('importEmpty').onclick=()=>$('importFile').click();
 $('importFile').onchange=async()=>{
   const file=$('importFile').files[0];if(!file)return;
-  const previousCacheKey=cacheKey;let activated=false;
-  const lock=value=>{$('workspace').inert=value;for(const id of ['importButton','importEmpty','readProject','readCurrent'])$(id).disabled=value;};
+  $('workspace').inert=true;for(const id of ['importButton','importEmpty','exportRanchExcel'])if($(id))$(id).disabled=true;
   try{
     if(file.size>60*1024*1024)throw Error('文件超过60 MB，请缩小导入数据。');
-    const payload=/\.json$/i.test(file.name)?readRanchResultBundle(JSON.parse(await file.text())):{schema:'ranch-precomputed-v1',base:await readChainExcel(file),filename:file.name,level,rules:{cropQuantity:7,productQuantity:1,allowRepeated:false}};
-    lock(true);commitSlotInputs(false);persist();stop();saveCache();await cacheQueue;clearTimeout(saveTimer);cacheKey=null;
-    const targetKey=ranchSettingsKey(payload.base),migrate=canMigrateRanchSettings(base,payload.base),settings=migrate?structuredClone(savedSettings):JSON.parse(localStorage.getItem(targetKey)||'{}');
-    const backupKey=backupRanchBeforeImport(localStorage,savedSettings,model?{base,filename}:null);
-    message('正在导入新配方并重新计算全部等级…');
-    const prepared=await calculateRanchImport(payload,{settings,onProgress:p=>message(`重算 Lv ${p.level} · ${p.completed} / ${p.total} 个方案`)});
-    await cacheQueue;for(const plan of prepared.plans)await saveRanchCache(plan.cacheKey,plan.cache);
-    localStorage.setItem(prepared.storageKey,JSON.stringify(prepared.settings));
-    localStorage.setItem('ranch-source-v1',JSON.stringify({kind:'import',base:prepared.base,filename:prepared.filename}));
-    localStorage.setItem('ranch-last-import-backup-v1',backupKey);
-    install(prepared.base,prepared.filename,prepared.rules);activated=true;
-    message(`已导入 ${prepared.base.products.length} 种商品 · ${prepared.base.products.filter(p=>p.coinValue!=null).length} 个已定价；全部等级 ${prepared.total} 个方案已重算，最优 ${prepared.proven}，待证明 ${prepared.total-prepared.proven}。${migrate?'已保留交付数量、目标与产能设置。':''}导入前配置已备份。`);
-  }catch(error){if(!activated)cacheKey=previousCacheKey;message(error.message);}finally{lock(false);$('importFile').value='';}
+    const imported=await readChainExcel(file);prepareRanch(imported);
+    await window.ranchBeforeNavigate({leaving:false});
+    writeSharedChainSource(imported,file.name);
+    install(imported,file.name);
+    message(`已导入 ${imported.products.length} 种商品，普通订单与牧场共用此数据。`);
+  }catch(error){message(error.message);}finally{$('workspace').inert=false;for(const id of ['importButton','importEmpty','exportRanchExcel'])if($(id))$(id).disabled=false;$('importFile').value='';}
 };
-$('level').onchange=()=>{persist();level=Number($('level').value);restoreQuantityTargets();capacities={...ranchCapacities(model,level),...(savedSettings.capacities?.[level]||{})};renderCapacities();rebuild();};
+$('level').onchange=()=>{persist();level=Number($('level').value);restoreQuantityTargets();capacities={...ranchCapacities(model,level),...(savedSettings.capacities?.[level]||{})};renderCapacities();rebuild(false);};
 for(const [id,t] of [['buildingType','building'],['chainType','chain']])$(id).onclick=()=>{clearTimeout(manualTimer);commitSlotInputs(false);type=t;updateFilters();updateView();persist();};
 $('family').onchange=$('expandPermutations').onchange=updateView;$('search').oninput=()=>{page=0;renderTable();};
 $('solveOne').onclick=()=>{const g=commitSlotInputs(false);if(g)run([g]);};$('shuffle').onclick=sample;$('solveAll').onclick=()=>run(groups.filter(g=>!results.get(g.key)?.proven));$('stop').onclick=()=>{stop();saveCache();renderSelected();renderTable();};
@@ -276,7 +264,7 @@ $('schemeNav').addEventListener('keydown',event=>{if(!['ArrowLeft','ArrowRight',
 $('openTargets').onclick=()=>{$('targetDetails').open=!$('targetDetails').open;if($('targetDetails').open)$('targetDetails').scrollIntoView({behavior:'smooth',block:'nearest'});};
 $('targetDetails').ontoggle=()=>$('openTargets').setAttribute('aria-expanded',String($('targetDetails').open));
 for(const [id,value] of [['compactGraph',true],['levelGraph',false]])$(id).onclick=()=>{graphOverview=value;for(const [button,on] of [['compactGraph',true],['levelGraph',false]]){$(button).classList.toggle('active',on===value);$(button).setAttribute('aria-pressed',String(on===value));}renderSelected();};
-$('exportButton').onclick=()=>{persist();exportData();};$('closeDownload').onclick=()=>{$('downloadArea').hidden=true;};$('copyExport').onclick=async()=>{try{await navigator.clipboard.writeText(exportedJSON);$('exportSummary').textContent='全部需求组 JSON 已复制';}catch{$('exportJson').closest('details').open=true;$('exportSummary').textContent='浏览器未允许复制，请使用保存 JSON 获取完整配置';}};
+
 window.addEventListener('pagehide',saveCache);
 window.ranchBeforeNavigate=async()=>{if(current&&!commitSlotInputs(false))throw Error('请先填写有效的四单交付数量。');if(model)validateRanchTarget(Object.fromEntries(Object.keys(readRanchTarget(savedSettings,level)).map(id=>[id,$(id).value])));persist();stop();saveCache();await cacheQueue;if(cacheSaveError)throw Error('排产结果尚未保存成功，请重试或先导出备份。');};
 async function syncRanchView(){
@@ -296,5 +284,5 @@ if(typeof document.addEventListener==='function'){
   document.addEventListener('focusout',()=>{if(syncQueued)setTimeout(syncRanchView,0);});
 }
 window.addEventListener('ranch:rules-applied',()=>{void syncRanchView();});
-try{const saved=JSON.parse(localStorage.getItem('ranch-source-v1')||'null');if(navigationRequest?.get('source')==='ordinary')readCurrent();else if(saved?.kind==='import')install(saved.base,saved.filename);else readCurrent();}catch(e){message(e.message);}
+try{const source=ranchSource();if(source?.base)install(source.base,source.filename);else message('请导入加工链路 Excel，普通订单和牧场将共用此数据。');}catch(e){message(e.message);}
 if(navigationRequest?.get('import')==='1'){$('empty').hidden=false;$('empty').scrollIntoView({block:'start'});}

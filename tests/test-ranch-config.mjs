@@ -117,6 +117,11 @@ await test('navigation commits a focused raw input and refuses invalid unsaved v
   const clean=setup();await clean.page.ready;const input=clean.input(2,'targetHours');input.value='4.50';clean.doc.activeElement=input;await clean.page.beforeNavigate();assert.equal(clean.workspace.settings.quantityTargetsByLevel[2].targetHours,'4.50');assert.equal(clean.writes,1);clean.page.dispose();
   const bad=setup();await bad.page.ready;const badInput=bad.input(2,'targetHours');badInput.value='0';bad.doc.activeElement=badInput;await assert.rejects(bad.page.beforeNavigate(),/正数/);assert.equal(bad.writes,0);assert.equal(badInput.attrs['aria-invalid'],'true');assert.equal(bad.get('ranchConfigError').hidden,false);bad.page.dispose();
 });
+await test('export flush commits inputs without preventing later calculations on the same page',async()=>{
+  const state=setup();await state.page.ready;const input=state.input(2,'targetHours');input.value='5';state.doc.activeElement=input;
+  await state.page.beforeNavigate({leaving:false});assert.equal(state.workspace.settings.quantityTargetsByLevel[2].targetHours,'5');
+  const running=state.page.run('schedule');await flush();assert.equal(state.runs.length,1);state.pending.resolve();await running;state.page.dispose();
+});
 await test('navigation aborts work and waits until its pending persistence has completed before resolving',async()=>{
   const state=setup({holdAfterAbort:true});await state.page.ready;const running=state.page.run('quantity');await flush();const p=state.workspace.plans[1];p.results.set(p.groups[0].key,{proven:true,optimalMinutes:55});state.pending.options.onChange();let saved=false,navigated=false;
   const leaving=state.page.beforeNavigate().then(()=>{assert(saved,'navigation must wait for saved runner results');navigated=true;});await flush();assert(state.pending.options.signal.aborted);assert.equal(navigated,false);assert.equal(p.results.size,1);assert.equal(state.get('pauseRanchLevels').hidden,false);
@@ -126,7 +131,7 @@ await test('a failed navigation flush blocks leaving and shows the storage failu
   const state=setup({holdAfterAbort:true});await state.page.ready;const running=state.page.run('schedule');await flush();const leaving=state.page.beforeNavigate();state.pending.reject(Error('结果保存失败'));await assert.rejects(leaving,/结果保存失败/);await running;assert.equal(state.get('ranchConfigError').textContent,'结果保存失败');assert.equal(state.get('ranchConfigProgressText').textContent,'已停止，部分结果未保存');state.page.dispose();
 });
 await test('pagehide disposal aborts work as a best-effort fallback',async()=>{
-  const state=setup();await state.page.ready;const running=state.page.run('schedule');await flush();state.page.dispose();assert(state.pending.options.signal.aborted);await running;assert(state.unwatched);assert(source.includes('window.ranchBeforeNavigate=()=>page.beforeNavigate()'));assert(source.includes("window.addEventListener('pagehide',()=>page.dispose()"));
+  const state=setup();await state.page.ready;const running=state.page.run('schedule');await flush();state.page.dispose();assert(state.pending.options.signal.aborted);await running;assert(state.unwatched);assert(source.includes('window.ranchBeforeNavigate=options=>page.beforeNavigate(options)'));assert(source.includes("window.addEventListener('pagehide',()=>page.dispose()"));
 });
 await test('empty project and import failures have explicit states and do not start work',async()=>{
   const empty=setup({empty:true});await empty.page.ready;assert.equal(empty.get('ranchConfigEmpty').hidden,false);assert.equal(empty.get('ranchConfigWorkspace').hidden,true);assert.equal(empty.runs.length,0);
