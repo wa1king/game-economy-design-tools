@@ -139,7 +139,7 @@ export async function calculateRanchWorkspace(ws,{mode='schedule',signal,onProgr
       }catch(error){finish(error);}
     };
     worker.onerror=e=>finish(Error(e.message||'计算中断，已完成结果已保留。'));
-    worker.postMessage(phase==='quantity'?{mode:'quantity',base:ws.base,groups:items,level:plan.level,capacities:plan.capacities,options,baselines:Object.fromEntries(items.map(g=>[g.id,plan.results.get(g.key)]))}:{base:ws.base,groups:items.map(g=>({...g,id:g.key})),level:plan.level,capacities:plan.capacities,timeLimitMs:Number(ws.settings.searchLimit)||2000});
+    worker.postMessage(phase==='quantity'?{mode:'quantity',base:ws.base,groups:items,level:plan.level,capacities:plan.capacities,options,baselines:Object.fromEntries(items.map(g=>[g.id,plan.results.get(g.key)]))}:{base:ws.base,groups:items.map(g=>({...g,id:g.key})),level:plan.level,capacities:plan.capacities,timeLimitMs:Number(ws.settings.searchLimit??2000)});
   });
   try{
     if(mode==='quantity')for(const p of ws.plans)if(p.groups.length)validateRanchTarget(readRanchTarget(ws.settings,p.level));

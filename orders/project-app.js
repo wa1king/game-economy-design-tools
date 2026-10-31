@@ -396,7 +396,7 @@ $('rulesDialog').addEventListener('click',event=>{if(event.target!==$('rulesDial
 for(const id of ['cropQuantity','productQuantity','maxKinds'])$(id).oninput=()=>{$('rulesPending').hidden=false;};
 $('rulesPanel').onsubmit=event=>{
   event.preventDefault();if(busy)return;
-  try{const rules={...project.rules,quantityDefaultsVersion:2,cropQuantity:Number($('cropQuantity').value),productQuantity:Number($('productQuantity').value),maxKinds:Number($('maxKinds').value)},next=buildCatalog(project.base,rules);catalog=next;project.rules=rules;infos.clear();results.clear();errors.clear();
+  try{const rules={...project.rules,cropQuantity:Number($('cropQuantity').value),productQuantity:Number($('productQuantity').value),maxKinds:Number($('maxKinds').value)},next=buildCatalog(project.base,rules);catalog=next;project.rules=rules;infos.clear();results.clear();errors.clear();
     for(let level=1;level<=catalog.maxLevel;level++)project.configs[level].revision++;
     itemInfo.products.clear();catalog.products.forEach(p=>itemInfo.products.set(p.id,p));generation++;setupWorker();persist();$('rulesPending').hidden=true;loadLevel(activeLevel);$('rulesDialog').close();$('batchProgress').textContent='订单规则已应用 · 需重新拟合';
   }catch(error){$('rulesError').textContent=error.message;$('rulesError').hidden=false;}
