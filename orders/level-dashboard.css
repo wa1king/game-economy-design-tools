@@ -104,3 +104,5 @@
   #dashboardContent .dash-legend{gap:10px}
   #dashboardContent .fit-problem{grid-template-columns:55px minmax(0,1fr);gap:7px}
 }
+
+#dashboardContent .dash-legend .dash-average:before{border-top-color:#477ea5}
