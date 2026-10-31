@@ -24,10 +24,10 @@ export function createOutcomeAnalysis(onFilter){
     data=summarizeOrderOutcomes(catalog,result,level);if(data.empty){clear();return;}
     const {time:t,complexity:c}=data.stats;
     const values=[
-      [metrics[0],num(t.p50),'分钟',`中位数 · 中间 80%：${num(t.p10,0)}–${num(t.p90,0)} 分钟`],
+      [metrics[0],num(t.p50,0),'分钟',`中位数 · 中间 80%：${num(t.p10,0)}–${num(t.p90,0)} 分钟`],
       [metrics[1],num(c.mean),'',`中位数 ${num(c.p50,0)} · 90% 订单不超过 ${num(c.p90,0)}`],
       [metrics[2],num(data.directCropOrderProbability*100,1),'%',`直接索要作物 · 纯作物 ${pct(data.pureCropOrderProbability)}`],
-      [metrics[3],num(data.stats.coinReward.mean,2),'金币/单',data.coinRewardCoverage.missingOrderCount?`${data.coinRewardCoverage.missingOrderCount} 张可生成订单缺少金币单价`:`概率加权 · 物品价值 × ${data.coinRewardCoverage.multiplier}${data.coinRewardCoverage.estimatedProbability?' · 含估算单价':''}`]
+      [metrics[3],num(data.stats.coinReward.mean,0),'金币/单',data.coinRewardCoverage.missingOrderCount?`${data.coinRewardCoverage.missingOrderCount} 张可生成订单缺少金币单价`:`概率加权 · 物品价值 × ${data.coinRewardCoverage.multiplier}${data.coinRewardCoverage.estimatedProbability?' · 含估算单价':''}`]
     ];
     $('metrics').innerHTML=values.map(([name,value,unit,sub])=>`<div><small>${name}</small><strong>${value}<em>${unit}</em></strong><span class="sub">${sub}</span></div>`).join('');
     $('complexityStats').innerHTML=[['平均',c.mean],['中位数',c.p50],['90%不超过',c.p90],['最小',c.min],['最大',c.max]].map(([label,v])=>`<span>${label}<b>${num(v)}</b></span>`).join('');
@@ -46,7 +46,7 @@ export function createOutcomeAnalysis(onFilter){
     const values=data.products.filter(p=>type==='all'||(type==='crop'?p.isCrop:!p.isCrop));
     const key=sort==='probability'?'directOrderProbability':sort==='quantity'?'directQuantityPer100Orders':sort==='coinValue'?'coinValue':'level';
     values.sort((a,b)=>{if(key==='coinValue'){if(!Number.isFinite(a[key]))return Number.isFinite(b[key])?1:a.id-b.id;if(!Number.isFinite(b[key]))return -1;}return (direction==='desc'?-1:1)*(a[key]-b[key])||a.id-b.id;});
-    $('productAppearanceRows').innerHTML=values.map(p=>`<tr><th scope="row"><button type="button" class="analysis-product" data-product="${p.id}" data-name="${esc(p.name)}" title="查看直接索取该商品的订单">${esc(p.name)}</button>${p.level===data.level?'<small class="new-product">本级新解锁</small>':''}</th><td>${esc(p.buildingName||'—')}</td><td>${p.level}</td><td class="appearance-probability" style="--probability:${p.directOrderProbability*100}%">${pct(p.directOrderProbability)}</td><td>${num(p.directQuantityPer100Orders)}</td><td>${num(p.cumulativeComplexity,0)}</td><td>${num(p.unitCumulativeMinutes)}</td><td title="${esc([p.coinValueStatus,p.coinValueSource].filter(Boolean).join(' · '))}">${num(p.coinValue,4)}${Number.isFinite(p.coinValue)&&p.coinValueStatus?.includes('估算')?' <small class="coin-estimate">估</small>':''}</td></tr>`).join('')||'<tr><td colspan="8" class="analysis-empty">没有对应商品</td></tr>';
+    $('productAppearanceRows').innerHTML=values.map(p=>`<tr><th scope="row"><button type="button" class="analysis-product" data-product="${p.id}" data-name="${esc(p.name)}" title="查看直接索取该商品的订单">${esc(p.name)}</button>${p.level===data.level?'<small class="new-product">本级新解锁</small>':''}</th><td>${esc(p.buildingName||'—')}</td><td>${p.level}</td><td class="appearance-probability" style="--probability:${p.directOrderProbability*100}%">${pct(p.directOrderProbability)}</td><td>${num(p.directQuantityPer100Orders)}</td><td>${num(p.cumulativeComplexity,0)}</td><td>${num(p.unitCumulativeMinutes,0)}</td><td title="${esc([p.coinValueStatus,p.coinValueSource].filter(Boolean).join(' · '))}">${num(p.coinValue,4)}${Number.isFinite(p.coinValue)&&p.coinValueStatus?.includes('估算')?' <small class="coin-estimate">估</small>':''}</td></tr>`).join('')||'<tr><td colspan="8" class="analysis-empty">没有对应商品</td></tr>';
   }
   $('productTypeFilter').onchange=e=>{type=e.target.value;renderProducts();};
   $('productAppearanceSort').onchange=e=>{sort=e.target.value;renderProducts();};

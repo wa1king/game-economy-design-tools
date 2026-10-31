@@ -10,7 +10,7 @@ export function renderOrderItems(order, products) {
 
 export function renderItemInfo(product, products, quantity) {
   const number=value=>Number(value).toLocaleString('zh-CN',{maximumFractionDigits:2});
-  const minutes=value=>Number.isFinite(value)?number(value)+' 分钟':'未提供';
+  const minutes=(value,d=2)=>Number.isFinite(value)?value.toLocaleString('zh-CN',{maximumFractionDigits:d})+' 分钟':'未提供';
   // Ordinary orders already provide per-unit work; the ranch uses validated single-yield recipes.
   const visiting=new Set(),work=new Map(),kinds=new Set();
   function upstream(id){
@@ -25,7 +25,7 @@ export function renderItemInfo(product, products, quantity) {
   const coins=unitCoinValue(product),coinText=coins===null?'未导入':coins.toLocaleString('zh-CN',{maximumFractionDigits:4})+' 金币';
   const inputs=product.inputs||[],yieldCount=product.analysisBatchYield??1;
   const recipe=inputs.length?inputs.map(input=>`<span class="recipe-ingredient">${escapeHTML(products.get(input.id)?.name??'未知商品 '+input.id)}<b>×${escapeHTML(number(input.quantity))}</b></span>`).join(''):'<span class="recipe-empty">无需原料</span>';
-  return `<strong>${escapeHTML(product.name)}</strong><small>${escapeHTML(product.buildingName)} · ${escapeHTML(product.level)} 级解锁${quantity==null?'':` · 本单需求 ${escapeHTML(quantity)} 个`}</small><dl><dt>累计复杂度</dt><dd>${escapeHTML(product.cumulativeComplexity??kinds.size)} 种</dd><dt>单步时间</dt><dd>${minutes(product.stepMinutes)}</dd><dt>单品累计工时</dt><dd>${minutes(unitWork)}</dd><dt>单价</dt><dd title="${escapeHTML([product.coinValueStatus,product.coinValueSource].filter(Boolean).join(' · '))}">${coinText}${coins!==null&&product.coinValueStatus?.includes('估算')?' <small class="coin-estimate">含估算</small>':''}</dd></dl><section class="item-recipe"><div class="recipe-heading"><span>配方</span><span>每批产出 ${escapeHTML(number(yieldCount))} 个</span></div><div class="recipe-ingredients">${recipe}</div></section>`;
+  return `<strong>${escapeHTML(product.name)}</strong><small>${escapeHTML(product.buildingName)} · ${escapeHTML(product.level)} 级解锁${quantity==null?'':` · 本单需求 ${escapeHTML(quantity)} 个`}</small><dl><dt>累计复杂度</dt><dd>${escapeHTML(product.cumulativeComplexity??kinds.size)} 种</dd><dt>单步时间</dt><dd>${minutes(product.stepMinutes)}</dd><dt>单品累计工时</dt><dd>${minutes(unitWork,0)}</dd><dt>单价</dt><dd title="${escapeHTML([product.coinValueStatus,product.coinValueSource].filter(Boolean).join(' · '))}">${coinText}${coins!==null&&product.coinValueStatus?.includes('估算')?' <small class="coin-estimate">含估算</small>':''}</dd></dl><section class="item-recipe"><div class="recipe-heading"><span>配方</span><span>每批产出 ${escapeHTML(number(yieldCount))} 个</span></div><div class="recipe-ingredients">${recipe}</div></section>`;
 }
 
 export function setupItemInfo(catalog, rows) {

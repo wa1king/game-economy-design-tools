@@ -23,7 +23,7 @@ export function createOrderSampler(catalog,result,random=Math.random){
 export function createOrderSimulator(api){
   const $=id=>document.getElementById(id),dialog=$('orderSimulatorDialog');
   let sampler,activeResult,activeCatalog,draws=0,board=[];
-  const fmt=v=>Number(v).toLocaleString('zh-CN',{maximumFractionDigits:2});
+  const fmt=v=>Number(v).toLocaleString('zh-CN',{maximumFractionDigits:0});
   const ready=()=>{const s=api.getState();return s.valid&&s.result&&!s.result.blocked;};
   function render(){
     const s=api.getState();

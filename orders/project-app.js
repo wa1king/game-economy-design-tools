@@ -199,7 +199,7 @@ function renderFloorHint(){
   $('floorHint').className='hint'+(c.minimumOrderWeight&&!plan.feasible?' error-text':'');$('fixFloorPrecision').hidden=!c.minimumOrderWeight||plan.feasible||!plan.recommendedScale;
   $('fixFloorPrecision').textContent=plan.recommendedScale?`全局改用 ${plan.recommendedScale.toLocaleString()} 分制`:'';
 }
-function renderSpreadPreview(){const c=settings(),range=spreadInterval(c),baseline=info(activeLevel).uniformMean;$('uniformMeanValue').textContent=Number.isFinite(baseline)?fmt(baseline,2)+' 分钟':'—';$('spreadMagnitude').textContent=`分散幅度 ±${fmt(c.mean*spreadPercent(c)/100)} 分钟`;$('spreadPreview').textContent=`约 68% 的正态参考：${fmt(range[0])}～${fmt(range[1])} 分钟`;}
+function renderSpreadPreview(){const c=settings(),range=spreadInterval(c),baseline=info(activeLevel).uniformMean;$('uniformMeanValue').textContent=Number.isFinite(baseline)?fmt(baseline,0)+' 分钟':'—';$('spreadMagnitude').textContent=`分散幅度 ±${fmt(c.mean*spreadPercent(c)/100)} 分钟`;$('spreadPreview').textContent=`约 68% 的正态参考：${fmt(range[0])}～${fmt(range[1])} 分钟`;}
 function validateConfig(c){
   if(!Number.isFinite(c.mean)||c.mean<=0||!Number.isFinite(c.spreadPercent)||c.spreadPercent<0||!Number.isFinite(c.variance)||c.variance<0)throw Error('均值必须大于 0，工时波动比例必须为非负数。');
   if(c.rawSourceWeights.some(v=>!Number.isFinite(v)||v<0))throw Error('来源权重必须是非负数。');
@@ -271,7 +271,7 @@ function renderResult(){
   outcomeAnalysis.render(catalog,r,activeLevel);
   $('precisionReport').innerHTML=r.quantization?`总权重 <b>${r.probabilityScale.toLocaleString()}</b> · 非零 <b>${r.quantization.nonZeroOrders.toLocaleString()}</b> · 归零 <b>${r.quantization.zeroedOrders.toLocaleString()}</b>`:'原始连续精度';
   $('mixResults').innerHTML=r.actualMix.map((v,j)=>`<div class="mix-result"><div class="labels"><span>${j+1} 种商品</span><span>${fmt(r.config.mix[j],2)}% / ${pct(v)}</span></div><div class="bar"><span style="width:${v*100}%;background:${colors[j]}"></span></div></div>`).join('');
-  $('fitDetails').innerHTML=[['平均工时 · 目标 / 实际',`${fmt(r.config.mean)} / ${fmt(r.mean)} 分钟`],['工时波动 · 目标 / 实际',`${fmt(spreadPercent(r.config),2)}% / ${fmt(actualSpread(r),2)}%`],['工时形态',r.shapeAssessment?.label||'—'],['等效均匀订单数',fmt(r.effectiveCount,0)],['最大单笔概率',pct(r.maxProbability,3)],['来源最大偏差',r.config.sourceEnabled?fmt(r.sourceError*100,2)+' 个百分点':'未约束'],['均值可达区间',`${fmt(r.minMean)}～${fmt(r.maxMean)} 分钟`],['迭代',r.iterations]].map(([a,b])=>`<div><dt>${a}</dt><dd>${escape(b)}</dd></div>`).join('');
+  $('fitDetails').innerHTML=[['平均工时 · 目标 / 实际',`${fmt(r.config.mean,0)} / ${fmt(r.mean,0)} 分钟`],['工时波动 · 目标 / 实际',`${fmt(spreadPercent(r.config),2)}% / ${fmt(actualSpread(r),2)}%`],['工时形态',r.shapeAssessment?.label||'—'],['等效均匀订单数',fmt(r.effectiveCount,0)],['最大单笔概率',pct(r.maxProbability,3)],['来源最大偏差',r.config.sourceEnabled?fmt(r.sourceError*100,2)+' 个百分点':'未约束'],['均值可达区间',`${fmt(r.minMean,0)}～${fmt(r.maxMean,0)} 分钟`],['迭代',r.iterations]].map(([a,b])=>`<div><dt>${a}</dt><dd>${escape(b)}</dd></div>`).join('');
   $('sourceResults').innerHTML=`<table class="compact-source-table"><thead><tr><th>来源</th><th>目标 %</th><th>实际 %</th><th title="实际减目标，单位为百分点">偏差</th></tr></thead><tbody>${catalog.sources.map((source,j)=>{const actual=r.shares[j]*100,target=r.config.shares[j],active=info(activeLevel).active[j],delta=actual-target,rounded=Math.abs(delta)<.005?0:delta;return `<tr class="${r.config.sourceEnabled&&Math.abs(delta)>1?'source-miss':''}"><th scope="row" title="${escape(source.name)}">${escape(source.name)}</th><td>${active&&r.config.sourceEnabled?fmt(target,2):'—'}</td><td class="source-actual" style="--share:${Math.max(0,Math.min(100,actual))}%">${active?fmt(actual,2):'—'}</td><td>${active&&r.config.sourceEnabled?(rounded>0?'+':'')+fmt(rounded,2):'—'}</td></tr>`;}).join('')}</tbody></table>`;
   $('sourceFitSummary').textContent=r.config.sourceEnabled?`已启用 · 最大偏差 ${fmt(r.sourceError*100,2)} 个百分点`:'未启用来源约束';
   drawChart();drawHalfHourChart();renderTable();
@@ -471,7 +471,7 @@ init();
 function drawTimeBands(r){
   const s=r.shapeAssessment,root=$('timeBands');
   if(!s){root.innerHTML='';return;}
-  const lower=fmt(s.lower),upper=fmt(s.upper),zeroWidth=Math.abs(s.upper-s.lower)<1e-9;
+  const lower=fmt(s.lower,0),upper=fmt(s.upper,0),zeroWidth=Math.abs(s.upper-s.lower)<1e-9;
   const ranges=[`< ${lower} 分钟`,zeroWidth?`= ${lower} 分钟`:`${lower}～${upper} 分钟`,`> ${upper} 分钟`];
   const names=['短单','中段','长单'],classes=['short','middle','long'];
   const bandLabel=j=>`${names[j]}：${ranges[j]}，${pct(s.bands[j],1)}`;
@@ -489,7 +489,7 @@ function drawChart(){const r=result,W=650,H=260,p={l:64,r:20,t:24,b:42},w=W-p.l-
   const points=target.map((v,j)=>`${x((edges[j]+edges[j+1])/2)},${p.t+h-v/max*h}`).join(' ');if(showTarget)svg+=`<polyline points="${points}" fill="none" stroke="#b27a34" stroke-width="2.6"/>`;
   for(let j=0;j<=5;j++){const x=p.l+w*j/5,t=r.ref.edges[0]+(r.ref.edges.at(-1)-r.ref.edges[0])*j/5;svg+=`<text x="${x}" y="${H-20}" text-anchor="middle" fill="#718076" font-size="11">${fmt(t,0)}</text>`;}
   svg+=`<text x="${W-20}" y="${H-2}" text-anchor="end" fill="#718076" font-size="10">累计工时 / 分钟</text></svg>`;$('chart').innerHTML=svg;
-  const t=outcomeAnalysis.getSummary()?.stats.time;$('curveNote').textContent=t?`平均 ${fmt(t.mean)} · 中位数 ${fmt(t.p50)} · 最小 ${fmt(t.min,0)} · 最大 ${fmt(t.max,0)} 分钟`:'';
+  const t=outcomeAnalysis.getSummary()?.stats.time;$('curveNote').textContent=t?`平均 ${fmt(t.mean,0)} · 中位数 ${fmt(t.p50,0)} · 最小 ${fmt(t.min,0)} · 最大 ${fmt(t.max,0)} 分钟`:'';
   drawTimeBands(r);
 }
 function drawHalfHourChartData(){

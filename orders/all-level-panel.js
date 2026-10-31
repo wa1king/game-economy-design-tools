@@ -5,7 +5,7 @@ import {normalizedMixWeights} from './mix-weights.js';
 import {spreadPercent,actualSpread,spreadInterval} from './time-spread.js';
 import {summarizeOrderOutcomes} from './order-outcomes.js';
 const escape=value=>String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const number=value=>Number(value).toLocaleString('zh-CN',{maximumFractionDigits:2});
+const number=(value,d=2)=>Number(value).toLocaleString('zh-CN',{maximumFractionDigits:d});
 
 export function createAllLevelPanel(api){
   const head=document.getElementById('allConfigHead'),body=document.getElementById('overviewRows');
@@ -48,13 +48,13 @@ export function createAllLevelPanel(api){
       const label=row.querySelector('[data-row-status]');label.textContent=state.text;label.title=state.title;label.className='matrix-state '+state.type;
       const saved=api.getResult(level),r=saved?.revision===c.revision?saved.result:null;
       if(r&&!r.matched&&!state.title)problems.push({level,state:'近似解',messages:resultFeedback(r,catalog)});
-      row.querySelector('[data-actual-mean]').textContent=r?number(r.mean):'—';row.querySelector('[data-actual-spread]').textContent=r?number(actualSpread(r))+'%':'—';
+      row.querySelector('[data-actual-mean]').textContent=r?number(r.mean,0):'—';row.querySelector('[data-actual-spread]').textContent=r?number(actualSpread(r))+'%':'—';
       const rewardCell=row.querySelector('[data-actual-reward]');
       if(rewardCell){const summary=r&&state.type!=='invalid'?summarizeOrderOutcomes(catalog,r,level):null,value=summary?.stats.coinReward.mean,missing=summary?.coinRewardCoverage.missingOrderCount;
-        rewardCell.textContent=missing?'缺少单价':Number.isFinite(value)?number(value):'—';
+        rewardCell.textContent=missing?'缺少单价':Number.isFinite(value)?number(value,0):'—';
         rewardCell.title=missing?`${missing} 张可生成订单缺少金币单价`:'按最终生成概率加权；交付物品金币总值×5';}
       const baseline=row.querySelector('[data-uniform-mean]'),uniformMean=api.getInfo(level).uniformMean;
-      if(baseline)baseline.textContent=Number.isFinite(uniformMean)?`等概率 ${number(uniformMean)} 分`:'等概率 —';
+      if(baseline)baseline.textContent=Number.isFinite(uniformMean)?`等概率 ${number(uniformMean,0)} 分`:'等概率 —';
       const interval=spreadInterval(c),spreadInput=row.querySelector('[data-key=spreadPercent]');
       spreadInput.title=`标准差 ÷ 均值 × 100%；当前 ${number(spreadPercent(c))}%。${interval.every(Number.isFinite)?'均值±标准差参考：'+interval.map(number).join('～')+' 分钟（非最短/最长工时）。':''}Ctrl+Enter：向下填充本列（含当前等级）`;
     }

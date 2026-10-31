@@ -14,8 +14,8 @@ assert.equal(dashboardRows(api)[0].r,null,'Invalid targets must not display curr
 console.log('Dashboard: fresh/stale/blocked/missing states and raw source weights verified.');
 
 const catalog=buildCatalog({maxLevel:2,sources:[{id:'farm',name:'农田'},{id:'mill',name:'磨坊'}],products:[
-  {id:1,name:'麦',level:1,buildingId:'farm',category:'田地作物',stepMinutes:2,analysisBatchYield:1,coinValue:2,inputs:[]},
-  {id:2,name:'粉',level:1,buildingId:'mill',stepMinutes:5,analysisBatchYield:1,coinValue:10,inputs:[{id:1,quantity:2}]}
+  {id:1,name:'麦',level:1,buildingId:'farm',category:'田地作物',stepMinutes:2,analysisBatchYield:1,coinValue:2.13,inputs:[]},
+  {id:2,name:'粉',level:1,buildingId:'mill',stepMinutes:5,analysisBatchYield:1,coinValue:10.3,inputs:[{id:1,quantity:2}]}
 ]});
 const target={revision:0,mean:10000,variance:100,mix:[2,0,0],weights:{farm:3,mill:1},sourceEnabled:false};
 const fitted={matched:true,config:{level:1},probabilities:[.25,.75],mean:10.25,sd:2,actualMix:[1,0,0],shares:[.6,.4],tv:.04};
@@ -32,11 +32,11 @@ try{
   assert(root.innerHTML.includes('订单体验趋势'));
   assert(root.innerHTML.includes('Lv 1 · 中位数 9 分钟'),'Time trends must use weighted outcome quantiles, not the input mean');
   assert(!root.innerHTML.includes('P90')&&!root.innerHTML.includes('90%上限'),'Outcome trends no longer display P90');
-  assert(root.innerHTML.includes('Lv 1 · 平均数 10.25 分钟'),'Mean must use final generated probabilities, not the target of 10000');
+  assert(root.innerHTML.includes('Lv 1 · 平均数 10 分钟'),'Mean must use final generated probabilities, not the target of 10000');
   assert(root.innerHTML.includes('Lv 1 · 平均数 1.75'));
   assert(root.innerHTML.includes('Lv 1 · 中位数 2'),'Complexity trend retains the weighted median');
   assert(root.innerHTML.includes('Lv 1 · 含作物订单概率 25%'));
-  assert(root.innerHTML.includes('Lv 1 · 平均金币奖励 55 金币/单'),'Reward trend uses final probability weights and the existing payout formula');
+  assert(root.innerHTML.includes('Lv 1 · 平均金币奖励 57 金币/单'),'Reward trend uses final probability weights and the existing payout formula');
   assert(root.innerHTML.includes('拟合校验'),'Target acceptance stays available below outcome trends');
   const validationRow=root.innerHTML.match(/<table class="dash-results">[\s\S]*?<tbody><tr>([\s\S]*?)<\/tr>/)[1];
   const validationCells=[...validationRow.matchAll(/<td[^>]*>([\s\S]*?)<\/td>/g)].map(match=>match[1]);

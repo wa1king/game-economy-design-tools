@@ -4,7 +4,7 @@ import {normalizedMixWeights} from './mix-weights.js';
 import {spreadPercent,actualSpread} from './time-spread.js';
 import {summarizeOrderOutcomes} from './order-outcomes.js';
 const esc=v=>String(v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const num=v=>Number.isFinite(v)?v.toLocaleString('zh-CN',{maximumFractionDigits:2}):'—';
+const num=(v,d=2)=>Number.isFinite(v)?v.toLocaleString('zh-CN',{maximumFractionDigits:d}):'—';
 const states={matched:'目标达标',approximate:'近似解',blocked:'需调整',stale:'待更新',empty:'未计算'};
 
 export function dashboardRows(api){
@@ -20,21 +20,22 @@ export function dashboardRows(api){
 
 function trend(rows,series,label,fixedMax=null,{width=600,height=220,ticks=4,emptyText='拟合后显示趋势'}={}){
   const W=Math.max(260,Math.round(width),rows.length*26+68),H=height,p={l:52,r:16,t:28,b:42},w=W-p.l-p.r,h=H-p.t-p.b;
+  const axisDigits=series.some(s=>/分钟|金币/.test(s.unit||''))?0:2;
   const values=rows.flatMap(row=>series.map(s=>s.get(row))).filter(Number.isFinite);
   const rawStep=Math.max(1,...values)*1.08/ticks,magnitude=10**Math.floor(Math.log10(rawStep));
   const step=[1,2,2.5,5,10].find(v=>v*magnitude>=rawStep)*magnitude,max=fixedMax??step*ticks;
   const x=i=>p.l+i*w/Math.max(1,rows.length-1),y=v=>p.t+h-v/max*h;
   let svg=`<svg viewBox="0 0 ${W} ${H}" style="min-width:${W}px" role="group" aria-label="${esc(label)}"><title>${esc(label)}</title>`;
   if(!values.length)return svg+`<text x="${W/2}" y="${H/2}" text-anchor="middle">${esc(emptyText)}</text></svg>`;
-  for(let j=0;j<=ticks;j++)svg+=`<line x1="${p.l}" y1="${y(max*j/ticks)}" x2="${W-p.r}" y2="${y(max*j/ticks)}" stroke="#e5ebe6"/><text x="${p.l-8}" y="${y(max*j/ticks)+4}" text-anchor="end">${num(max*j/ticks)}</text>`;
+  for(let j=0;j<=ticks;j++)svg+=`<line x1="${p.l}" y1="${y(max*j/ticks)}" x2="${W-p.r}" y2="${y(max*j/ticks)}" stroke="#e5ebe6"/><text x="${p.l-8}" y="${y(max*j/ticks)+4}" text-anchor="end">${num(max*j/ticks,axisDigits)}</text>`;
   const pointLabels=[];
   const draw=({get,color,dashed,name,unit=''})=>{
     let path='';rows.forEach((row,i)=>{const v=get(row);path+=Number.isFinite(v)?`${i&&Number.isFinite(get(rows[i-1]))?'L':'M'}${x(i)},${y(v)} `:'';});
     svg+=`<path d="${path}" fill="none" stroke="${color}" stroke-width="2.5" ${dashed?'stroke-dasharray="5 4"':''}/>`;
     rows.forEach((row,i)=>{const v=get(row);if(Number.isFinite(v)){
-      const title=`Lv ${row.level} · ${name} ${num(v)}${unit} · 查看单级`;
+      const title=`Lv ${row.level} · ${name} ${num(v,axisDigits)}${unit} · 查看单级`;
       svg+=`<circle data-open="${row.level}" role="button" tabindex="0" aria-label="${esc(title)}" cx="${x(i)}" cy="${y(v)}" r="4" fill="${color}"><title>${esc(title)}</title></circle>`;
-      pointLabels.push({i,x:x(i),y:y(v),text:num(v)+(unit==='%'?'%':''),color,side:series.length>1&&!dashed?1:-1});
+      pointLabels.push({i,x:x(i),y:y(v),text:num(v,axisDigits)+(unit==='%'?'%':''),color,side:series.length>1&&!dashed?1:-1});
     }});
   };
   series.forEach(draw);
@@ -87,7 +88,7 @@ export function createLevelDashboard(api){
       }).join('')}</tr>`).join('')}</tbody></table></div></article>
       <article class="panel dash-validation"><div class="panel-heading"><h3>拟合校验</h3><span class="hint">目标 / 实际</span></div><div class="dash-scroll"><table class="dash-results"><thead><tr><th>等级</th><th>状态</th><th>候选订单</th><th>非零订单</th><th>均值 · 分钟</th><th>工时波动 %</th><th>种类最大偏差<br>百分点</th><th>来源最大偏差<br>百分点</th><th title="按最终生成概率加权；订单奖励=交付物品金币总值×5">平均金币奖励</th><th>工时形态</th><th></th></tr></thead><tbody>${rows.map(row=>{
         const r=row.r,mixTargets=normalizedMixWeights(row.c.mix,row.info.counts),mixError=r?Math.max(...r.actualMix.map((v,j)=>Math.abs(v*100-mixTargets[j]))):null,sourceError=r&&row.c.sourceEnabled?Math.max(...r.shares.map((v,j)=>row.info.active[j]?Math.abs(v*100-row.targets[j]):0)):null;
-        return `<tr><th>Lv ${row.level}</th><td><span class="dash-status ${row.state}" title="${esc(row.error||'')}">${states[row.state]}</span></td><td>${num(row.info.orders.length)}</td><td>${r?num(r.quantization?.nonZeroOrders??r.probabilities.filter(v=>v>0).length):'—'}</td><td>${num(row.c.mean)} / <b>${r?num(r.mean):'—'}</b></td><td>${num(spreadPercent(row.c))} / <b>${r?num(actualSpread(r)):'—'}</b></td><td>${num(mixError)}</td><td>${r&&!row.c.sourceEnabled?'未约束':num(sourceError)}</td><td title="${row.outcome?.coinRewardCoverage.missingOrderCount?'有 '+row.outcome.coinRewardCoverage.missingOrderCount+' 张可生成订单缺少金币单价':'按最终生成概率加权 · 物品金币总值×5'}">${row.outcome?.coinRewardCoverage.missingOrderCount?'缺少单价':num(row.outcome?.stats.coinReward.mean)}</td><td>${esc(r?.shapeAssessment?.label||'—')}</td><td><button class="text-button" data-open="${row.level}">查看单级</button></td></tr>`;
+        return `<tr><th>Lv ${row.level}</th><td><span class="dash-status ${row.state}" title="${esc(row.error||'')}">${states[row.state]}</span></td><td>${num(row.info.orders.length)}</td><td>${r?num(r.quantization?.nonZeroOrders??r.probabilities.filter(v=>v>0).length):'—'}</td><td>${num(row.c.mean,0)} / <b>${r?num(r.mean,0):'—'}</b></td><td>${num(spreadPercent(row.c))} / <b>${r?num(actualSpread(r)):'—'}</b></td><td>${num(mixError)}</td><td>${r&&!row.c.sourceEnabled?'未约束':num(sourceError)}</td><td title="${row.outcome?.coinRewardCoverage.missingOrderCount?'有 '+row.outcome.coinRewardCoverage.missingOrderCount+' 张可生成订单缺少金币单价':'按最终生成概率加权 · 物品金币总值×5'}">${row.outcome?.coinRewardCoverage.missingOrderCount?'缺少单价':num(row.outcome?.stats.coinReward.mean,0)}</td><td>${esc(r?.shapeAssessment?.label||'—')}</td><td><button class="text-button" data-open="${row.level}">查看单级</button></td></tr>`;
       }).join('')}</tbody></table></div></article>`;
     root.querySelector('#dashboardSourceMode').onchange=e=>{sourceMode=e.target.value;render();};
   }
