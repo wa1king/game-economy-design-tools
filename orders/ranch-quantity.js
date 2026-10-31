@@ -1,7 +1,7 @@
 import {solveRanchGroupCached as solveRanchGroup} from './ranch-schedule-cache.js';
 import {ranchDemandKey} from './ranch-catalog.js';
 import {groupMetrics} from './ranch-engine.js';
-export const QUANTITY_SEARCH_VERSION=3;
+export const QUANTITY_SEARCH_VERSION=4;
 const clamp=(x,l,h)=>Math.max(l,Math.min(h,x));
 const unitProfiles=new WeakMap();
 const fitSignatures=new WeakMap();
@@ -142,7 +142,7 @@ export function quantityEndpointDominated(lowerMinutes,options,evaluated){
   const minimumError=lowerMinutes-options.targetMinutes;
   return evaluated.some(v=>v.result.proven&&(quantityRank(v,options)[0]===0||Math.abs(v.result.optimalMinutes-options.targetMinutes)<minimumError));
 }
-export function fitRanchQuantities(model,group,level,capacities,rawOptions={},baseline=null,onProgress=()=>{}){
+function* quantitySearch(model,group,level,capacities,rawOptions={},baseline=null,onProgress=()=>{}){
   const options=quantityOptions(rawOptions),start=performance.now(),pool=quantityCandidates(model,group,capacities,options,baseline),evaluated=[],failures=[];let tried=0,prunedCount=0,endpointProofSkips=0;
   const pruningProfile=ranchQuantityProfile(model,group,capacities),pruningMax=group.slots.map(v=>model.by.get(v.id).isCrop?options.cropMax:options.productMax);
   // Integer-minute inputs give an exact resource-work lower bound. Fractional
@@ -161,7 +161,7 @@ export function fitRanchQuantities(model,group,level,capacities,rawOptions={},ba
     const candidate=quantityGroup(group,q);if(evaluated.some(v=>ranchDemandKey(v.group)===candidate.key))continue;
     if(dominated(candidate,q)){prunedCount++;continue;}
     const skipEndpointProof=endpoint(q)&&quantityEndpointDominated(safeLower(q),options,evaluated);if(skipEndpointProof)endpointProofSkips++;
-    try{const result=solveRanchGroup(model,candidate,level,capacities,{timeLimitMs:skipEndpointProof?0:Math.min(120,Math.max(0,options.timeLimitMs-(performance.now()-start))),nodeLimit:1500});evaluated.push({group:candidate,result});}catch(error){failures.push(error.message);}
+    try{const result=yield {model,group:candidate,level,capacities,options:{timeLimitMs:skipEndpointProof?0:Math.min(120,Math.max(0,options.timeLimitMs-(performance.now()-start))),nodeLimit:1500}};evaluated.push({group:candidate,result});}catch(error){failures.push(error.message);}
     tried++;onProgress({tried,candidates:pool.quantities.length});
   }
   if(!evaluated.length)throw Error(failures[0]||'搜索范围内未找到可计算的数量配置。');
@@ -179,7 +179,7 @@ export function fitRanchQuantities(model,group,level,capacities,rawOptions={},ba
       if(evaluated.length>=options.maxEvaluations||performance.now()-start>=options.timeLimitMs)break;
       const value=best.group.slots[i].quantity+delta;if(value<1||value>max[i])continue;const q=linkedProductQuantities(best.group,i,value);
       const candidate=quantityGroup(group,q);if(evaluated.some(v=>v.group.key===candidate.key))continue;
-      try{const result=solveRanchGroup(model,candidate,level,capacities,{timeLimitMs:Math.min(120,Math.max(0,options.timeLimitMs-(performance.now()-start))),nodeLimit:1500});evaluated.push({group:candidate,result});added++;}catch(error){failures.push(error.message);}tried++;onProgress({tried,candidates:Math.max(pool.quantities.length,evaluated.length)});
+      try{const result=yield {model,group:candidate,level,capacities,options:{timeLimitMs:Math.min(120,Math.max(0,options.timeLimitMs-(performance.now()-start))),nodeLimit:1500}};evaluated.push({group:candidate,result});added++;}catch(error){failures.push(error.message);}tried++;onProgress({tried,candidates:Math.max(pool.quantities.length,evaluated.length)});
     }
     if(!added)break;
   }
@@ -213,4 +213,17 @@ export function reuseRanchQuantityFit(fit,group,capacities){
     const updated=quantityGroup(group,candidate.group.slots.map(v=>v.quantity));
     return {...candidate,group:updated,result:{...candidate.result,assumptions:{...candidate.result.assumptions,capacities:{...capacities}}}};
   })};
+}
+
+// One search implementation: synchronous callers retain their existing API;
+// browser workers await the mature solver for exactly the same fixed demands.
+export function fitRanchQuantities(...args){
+  const search=quantitySearch(...args);let state=search.next();
+  while(!state.done){try{const v=state.value;state=search.next(solveRanchGroup(v.model,v.group,v.level,v.capacities,v.options));}catch(error){state=search.throw(error);}}
+  return state.value;
+}
+export async function fitRanchQuantitiesAsync(solver,...args){
+  const search=quantitySearch(...args);let state=search.next();
+  while(!state.done){try{const v=state.value;state=search.next(await solver(v.model,v.group,v.level,v.capacities,v.options));}catch(error){state=search.throw(error);}}
+  return state.value;
 }

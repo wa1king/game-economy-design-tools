@@ -1,0 +1,6 @@
+OR-Tools WASM 2.0.1 (Apache-2.0)
+https://www.npmjs.com/package/or-tools-wasm/v/2.0.1
+https://github.com/guwidoe/or-tools-wasm
+Google OR-Tools: https://github.com/google/or-tools
+NPM SHA-512: Teeea1yKS+fVWZ4YeuMQ5TeR7sBYujPFfn3HDQS6/DDzOGr6r73cQMv9KizfHA+8a0203Qo/vR0nXVxkYCp0DA==
+Only local/direct execution is enabled by this application.

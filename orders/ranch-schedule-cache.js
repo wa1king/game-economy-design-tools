@@ -41,7 +41,7 @@ function capture(expanded,result){
     if(!trees.has(productId))trees.set(productId,[]);
     trees.get(productId).push(tasks.slice(start,end).map((task,i)=>[task.productId,task.resource,task.duration,starts[start+i]]));
   }
-  return {trees,makespan,taskCount:tasks.length};
+  return {trees,makespan,taskCount:tasks.length,solver:result.solver,solverStatus:result.solverStatus};
 }
 
 function restore(model,group,level,capacities,expanded,entry,begin){
@@ -60,13 +60,13 @@ function restore(model,group,level,capacities,expanded,entry,begin){
   validateRanchSchedule(tasks,edges,starts,capacities);
   const makespan=Math.max(...tasks.map((task,i)=>starts[i]+task.duration));
   if(makespan!==entry.makespan)throw Error('缓存排产完成时间不一致。');
-  return {...groupMetrics(model,group,level),optimalMinutes:makespan/scale,feasibleMinutes:makespan/scale,lowerMinutes:makespan/scale,proven:true,nodes:0,elapsedMs:Math.round(clock()-begin),taskCount:tasks.length,scheduleReused:true,
+  return {...groupMetrics(model,group,level),optimalMinutes:makespan/scale,feasibleMinutes:makespan/scale,lowerMinutes:makespan/scale,proven:true,nodes:0,elapsedMs:Math.round(clock()-begin),taskCount:tasks.length,scheduleReused:true,solver:entry.solver,solverStatus:entry.solverStatus,
     slotCompletionMinutes:roots.map(ids=>Math.max(...ids.map(i=>starts[i]+tasks[i].duration))/scale),
     schedule:tasks.map((task,i)=>({...task,start:starts[i]/scale,end:(starts[i]+task.duration)/scale,duration:task.duration/scale})).sort((a,b)=>a.start-b.start||a.id-b.id),
     assumptions:{inventory:'empty',facilitiesAvailableAt:0,actionsMinutes:0,capacities:{...capacities},objective:'all_four_slots_ready',yield:1}};
 }
 
-export function createRanchScheduleCache({maxTasks=24000,maxEntries=512}={}){
+export function createRanchScheduleCache({maxTasks=24000,maxEntries=512,solver=solveRanchGroup}={}){
   if(!Number.isSafeInteger(maxTasks)||maxTasks<0||!Number.isSafeInteger(maxEntries)||maxEntries<0)throw Error('排产缓存容量必须是非负整数。');
   const models=new WeakMap();
   const state=model=>{if(!models.has(model))models.set(model,{entries:new Map(),tasks:0,hits:0,misses:0,evictions:0});return models.get(model);};
@@ -79,7 +79,7 @@ export function createRanchScheduleCache({maxTasks=24000,maxEntries=512}={}){
         catch{remove(cache,key);}// Fail closed: re-solve if any remapping check fails.
       }
       cache.misses++;
-      const result=solveRanchGroup(model,group,level,capacities,options);
+      const save=result=>{
       if(expanded.tasks.length<=maxTasks&&maxEntries>0){
         const saved=capture(expanded,result);
         if(saved){
@@ -88,6 +88,9 @@ export function createRanchScheduleCache({maxTasks=24000,maxEntries=512}={}){
         }
       }
       return result;
+      };
+      const result=solver(model,group,level,capacities,options);
+      return result&&typeof result.then==='function'?result.then(save):save(result);
     },
     stats(model){const cache=models.get(model);return cache?{entries:cache.entries.size,tasks:cache.tasks,hits:cache.hits,misses:cache.misses,evictions:cache.evictions}:{entries:0,tasks:0,hits:0,misses:0,evictions:0};}
   };

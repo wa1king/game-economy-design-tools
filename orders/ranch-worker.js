@@ -1,5 +1,8 @@
-import {prepareRanch,solveRanchGroup} from './ranch-engine.js';
-import {fitRanchQuantities} from './ranch-quantity.js';
+import {prepareRanch} from './ranch-engine.js';
+import {fitRanchQuantitiesAsync} from './ranch-quantity.js';
+import {solveRanchGroupCpSat} from './ranch-cpsat.js';
+import {createRanchScheduleCache} from './ranch-schedule-cache.js';
+const schedules=createRanchScheduleCache({solver:solveRanchGroupCpSat});
 let model=null,sourceSignature=null;
 self.onmessage=async({data})=>{
   const post=message=>self.postMessage({...message,requestId:data.requestId});
@@ -10,9 +13,9 @@ self.onmessage=async({data})=>{
       const group=data.groups[i];
       try{
         if(data.mode==='quantity'){
-          const fit=fitRanchQuantities(model,group,data.level,data.capacities,data.options,data.baselines?.[group.id]??null,progress=>post({type:'quantityProgress',id:group.id,index:i+1,total:data.groups.length,...progress}));
+          const fit=await fitRanchQuantitiesAsync(schedules.solve,model,group,data.level,data.capacities,data.options,data.baselines?.[group.id]??null,progress=>post({type:'quantityProgress',id:group.id,index:i+1,total:data.groups.length,...progress}));
           post({type:'quantityResult',id:group.id,fit,index:i+1,total:data.groups.length});
-        }else{const result=solveRanchGroup(model,group,data.level,data.capacities,{timeLimitMs:data.timeLimitMs,nodeLimit:10000});post({type:'result',id:group.id,result,index:i+1,total:data.groups.length});}
+        }else{const result=await schedules.solve(model,group,data.level,data.capacities,{timeLimitMs:data.timeLimitMs,nodeLimit:10000});post({type:'result',id:group.id,result,index:i+1,total:data.groups.length});}
       }
       catch(error){post({type:'groupError',id:group.id,message:error.message,index:i+1,total:data.groups.length});}
       // This runs off the UI thread; pausing terminates the worker directly.

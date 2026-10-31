@@ -32,7 +32,7 @@ test('a formerly perfect unequal schedule cannot become a new recommendation',()
  const g=group([1,1,1,1],[1,2,3,4]),before=structuredClone(g),baseline=solveRanchGroup(model,g,1,caps);
  assert.equal(baseline.optimalMinutes,100);
  const fit=fitRanchQuantities(model,g,1,caps,{targetMinutes:100,toleranceMinutes:0,targetWorkMinutes:100,productMax:4,cropMax:4,timeLimitMs:4000,maxEvaluations:100},baseline);
- assert.equal(fit.within,false);assert(fit.recommendations.every(v=>hasEqualProductQuantities(v.group)));assert(fit.recommendations.every(v=>v.result.optimalMinutes!==100));assert.deepEqual(g,before);assert.equal(fit.searchVersion,3);
+ assert.equal(fit.within,false);assert(fit.recommendations.every(v=>hasEqualProductQuantities(v.group)));assert(fit.recommendations.every(v=>v.result.optimalMinutes!==100));assert.deepEqual(g,before);assert.equal(fit.searchVersion,4);
 });
 for(const ids of [[1,1,1,1],[1,2,1,2],[1,2,3,1]])test('fit recommendations preserve equal quantities: '+ids.join(','),()=>{
  const g=group(ids,[1,2,3,4]),before=structuredClone(g),fit=fitRanchQuantities(model,g,1,caps,{targetMinutes:80,toleranceMinutes:10,targetWorkMinutes:160,productMax:4,cropMax:4,timeLimitMs:4000,maxEvaluations:100});
@@ -51,6 +51,6 @@ test('one-step refinement adjusts every same-product slot together',()=>{
 });
 
 test('fit reuse keys identify the equal-quantity rule and invalid donors are rejected',()=>{
- assert.equal(QUANTITY_SEARCH_VERSION,3);const g=group([1,1,1,1]),options=quantityOptions();assert.equal(JSON.parse(ranchQuantityFitKey(model,g,caps,options))[0],3);
+ assert.equal(QUANTITY_SEARCH_VERSION,4);const g=group([1,1,1,1]),options=quantityOptions();assert.equal(JSON.parse(ranchQuantityFitKey(model,g,caps,options))[0],4);
  const old=group([1,1,1,1],[1,2,3,4]);assert.throws(()=>reuseRanchQuantityFit({recommendations:[{group:old,result:{}}]},g,caps),/数量不一致/);
 });
