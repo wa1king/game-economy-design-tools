@@ -12,7 +12,7 @@ import {layoutRanchChain} from '../orders/ranch-chain-layout.js';
 import {ranchCapacities,groupMetrics,solveRanchGroup} from '../orders/ranch-engine.js';
 import {ranchDemandKey,ranchPermutations,remapRanchResult} from '../orders/ranch-catalog.js';
 import {setupRanchChains} from '../orders/ranch-chain.js';
-import {quantityGroup,quantityOptions,estimateRanchWorkRatio} from '../orders/ranch-quantity.js';
+import {quantityGroup,quantityOptions,estimateRanchWorkRatio,hasEqualProductQuantities,linkedProductQuantities} from '../orders/ranch-quantity.js';
 import {renderOrderItems} from '../orders/item-info.js';
 import {calculateRanchImport,canMigrateRanchSettings,backupRanchBeforeImport,ranchSettingsKey,ranchImportCacheKey,readRanchResultBundle} from '../orders/ranch-import.js';
 import {mergeRanchCacheValue} from '../orders/ranch-cache.js';
@@ -74,7 +74,7 @@ test('page keeps catalogue and tuning collapsed after the always-visible scheme 
   for(const m of html.matchAll(/<(\w+)\b([^>]*\bid="[^"]+"[^>]*)>/g)){const a=attributes(m[2]),e=new Element(m[1],a);elements.set(e.id,e);}
   for(const id of ['searchLimit','sort','direction','quantityBudget']){const pattern=new RegExp(`<select[^>]*id="${id}"[^>]*>([\\s\\S]*?)<\\/select>`);elements.get(id).innerHTML=html.match(pattern)[1];}
   const isolatedBase={...base,landsByLevel:{20:30}},memory=new Map([['ranch-source-v1',JSON.stringify({kind:'import',base:isolatedBase,filename:'synthetic.xlsx'})]]),posts=[],scheduleCache=new Map(),notices=[];
-  const context=vm.createContext({estimateRanchWorkRatio,ranchFitIsCurrent,DEFAULT_CROP_QUANTITY,readRanchSettings,console,createRanchLevelCatalog:()=>({refresh(){}}),structuredClone,prepareRanch,ranchCapacities,groupMetrics,solveRanchGroup,generateRanchLevelGroups,ranchDemandKey,ranchPermutations,remapRanchResult,ranchBrowserScope,ranchSchemeStep,ranchChainData,renderRanchChain,setupRanchChains,quantityGroup,quantityOptions,renderOrderItems,calculateRanchImport,canMigrateRanchSettings,backupRanchBeforeImport,ranchSettingsKey,ranchImportCacheKey,readRanchResultBundle,
+  const context=vm.createContext({hasEqualProductQuantities,linkedProductQuantities,estimateRanchWorkRatio,ranchFitIsCurrent,DEFAULT_CROP_QUANTITY,readRanchSettings,console,createRanchLevelCatalog:()=>({refresh(){}}),structuredClone,prepareRanch,ranchCapacities,groupMetrics,solveRanchGroup,generateRanchLevelGroups,ranchDemandKey,ranchPermutations,remapRanchResult,ranchBrowserScope,ranchSchemeStep,ranchChainData,renderRanchChain,setupRanchChains,quantityGroup,quantityOptions,renderOrderItems,calculateRanchImport,canMigrateRanchSettings,backupRanchBeforeImport,ranchSettingsKey,ranchImportCacheKey,readRanchResultBundle,
     setupItemInfo:base=>({products:new Map(base.products.map(p=>[p.id,p])),hide(){}}),createProjectStore:()=>({load:()=>null}),writeSharedChainSource:(b,n)=>writeSharedChainSource(b,n,{getItem:k=>memory.get(k)??null,setItem:(k,v)=>memory.set(k,v)}),readChainExcel:async file=>file.base,loadRanchCache:async key=>scheduleCache.get(key),saveRanchCache:async(key,value)=>{scheduleCache.set(key,value);},performance:{now:()=>1000},crypto:{getRandomValues:a=>{a[0]=0;}},setTimeout:()=>1,clearTimeout(){},
     mergeRanchSettings,readRanchTarget,validateRanchTarget,notifyRanchChange(...args){notices.push(args);},watchRanchWorkspace(){},ranchSource:()=>JSON.parse(memory.get('order-shared-chain-v1')||memory.get('ranch-source-v1')||'null'),mergeRanchCache:async(key,value)=>scheduleCache.set(key,mergeRanchCacheValue(scheduleCache.get(key),value)),Worker:class{postMessage(v){posts.push(v);}terminate(){}},localStorage:{getItem:k=>memory.get(k)??null,setItem:(k,v)=>memory.set(k,v)},window:{addEventListener(){}},document:{getElementById:id=>elements.get(id),querySelector:()=>new Element('main'),querySelectorAll:q=>q==='#slots input'?elements.get('slots').inputs:[]}});
   vm.runInContext(fs.readFileSync(new URL('../orders/ranch-app.js',import.meta.url),'utf8').replace(/^import .*;\r?\n/gm,''),context);
@@ -97,17 +97,24 @@ test('page keeps catalogue and tuning collapsed after the always-visible scheme 
     const selected=vm.runInContext('current.id',context);vm.runInContext('renderSelected(); renderTable()',context);assert.equal(vm.runInContext('current.id',context),selected);
     assert.equal(elements.get('rows').innerHTML,'');assert(memory.get(vm.runInContext('storageKey',context)).includes('"familyId":"p10"'));
   });
-  test('four identical goods allow independent quantity edits and retain all delivery slots',()=>{
+  test('legacy unequal copies stay editable without displaying or applying their old success',()=>{
+    elements.get('buildingType').onclick();elements.get('buildingNav').onclick({target:{closest:()=>({dataset:{browseBuilding:'10'}})}});
+    const id=vm.runInContext('viewRows.find(g=>g.slots.every(v=>v.id===5)).id',context);elements.get('schemeNav').onclick({target:{closest:()=>({dataset:{browseScheme:id}})}});
+    vm.runInContext('stop();setGroupQuantities(current.id,[2,1,1,1]);results.set(current.key,solveRanchGroup(model,current,level,capacities));quantityFits.set(current.id,{within:true,recommendations:[{group:structuredClone(current),result:results.get(current.key)}]});renderSelected()',context);
+    assert.equal(vm.runInContext('JSON.stringify(current.slots.map(v=>v.quantity))',context),'[2,1,1,1]');assert.equal(vm.runInContext('resultFor(current)',context),null);assert.equal(elements.get('optimal').textContent,'—');assert.equal(elements.get('quantityRecommendations').hidden,true);
+    const before=vm.runInContext('current.key',context);elements.get('recommendationCards').onclick({target:{closest:()=>({dataset:{recommendation:'0'}})}});assert.equal(vm.runInContext('current.key',context),before);
+  });
+  test('four identical goods link quantity edits while retaining all delivery slots',()=>{
     elements.get('buildingType').onclick();elements.get('buildingNav').onclick({target:{closest:()=>({dataset:{browseBuilding:'10'}})}});
     const id=vm.runInContext('viewRows.find(g=>g.slots.every(v=>v.id===5)).id',context);
     elements.get('schemeNav').onclick({target:{closest:()=>({dataset:{browseScheme:id}})}});
     vm.runInContext('stop()',context);
     const inputs=elements.get('slots').inputs;inputs[0].value='3';elements.get('slots').handlers.change({target:inputs[0]});
-    assert.equal(vm.runInContext('JSON.stringify(current.slots.map(v=>v.quantity))',context),'[3,1,1,1]');
-    assert.equal(vm.runInContext('ranchChainData(model,current,level).nodes.find(n=>n.id===5).delivered',context),6);
+    assert.equal(vm.runInContext('JSON.stringify(current.slots.map(v=>v.quantity))',context),'[3,3,3,3]');
+    assert.equal(vm.runInContext('ranchChainData(model,current,level).nodes.find(n=>n.id===5).delivered',context),12);
     assert.equal(vm.runInContext('JSON.stringify(ranchChainData(model,current,level).nodes.find(n=>n.id===5).deliverySlots)',context),'[0,1,2,3]');
     vm.runInContext('stop()',context);const second=elements.get('slots').inputs[1];second.value='2';elements.get('slots').handlers.change({target:second});
-    assert.equal(vm.runInContext('JSON.stringify(current.slots.map(v=>v.quantity))',context),'[3,2,1,1]');
+    assert.equal(vm.runInContext('JSON.stringify(current.slots.map(v=>v.quantity))',context),'[2,2,2,2]');
     elements.get('chainType').onclick();
   });
   test('optional table search cannot silently filter the primary scheme browser',()=>{

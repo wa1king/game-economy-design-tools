@@ -4,7 +4,7 @@ import {createRanchLevelCatalog} from './ranch-level-catalog.js';
 import {ranchSettingsKey,ranchImportCacheKey} from './ranch-import.js';
 import {ranchBrowserScope,ranchSchemeStep} from './ranch-browser.js';
 import {ranchChainData,renderRanchChain,setupRanchChains} from './ranch-chain.js';
-import {quantityGroup,quantityOptions,estimateRanchWorkRatio} from './ranch-quantity.js';
+import {quantityGroup,quantityOptions,estimateRanchWorkRatio,hasEqualProductQuantities,linkedProductQuantities} from './ranch-quantity.js';
 import {renderOrderItems,setupItemInfo} from './item-info.js';
 import {readChainExcel} from './excel-import.js';
 import {prepareRanch,ranchCapacities,groupMetrics} from './ranch-engine.js';
@@ -29,7 +29,7 @@ const levelCatalog=createRanchLevelCatalog({
 const navigationRequest=globalThis.URLSearchParams?new URLSearchParams(window.location?.search??''):null;
 let navigationApplied=false;
 const representative=g=>groups.find(v=>v.key===groupKey(g))??g;
-const resultFor=(g,detail=false)=>{if(!g)return null;const r=results.get(groupKey(g));return r&&detail?remapRanchResult(r,representative(g),g):r;};
+const resultFor=(g,detail=false)=>{if(!g||!hasEqualProductQuantities(g))return null;const r=results.get(groupKey(g));return r&&detail?remapRanchResult(r,representative(g),g):r;};
 function fingerprint(value){let h=2166136261;for(const c of JSON.stringify(value)){h^=c.charCodeAt(0);h=Math.imul(h,16777619);}return (h>>>0).toString(16);}
 function message(text=''){$('message').textContent=text;$('message').hidden=!text;}
 function persist(){
@@ -82,7 +82,9 @@ async function rebuild(autoRun=false,readOnly=false){
   cacheKey=ranchImportCacheKey(base,level,{cropQuantity:Number($('cropQuantity').value),productQuantity:Number($('productQuantity').value),allowRepeated:$('allowRepeated').checked},capacities);
   $('candidateSummary').textContent='读取已有计算结果…';
   try{const cached=await loadRanchCache(cacheKey);if(token!==buildToken)return;if(cached?.version===1||cached?.version===2){const valid=new Set(groups.map(g=>g.key));results=new Map((cached.results||[]).filter(([key])=>valid.has(key)));failures=new Map((cached.failures||[]).filter(([key])=>valid.has(key)));quantityFits=new Map((cached.quantityFits||[]).filter(([id])=>groups.some(g=>g.id===id)));}}catch{}
-  if(token!==buildToken)return;fitCacheSnapshot=new Map([...quantityFits].map(([id,fit])=>[id,JSON.stringify(fit)]));
+  if(token!==buildToken)return;
+  for(const group of groups)if(!hasEqualProductQuantities(group)){results.delete(group.key);quantityFits.delete(group.id);failures.set(group.key,'相同商品数量不一致，请按目标重新配量。');}
+  fitCacheSnapshot=new Map([...quantityFits].map(([id,fit])=>[id,JSON.stringify(fit)]));
   const missing=base.sources.find(s=>s.level<=level&&!(Number.isSafeInteger(Number(capacities[s.id]))&&Number(capacities[s.id])>0));
   if(missing){$('openSettings').click();message(`请在产能设置填写${missing.name}的实际容量，或重新导入含累计土地的 Excel。`);renderTable();return;}
   viewRevision++;renderSelected();renderTable();if(autoRun)fitQuantities(groups);
@@ -100,7 +102,7 @@ function renderSelected(){
   if(!current){$('slots').innerHTML='';slotSignature='';graphSignature='';for(const id of ['optimal','totalMinutes','complexity','coins'])$(id).textContent='—';renderSchedule(null);$('chainGraph').innerHTML='';$('chainMeta').textContent='';$('quantityRecommendations').hidden=true;$('solveState').textContent='无候选';renderSchemeNavigator();return;}
   if(signature!==slotSignature){$('slots').innerHTML=current.slots.map((v,i)=>{const p=model.by.get(v.id);return `<article class="slot"><div class="slot-top"><b>动物 ${letters[i]}</b><span>${animals[i]}</span></div><strong class="slot-product">${renderOrderItems({items:[v]},itemInfo.products)}</strong><label class="slot-quantity">交付数量<input type="number" min="1" max="1000" step="1" data-quantity="${i}" aria-label="动物${letters[i]}交付数量" value="${v.quantity}" ${busy?'disabled':''}></label><div class="slot-info"><span>${esc(p.buildingName)} · Lv ${p.level}</span><span>单步 ${fmt(p.stepMinutes)}分 · 复杂度 ${model.chains.get(p.id).size}</span></div></article>`;}).join('');slotSignature=signature;}
   const m=metrics(current),r=resultFor(current,true),error=failures.get(groupKey(current));$('totalMinutes').textContent=fmt(m.totalMinutes);$('complexity').textContent=fmt(m.complexity,0);$('coins').textContent=fmt(m.coinValue);$('coinNote').textContent=m.coinValue==null?'存在未导入金币单价的商品':'数量 × 导入金币单价 · 非Token奖励';
-  $('optimalLabel').textContent=r&&!r.proven?'四单可行完工时间':'四单联合优化时间';$('optimal').textContent=r?fmt(r.proven?r.optimalMinutes:r.feasibleMinutes):'—';$('optimalNote').textContent=r?(r.proven?'已证明最优 · 四单全部备齐':`最优时间范围 ${fmt(r.lowerMinutes)}～${fmt(r.feasibleMinutes)}分`):'空仓 · 尚未排产';$('solveState').textContent=error?'计算失败':r?(r.proven?'已证明最优':'待证明最优'):busy?'计算中':'待计算';$('solveState').className='badge'+(error||r&&!r.proven?' warn':'');renderSchedule(r);const graph=ranchChainData(model,current,level),nextGraphSignature=JSON.stringify([graphOverview,graph.nodes,graph.edges]);if(nextGraphSignature!==graphSignature){$('chainGraph').innerHTML=renderRanchChain(graph,{overview:graphOverview});setupRanchChains($('chainGraph'));graphSignature=nextGraphSignature;}$('chainMeta').textContent=`${graph.nodes.length} 种商品 · ${graph.edges.length} 条配方关系`;renderRecommendations();renderQuantityControls();renderSchemeNavigator();
+  $('optimalLabel').textContent=r&&!r.proven?'四单可行完工时间':'四单联合优化时间';$('optimal').textContent=r?fmt(r.proven?r.optimalMinutes:r.feasibleMinutes):'—';$('optimalNote').textContent=r?(r.proven?'已证明最优 · 四单全部备齐':`最优时间范围 ${fmt(r.lowerMinutes)}～${fmt(r.feasibleMinutes)}分`):'空仓 · 尚未排产';$('solveState').textContent=!hasEqualProductQuantities(current)?'待重新配量':error?'计算失败':r?(r.proven?'已证明最优':'待证明最优'):busy?'计算中':'待计算';$('solveState').className='badge'+(error||r&&!r.proven?' warn':'');renderSchedule(r);const graph=ranchChainData(model,current,level),nextGraphSignature=JSON.stringify([graphOverview,graph.nodes,graph.edges]);if(nextGraphSignature!==graphSignature){$('chainGraph').innerHTML=renderRanchChain(graph,{overview:graphOverview});setupRanchChains($('chainGraph'));graphSignature=nextGraphSignature;}$('chainMeta').textContent=`${graph.nodes.length} 种商品 · ${graph.edges.length} 条配方关系`;renderRecommendations();renderQuantityControls();renderSchemeNavigator();
 }
 function renderSchedule(result){
   if(!result){$('schedule').innerHTML='<div class="placeholder">计算本组后查看建筑时间轴</div>';$('completion').hidden=true;$('scheduleMeta').textContent='A / B / C / D 标识对应动物位的生产任务';return;}
@@ -130,7 +132,7 @@ function entries(){
 function renderTable(){
   levelCatalog.refresh();
   const query=$('search').value.trim().toLowerCase(),list=entries().filter(({g})=>!query||g.slots.some(v=>model.by.get(v.id).name.toLowerCase().includes(query))),maxPage=Math.max(0,Math.ceil(list.length/40)-1);page=Math.min(page,maxPage);$('candidateCount').textContent=fmt(list.length,0)+' 组';
-  const solved=groups.filter(g=>results.has(g.key)).length,proven=groups.filter(g=>results.get(g.key)?.proven),done=proven.length;
+  const solved=groups.filter(g=>resultFor(g)).length,proven=groups.filter(g=>resultFor(g)?.proven),done=proven.length;
   $('candidateSummary').textContent=`本级${busy?'正在计算':'已计算'} ${solved+failures.size} / ${groups.length} 个组合 · 最优 ${done} · 待证明 ${solved-done}${failures.size?' · 失败 '+failures.size:''}`;
   $('progress').value=solved+failures.size;$('progress').max=Math.max(1,groups.length);$('completionCount').textContent=done===groups.length&&done?'全部完成':fmt(done,0)+' / '+fmt(groups.length,0);
   const visibleKeys=new Set(list.map(v=>groupKey(v.g))),visibleProven=proven.filter(g=>visibleKeys.has(g.key));$('batchStats').hidden=!visibleProven.length;
@@ -171,13 +173,14 @@ function quantityComparison(g,r,m){
 }
 function setGroupQuantities(id,quantities,result=null){
   const index=groups.findIndex(g=>g.id===id);if(index<0)throw Error('当前等级中找不到该商品组合。');
-  const old=groups[index],updated=quantityGroup(old,quantities);groups[index]=updated;quantityEdits[id]=[...quantities];
+  const old=groups[index],updated=quantityGroup(old,quantities);if(result&&!hasEqualProductQuantities(updated))throw Error('同一组合内相同商品必须使用相同数量。');groups[index]=updated;quantityEdits[id]=[...quantities];
+  failures.delete(old.key);if(!hasEqualProductQuantities(updated))failures.set(updated.key,'相同商品数量不一致，请按目标重新配量。');
   if(result){results.set(updated.key,result);failures.delete(updated.key);}
   if(current&&(current.id===id||groupKey(current)===old.key))current=updated;
   return updated;
 }
 function renderRecommendations(){
-  const g=current&&representative(current),fit=g&&quantityFits.get(g.id);$('quantityRecommendations').hidden=!fit;
+  const g=current&&representative(current),saved=g&&quantityFits.get(g.id),fit=saved?.recommendations?.some(v=>!hasEqualProductQuantities(v.group))?null:saved;$('quantityRecommendations').hidden=!fit;
   if(!fit)return;
   $('quantitySearchMeta').textContent=fit.error?'本轮配量失败':`对照 ${fit.evaluatedCount??fit.tried} 个数量配置 · ${fit.provenCount} 个排程已证明最优`;
   $('quantityReason').textContent=fit.error??`${fit.reason} 数量采用候选搜索，未证明为全范围最优配量。`;
@@ -208,26 +211,28 @@ function fitQuantities(items){
   worker.onerror=event=>{if(worker!==ownedWorker)return;stop();message(event.message||'配量搜索中断；已完成的配置已保留。');persist();saveCache();updateView();};
   worker.postMessage({mode:'quantity',base,groups:items,level,capacities,options,baselines:Object.fromEntries(items.map(g=>[g.id,resultFor(g)]))});
 }
-function commitSlotInputs(solve=false){
+function commitSlotInputs(solve=false,editedIndex=null){
   if(!current)return null;
-  const inputs=[...$('slots').querySelectorAll('input[data-quantity]')],values=inputs.map(input=>Number(input.value));
+  const inputs=[...$('slots').querySelectorAll('input[data-quantity]')];let values=inputs.map(input=>Number(input.value));
   if(inputs.length!==4)return representative(current);
   if(values.some(n=>!Number.isSafeInteger(n)||n<1||n>1000)){message('四个交付数量需为1至1000的整数。');slotSignature='';renderSelected();return null;}
   if(values.every((n,i)=>n===current.slots[i].quantity))return representative(current);
+  const changed=Number.isInteger(editedIndex)&&editedIndex>=0&&editedIndex<4?editedIndex:values.findIndex((n,i)=>n!==current.slots[i].quantity);
+  values=linkedProductQuantities(current,changed,values[changed]);
   const source=representative(current),used=new Set(),q=source.slots.map(v=>{const i=current.slots.findIndex((x,j)=>!used.has(j)&&x.id===v.id&&x.quantity===v.quantity);used.add(i);return values[i];});
   stop();const updated=setGroupQuantities(source.id,q);persist();saveCache();updateView();if(solve)fitQuantities([updated]);return updated;
 }
-function applyManualQuantity(event){if(event.target.dataset.quantity==null)return;clearTimeout(manualTimer);commitSlotInputs();}
+function applyManualQuantity(event){if(event.target.dataset.quantity==null)return;clearTimeout(manualTimer);commitSlotInputs(false,Number(event.target.dataset.quantity));}
 function resetQuantityGroups(items){
   stop();for(const g of items){setGroupQuantities(g.id,g.initialQuantities);delete quantityEdits[g.id];quantityFits.delete(g.id);}persist();saveCache();updateView();
 }
 $('fitOne').onclick=()=>{const g=commitSlotInputs(false);if(g)fitQuantities([g]);};
 $('fitFiltered').onclick=()=>{const keys=new Set(viewRows.map(groupKey));fitQuantities(groups.filter(g=>keys.has(g.key)));};
 $('slots').addEventListener('change',applyManualQuantity);
-$('slots').addEventListener('input',event=>{if(event.target.dataset.quantity==null)return;clearTimeout(manualTimer);const token=buildToken;$('solveState').textContent='数量待计算';$('optimal').textContent='—';manualTimer=setTimeout(()=>{if(token===buildToken)commitSlotInputs();},450);});
+$('slots').addEventListener('input',event=>{if(event.target.dataset.quantity==null)return;clearTimeout(manualTimer);const token=buildToken,index=Number(event.target.dataset.quantity);$('solveState').textContent='数量待计算';$('optimal').textContent='—';manualTimer=setTimeout(()=>{if(token===buildToken)commitSlotInputs(false,index);},450);});
 $('resetOneQuantity').onclick=()=>current&&resetQuantityGroups([representative(current)]);
 $('resetLevelQuantities').onclick=()=>resetQuantityGroups([...groups]);
-$('recommendationCards').onclick=event=>{const button=event.target.closest('[data-recommendation]');if(!button||!current)return;const g=representative(current),candidate=quantityFits.get(g.id)?.recommendations[Number(button.dataset.recommendation)];if(!candidate)return;stop();setGroupQuantities(g.id,candidate.group.slots.map(v=>v.quantity),candidate.result);persist();saveCache();updateView();};
+$('recommendationCards').onclick=event=>{const button=event.target.closest('[data-recommendation]');if(!button||!current)return;const g=representative(current),candidate=quantityFits.get(g.id)?.recommendations[Number(button.dataset.recommendation)];if(!candidate||!hasEqualProductQuantities(candidate.group))return;stop();setGroupQuantities(g.id,candidate.group.slots.map(v=>v.quantity),candidate.result);persist();saveCache();updateView();};
 for(const id of ['targetHours','targetTolerance','targetWork','fitCropMax','fitProductMax','quantityBudget'])$(id).onchange=()=>{persist();viewRevision++;renderTable();renderRecommendations();};
 $('importButton').onclick=$('importEmpty').onclick=()=>$('importFile').click();
 $('importFile').onchange=async()=>{

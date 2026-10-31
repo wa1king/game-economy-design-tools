@@ -106,8 +106,23 @@ function bounds(tasks,edges,caps){
   let lower=Math.max(...tasks.map((t,i)=>starts[i]+t.duration));const resources=new Map();
   tasks.forEach((t,i)=>{if(!resources.has(t.resource))resources.set(t.resource,[]);resources.get(t.resource).push(i);});
   for(const [r,members] of resources){const cap=caps[r];if(members.length<=cap)continue;
-    for(const release of new Set(members.map(i=>starts[i]))){const relevant=members.filter(i=>starts[i]>=release);
-      for(const tail of new Set(relevant.map(i=>tails[i]))){const work=relevant.reduce((s,i)=>s+(tails[i]>=tail?tasks[i].duration:0),0);lower=Math.max(lower,release+Math.ceil(work/cap)+tail);}}
+    // Sweep releases once. Each suffix of the tail buckets is exactly the
+    // same release/tail rectangle as the energy bound, without rescanning jobs.
+    const ordered=[...members].sort((a,b)=>starts[b]-starts[a]);
+    const tailValues=[...new Set(members.map(i=>tails[i]))].sort((a,b)=>b-a),buckets=new Map();
+    for(let at=0;at<ordered.length;){const release=starts[ordered[at]];
+      do{const i=ordered[at++],tail=tails[i],duration=tasks[i].duration;
+        const bucket=buckets.get(tail)||{work:0,count:0,shortest:Infinity};
+        bucket.work+=duration;bucket.count++;bucket.shortest=Math.min(bucket.shortest,duration);buckets.set(tail,bucket);
+      }while(at<ordered.length&&starts[ordered[at]]===release);
+      let work=0,count=0,shortest=Infinity;
+      for(const tail of tailValues){const bucket=buckets.get(tail);if(!bucket)continue;
+        work+=bucket.work;count+=bucket.count;shortest=Math.min(shortest,bucket.shortest);
+        // Tasks are indivisible: on cap machines at least one machine must
+        // execute ceil(count/cap) tasks, each at least shortest time long.
+        lower=Math.max(lower,release+Math.max(Math.ceil(work/cap),Math.ceil(count/cap)*shortest)+tail);
+      }
+    }
   }
   return {lower,starts,tails,ins,outs,resources};
 }
@@ -144,15 +159,25 @@ function feasible(tasks,b,caps){
       for(const j of b.outs[chosen])if(!--degree[j])ready.add(j);
     }
     const span=Math.max(...ends);if(!best||span<best.span)best={span,starts};
+    // Matching a valid lower bound certifies optimality. Other dispatch
+    // priorities cannot improve it and need not be evaluated.
+    if(best.span===b.lower)break;
   }
   return best;
 }
 function conflict(tasks,b,caps){
   let best=null;
   for(const [r,members] of b.resources){const cap=caps[r];if(members.length<=cap)continue;
-    for(const time of [...new Set(members.map(i=>b.starts[i]))].sort((a,b)=>a-b)){
-      const active=members.filter(i=>b.starts[i]<=time&&time<b.starts[i]+tasks[i].duration);
-      if(active.length<=cap)continue;active.sort((i,j)=>b.tails[j]-b.tails[i]||tasks[j].duration-tasks[i].duration||i-j);
+    const events=new Map();for(const i of members){const start=b.starts[i],end=start+tasks[i].duration;
+      if(!events.has(start))events.set(start,{add:[],remove:[]});events.get(start).add.push(i);
+      if(!events.has(end))events.set(end,{add:[],remove:[]});events.get(end).remove.push(i);
+    }
+    const running=new Set();
+    for(const [time,event] of [...events].sort((a,b)=>a[0]-b[0])){
+      // Half-open intervals: ending tasks release their machine before starts.
+      for(const i of event.remove)running.delete(i);for(const i of event.add)running.add(i);
+      if(running.size<=cap)continue;
+      const active=[...running].sort((i,j)=>b.tails[j]-b.tails[i]||tasks[j].duration-tasks[i].duration||i-j);
       const clique=active.slice(0,cap+1),priority=[cap,-Math.max(...clique.map(i=>b.tails[i])),time];
       if(!best||compare(priority,best.priority)<0)best={clique,priority};break;
     }
@@ -177,7 +202,9 @@ export function solveRanchGroup(model,group,level,capacities,{timeLimitMs=2000,n
 }
 export function solveProductionDemand(model,items,level,capacities,{timeLimitMs=2000,nodeLimit=10000}={}){
   const metrics=productionDemandMetrics(model,items,level),{tasks,edges,roots,scale}=expandProductionTasks(model,items,level,capacities),b=bounds(tasks,edges,capacities),heap=new Heap(),seen=new Set();
-  const begin=performance.now();let best=feasible(tasks,b,capacities),nodes=0,truncatedLower=null;
+  // If the precedence-only earliest schedule already fits every resource,
+  // its critical-path time is both achievable and a lower bound.
+  const begin=performance.now();let best=!conflict(tasks,b,capacities)?{span:Math.max(...tasks.map((t,i)=>b.starts[i]+t.duration)),starts:b.starts}:feasible(tasks,b,capacities),nodes=0,truncatedLower=null;
   heap.push({edges,b});seen.add(edges.map(v=>v.join(':')).sort().join('|'));
   search:while(heap.a.length&&heap.a[0].b.lower<best.span){
     if(performance.now()-begin>=timeLimitMs||nodes>=nodeLimit)break;

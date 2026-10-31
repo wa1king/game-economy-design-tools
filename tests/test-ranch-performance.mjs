@@ -34,6 +34,6 @@ test('ranch UI offers goal-driven calculation without a current-quantity mode',(
 });
 
 test('measured schedule feedback finds a nearby integer quantity missed by the resource-bound predictor',()=>{
-  const b={...base,products:[product(1,0,35),product(2,1,60,[[1,1]])]},m=prepareRanch(b),g=quantityGroup(group,[1,1,1,1]),fit=fitRanchQuantities(m,g,1,{0:30,1:1},{targetMinutes:360,toleranceMinutes:30,targetWorkMinutes:1000,timeLimitMs:2000});
+  const b={...base,products:[product(1,0,35),...[2,3,4,5].map(id=>product(id,1,60,[[1,1]]))]},m=prepareRanch(b),g={id:'distinct',slots:[2,3,4,5].map(id=>({id,quantity:1}))},fit=fitRanchQuantities(m,g,1,{0:30,1:1},{targetMinutes:360,toleranceMinutes:30,targetWorkMinutes:1000,timeLimitMs:2000});
   assert.equal(fit.within,true);assert.equal(fit.recommendations[0].result.optimalMinutes,335);assert.equal(fit.recommendations[0].group.slots.reduce((n,v)=>n+v.quantity,0),5);
 });

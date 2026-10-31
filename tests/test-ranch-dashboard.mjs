@@ -4,7 +4,7 @@ import vm from 'node:vm';
 import {ranchDashboardRows,ranchDashboardSummary,ranchDashboardTarget,renderRanchBoxPlot,renderRanchMetricTrend,renderRanchHistogram,renderRanchDistributionEmpty,ranchDistributionCSV,ranchLevelLink,formatMinutes} from '../orders/ranch-distribution.js';
 
 let checks=0;const test=(name,fn)=>{fn();checks++;console.log('PASS '+name);};
-const group=(key,types)=>({key,id:key,types,slots:[{id:1,quantity:1}]}),plan=(level,groups)=>({level,groups,results:new Map(),failures:new Map(),work:new Map(groups.map((g,i)=>[g.key,100+i*10])),metrics:new Map(groups.map((g,i)=>[g.key,{totalMinutes:100+i*10,complexity:4+i,coinValue:20+i*5}])),capacityError:null});
+const group=(key,types)=>({key,id:key,types,slots:Array.from({length:4},()=>({id:1,quantity:1}))}),plan=(level,groups)=>({level,groups,results:new Map(),failures:new Map(),work:new Map(groups.map((g,i)=>[g.key,100+i*10])),metrics:new Map(groups.map((g,i)=>[g.key,{totalMinutes:100+i*10,complexity:4+i,coinValue:20+i*5}])),capacityError:null});
 const p1=plan(1,[group('a',['building']),group('b',['chain']),group('both',['building','chain']),group('pending',['building']),group('failed',['chain'])]),p2=plan(2,[group('c',['building']),group('d',['chain'])]);
 p1.results.set('a',{proven:true,optimalMinutes:120});p1.results.set('b',{proven:false,optimalMinutes:null,lowerMinutes:80,feasibleMinutes:140});p1.results.set('both',{proven:true,optimalMinutes:150});p1.failures.set('failed','test');p1.metrics.get('pending').coinValue=null;
 p2.results.set('c',{proven:true,optimalMinutes:240});p2.results.set('d',{proven:true,optimalMinutes:270});

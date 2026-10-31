@@ -4,13 +4,13 @@ import {loadRanchWorkspace,saveRanchTargets,readRanchTarget,calculateRanchWorksp
 import {mergeRanchCacheValue} from '../orders/ranch-cache.js';
 import {ranchSettingsKey} from '../orders/ranch-import.js';
 import {prepareRanch,solveRanchGroup,groupMetrics} from '../orders/ranch-engine.js';
-import {fitRanchQuantities,quantityGroup} from '../orders/ranch-quantity.js';
+import {fitRanchQuantities,quantityGroup,QUANTITY_SEARCH_VERSION,hasEqualProductQuantities} from '../orders/ranch-quantity.js';
 import {ranchDistributionRows} from '../orders/ranch-distribution.js';
 
 const product=(id,buildingId,time,level=1,inputs=[])=>({id,name:'测试商品'+id,buildingId,buildingName:'来源'+buildingId,stepMinutes:time,level,isCrop:buildingId===0,analysisBatchYield:1,coproducts:[],inputs:inputs.map(([id,quantity])=>({id,quantity})),coinValue:id});
 const simpleBase={maxLevel:2,products:[product(1,10,10)],sources:[{id:10,name:'工坊',level:1}]};
 const cropBase={maxLevel:2,products:[product(1,0,2),product(2,10,10,2,[[1,1]])],sources:[{id:0,name:'农田',level:1},{id:10,name:'工坊',level:2}],landsByLevel:{1:6,2:6}};
-const target={targetHours:'1',targetTolerance:'0',targetWork:'60',fitCropMax:'3',fitProductMax:'3',quantityBudget:'2500'};
+const target={targetHours:'1.3333333333333333',targetTolerance:'0',targetWork:'80',fitCropMax:'3',fitProductMax:'3',quantityBudget:'2500'};
 const copy=value=>structuredClone(value);
 const flush=async()=>{for(let i=0;i<15;i++)await Promise.resolve();};
 
@@ -33,9 +33,9 @@ function harness({base=simpleBase,settings={},automatic=true,source=true}={}){
 }
 
 test('workspace load uses imported source, existing quantities and cache without solving or writing',async()=>{
-  const h=harness({settings:{level:2,quantityTargets:{...target,targetHours:'1.50'},browser:{type:'building',buildingId:10}}}),first=await h.load(),group=first.plans[1].groups[0],edited=quantityGroup(group,[2,1,1,1]),result=solveRanchGroup(first.model,edited,2,first.plans[1].capacities);
-  h.memory.set(h.storageKey,JSON.stringify({...h.settings(),quantityEdits:{2:{[group.id]:[2,1,1,1]}}}));h.cache.set(first.plans[1].cacheKey,{version:2,results:[[edited.key,result]],failures:[],quantityFits:[]});const before=copy([...h.memory]),ws=await h.load();
-  assert.equal(ws.filename,'合成测试.xlsx');assert.equal(ws.plans.length,2);assert.deepEqual(ws.plans[1].groups[0].slots.map(s=>s.quantity),[2,1,1,1]);assert.equal(ws.plans[1].results.get(edited.key).optimalMinutes,50);assert.equal(ws.plans[1].work.get(edited.key),50);assert.equal(ws.plans[1].metrics.get(edited.key).coinValue,5);assert.equal(readRanchTarget(ws.settings,2).targetHours,'1.50');assert.deepEqual([...h.memory],before);assert.equal(h.workers.length,0);assert.equal(h.writes.length,0);assert.equal(await harness({source:false}).load(),null);
+  const h=harness({settings:{level:2,quantityTargets:{...target,targetHours:'1.50'},browser:{type:'building',buildingId:10}}}),first=await h.load(),group=first.plans[1].groups[0],edited=quantityGroup(group,[2,2,2,2]),result=solveRanchGroup(first.model,edited,2,first.plans[1].capacities);
+  h.memory.set(h.storageKey,JSON.stringify({...h.settings(),quantityEdits:{2:{[group.id]:[2,2,2,2]}}}));h.cache.set(first.plans[1].cacheKey,{version:2,results:[[edited.key,result]],failures:[],quantityFits:[]});const before=copy([...h.memory]),ws=await h.load();
+  assert.equal(ws.filename,'合成测试.xlsx');assert.equal(ws.plans.length,2);assert.deepEqual(ws.plans[1].groups[0].slots.map(s=>s.quantity),[2,2,2,2]);assert.equal(ws.plans[1].results.get(edited.key).optimalMinutes,80);assert.equal(ws.plans[1].work.get(edited.key),80);assert.equal(ws.plans[1].metrics.get(edited.key).coinValue,8);assert.equal(readRanchTarget(ws.settings,2).targetHours,'1.50');assert.deepEqual([...h.memory],before);assert.equal(h.workers.length,0);assert.equal(h.writes.length,0);assert.equal(await harness({source:false}).load(),null);
 });
 
 test('saving target cells is atomic, retains raw strings and merges unrelated changes from another page',async()=>{
@@ -57,13 +57,13 @@ test('quantity mode applies real fit recommendations under stable group IDs and 
   const h=harness({settings:{quantityTargetsByLevel:{1:target,2:target},browser:{groupId:'keep'}}}),ws=await h.load(),original=ws.plans.map(plan=>({id:plan.groups[0].id,key:plan.groups[0].key}));
   const report=await calculateRanchWorkspace(ws,{mode:'quantity'});assert.equal(report.fitted,2);assert.equal(report.scheduled,0,'explicit work target does not need baseline');assert(h.messages.every(message=>message.mode==='quantity'));
   for(const [i,plan]of ws.plans.entries()){
-    const group=plan.groups[0],fit=plan.quantityFits.get(group.id);assert.equal(group.id,original[i].id);assert.notEqual(group.key,original[i].key);assert.equal(group.slots.reduce((n,s)=>n+s.quantity,0),6);assert(ranchFitIsCurrent(fit,group,fit.options));assert.equal(plan.results.get(group.key).optimalMinutes,60);assert.equal(plan.work.get(group.key),60);assert.equal(plan.metrics.get(group.key).coinValue,6);assert.deepEqual(h.settings().quantityEdits[plan.level][group.id],group.slots.map(s=>s.quantity));assert(h.cache.get(plan.cacheKey).results.some(([key])=>key===group.key));assert(h.cache.get(plan.cacheKey).quantityFits.some(([key])=>key===group.id));
+    const group=plan.groups[0],fit=plan.quantityFits.get(group.id);assert.equal(group.id,original[i].id);assert.notEqual(group.key,original[i].key);assert.equal(group.slots.reduce((n,s)=>n+s.quantity,0),8);assert(ranchFitIsCurrent(fit,group,fit.options));assert.equal(plan.results.get(group.key).optimalMinutes,80);assert.equal(plan.work.get(group.key),80);assert.equal(plan.metrics.get(group.key).coinValue,8);assert.deepEqual(h.settings().quantityEdits[plan.level][group.id],group.slots.map(s=>s.quantity));assert(h.cache.get(plan.cacheKey).results.some(([key])=>key===group.key));assert(h.cache.get(plan.cacheKey).quantityFits.some(([key])=>key===group.id));
   }
-  assert.deepEqual(h.settings().browser,{groupId:'keep'});assert(ranchDistributionRows(ws.plans,'building').every(row=>row.work.mean===60&&row.optimized.mean===60));const restored=await h.load();assert(restored.plans.every(plan=>plan.work.get(plan.groups[0].key)===60));const again=await calculateRanchWorkspace(restored,{mode:'quantity'});assert.equal(again.fitted,0);assert.equal(again.skipped,2);
+  assert.deepEqual(h.settings().browser,{groupId:'keep'});assert(ranchDistributionRows(ws.plans,'building').every(row=>row.work.mean===80&&row.optimized.mean===80));const restored=await h.load();assert(restored.plans.every(plan=>plan.work.get(plan.groups[0].key)===80));const again=await calculateRanchWorkspace(restored,{mode:'quantity'});assert.equal(again.fitted,0);assert.equal(again.skipped,2);
 });
 
 test('blank automatic work target estimates a ratio without scheduling arbitrary starting quantities',async()=>{
-  const auto={...target,targetTolerance:'10',targetWork:''},h=harness({base:cropBase,settings:{cropQuantity:1,quantityTargetsByLevel:{2:auto}}}),ws=await h.load();assert.equal(ws.plans[0].groups.length,0);assert.equal(ranchAutoWorkTarget(ws,ws.plans[1]),72);
+  const auto={...target,targetHours:'1',targetTolerance:'10',targetWork:''},h=harness({base:cropBase,settings:{cropQuantity:1,quantityTargetsByLevel:{2:auto}}}),ws=await h.load();assert.equal(ws.plans[0].groups.length,0);assert.equal(ranchAutoWorkTarget(ws,ws.plans[1]),72);
   const report=await calculateRanchWorkspace(ws,{mode:'quantity'});assert.equal(report.scheduled,0);assert.equal(report.fitted,1);assert.equal(h.messages.length,1);assert.equal(h.messages[0].mode,'quantity');assert.equal(h.messages[0].options.targetWorkMinutes,72);assert.equal(h.settings().quantityTargetsByLevel[2].targetWork,'');assert.equal(h.settings().workRatios[JSON.stringify([2,ws.plans[1].capacities])],1.2);
   const restored=await h.load();assert.equal(ranchAutoWorkTarget(restored,restored.plans[1]),72);assert.equal(restored.plans[1].work.get(restored.plans[1].groups[0].key),groupMetrics(restored.model,restored.plans[1].groups[0],2).totalMinutes);
 });
@@ -103,16 +103,44 @@ test('equivalent fits are reused across levels even when an unused workshop unlo
 });
 test('changing a goal prevents cross-level reuse of an otherwise identical group',async()=>{
   const h=harness({settings:{quantityTargetsByLevel:{1:target,2:{...target,targetHours:'2',targetWork:'120'}}}}),ws=await h.load(),report=await calculateRanchWorkspace(ws);
-  assert.equal(report.reused,0);assert.equal(h.messages.length,2);assert.equal(h.messages[0].options.targetMinutes,60);assert.equal(h.messages[1].options.targetMinutes,120);
+  assert.equal(report.reused,0);assert.equal(h.messages.length,2);assert.equal(h.messages[0].options.targetMinutes,80);assert.equal(h.messages[1].options.targetMinutes,120);
+  assert.equal(h.workers.length,1,'retain the same prepared worker and verified demand cache across levels');assert(h.workers[0].terminated,'release it after the full batch completes');
+});
+
+test('a delayed message from an earlier grade cannot enter the next grade on a retained worker',async()=>{
+  const h=harness({automatic:false,settings:{quantityTargetsByLevel:{1:target,2:{...target,targetHours:'2',targetWork:'120'}}}}),ws=await h.load(),pending=calculateRanchWorkspace(ws);await flush();
+  const worker=h.workers[0],first=worker.data;
+  worker.emit({type:'done',requestId:first.requestId});await flush();
+  assert.equal(h.workers.length,1);assert.equal(worker.data.level,2);assert.notEqual(worker.data.requestId,first.requestId);
+  worker.emit({type:'groupError',requestId:first.requestId,id:first.groups[0].id,message:'late stale error'});
+  assert.equal(ws.plans[1].quantityErrors.size,0);
+  worker.emit({type:'done',requestId:worker.data.requestId});await pending;assert(worker.terminated);
 });
 test('pausing target fitting flushes pending quantity edits and their verified schedule together',async()=>{
   const h=harness({base:{...simpleBase,maxLevel:1},settings:{quantityTargetsByLevel:{1:target}},automatic:false}),ws=await h.load(),controller=new AbortController(),pending=calculateRanchWorkspace(ws,{signal:controller.signal});await flush();
-  const worker=h.workers[0],g=worker.data.groups[0],updated=quantityGroup(g,[2,2,1,1]),result=solveRanchGroup(ws.model,updated,1,ws.plans[0].capacities),fit={options:worker.data.options,recommendations:[{group:updated,result}]};
+  const worker=h.workers[0],g=worker.data.groups[0],updated=quantityGroup(g,[2,2,2,2]),result=solveRanchGroup(ws.model,updated,1,ws.plans[0].capacities),fit={options:worker.data.options,recommendations:[{group:updated,result}]};
   worker.emit({type:'quantityResult',id:g.id,fit,index:1,total:1});controller.abort();await pending;
-  assert.deepEqual(h.settings().quantityEdits[1][g.id],[2,2,1,1]);assert(h.cache.get(ws.plans[0].cacheKey).quantityFits.some(([id])=>id===g.id));assert(h.cache.get(ws.plans[0].cacheKey).results.some(([key])=>key===updated.key));
+  assert.deepEqual(h.settings().quantityEdits[1][g.id],[2,2,2,2]);assert(h.cache.get(ws.plans[0].cacheKey).quantityFits.some(([id])=>id===g.id));assert(h.cache.get(ws.plans[0].cacheKey).results.some(([key])=>key===updated.key));
 });
 
 test('successful cached fits survive algorithm upgrades, while old failed searches can be retried',()=>{
-  const group={key:'same'},options={targetMinutes:360,toleranceMinutes:30,targetWorkMinutes:1000,cropMax:42,productMax:12,timeLimitMs:2500},fit={options,recommendations:[{group}]};
-  assert.equal(ranchFitIsCurrent({...fit,within:true},group,options),true);assert.equal(ranchFitIsCurrent({...fit,within:false},group,options),false);assert.equal(ranchFitIsCurrent({...fit,within:false,searchVersion:2},group,options),true);
+  const group={key:'same',slots:Array.from({length:4},()=>({id:1,quantity:1}))},options={targetMinutes:360,toleranceMinutes:30,targetWorkMinutes:1000,cropMax:42,productMax:12,timeLimitMs:2500},fit={options,recommendations:[{group}]};
+  assert.equal(ranchFitIsCurrent({...fit,within:true},group,options),true);assert.equal(ranchFitIsCurrent({...fit,within:false},group,options),false);assert.equal(ranchFitIsCurrent({...fit,within:false,searchVersion:QUANTITY_SEARCH_VERSION},group,options),true);
+});
+
+test('legacy unequal copies retain user inputs but cannot remain valid cached fits or results',async()=>{
+  const h=harness(),first=await h.load(),plan=first.plans[1],g=plan.groups[0],old=quantityGroup(g,[2,1,1,1]),result=solveRanchGroup(first.model,old,2,plan.capacities);
+  h.memory.set(h.storageKey,JSON.stringify({quantityEdits:{2:{[g.id]:[2,1,1,1]}}}));
+  const fit={within:true,searchVersion:QUANTITY_SEARCH_VERSION,options:{},recommendations:[{group:old,result}]};h.cache.set(plan.cacheKey,{version:2,results:[[old.key,result]],quantityFits:[[g.id,fit]],failures:[]});
+  const saved=h.memory.get(h.storageKey),ws=await h.load(),loaded=ws.plans[1];
+  assert.deepEqual(loaded.groups[0].slots.map(v=>v.quantity),[2,1,1,1]);assert.equal(h.memory.get(h.storageKey),saved);assert.equal(h.writes.length,0);assert.equal(h.workers.length,0);
+  assert(!loaded.results.has(old.key));assert(!loaded.quantityFits.has(g.id));assert.match(loaded.failures.get(old.key),/相同商品数量不一致/);assert.equal(ranchDistributionRows([loaded],'building')[0].proven,0);
+});
+
+test('old successful recommendations with unequal copies cannot bypass the new quantity rule',()=>{
+  const g=quantityGroup({id:'same',slots:Array.from({length:4},()=>({id:1,quantity:1}))},[1,1,1,1]),bad=quantityGroup(g,[2,1,1,1]),options={targetMinutes:360,toleranceMinutes:30,targetWorkMinutes:1000,cropMax:42,productMax:12,timeLimitMs:2500};
+  assert(hasEqualProductQuantities(g));assert(!hasEqualProductQuantities(bad));
+  assert.equal(ranchFitIsCurrent({within:true,options,recommendations:[{group:bad}]},bad,options),false);
+  assert.equal(ranchFitIsCurrent({within:true,options,recommendations:[{group:g},{group:bad}]},g,options),false);
+  assert.equal(ranchFitIsCurrent({within:true,options,recommendations:[{group:g}]},g,options),true);
 });

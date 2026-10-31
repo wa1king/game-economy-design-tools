@@ -1,7 +1,7 @@
 import {DEFAULT_CROP_QUANTITY} from './order-quantity-rules.js';
 import {prepareRanch,ranchCapacities,solveRanchGroup} from './ranch-engine.js';
 import {generateRanchLevelGroups} from './ranch-catalog.js';
-import {quantityGroup} from './ranch-quantity.js';
+import {quantityGroup,hasEqualProductQuantities} from './ranch-quantity.js';
 
 export function ranchSettingsKey(base){
   let h=2166136261;
@@ -42,17 +42,21 @@ export async function calculateRanchImport(payload,{settings={},onProgress=()=>{
   }
   const cache=new Map(),total=plans.reduce((s,l)=>s+l.groups.length,0);let completed=0;
   for(const plan of plans){
-    const results=[];
+    const results=[],failures=[];
     for(const g of plan.groups){
       const signature=JSON.stringify([g.key,plan.capacities]);
       // Imported optimality flags are never trusted. Recompute using this exact
       // source, migrated quantities and capacities, then validate in the solver.
-      if(!cache.has(signature))cache.set(signature,solve(model,g,plan.level,plan.capacities,{timeLimitMs:2000,nodeLimit:10000}));
-      results.push([g.key,cache.get(signature)]);completed++;
+      if(!hasEqualProductQuantities(g))failures.push([g.key,'相同商品数量不一致，待重新配量']);
+      else{
+        if(!cache.has(signature))cache.set(signature,solve(model,g,plan.level,plan.capacities,{timeLimitMs:2000,nodeLimit:10000}));
+        results.push([g.key,cache.get(signature)]);
+      }
+      completed++;
       if(completed%20===0){onProgress({completed,total,level:plan.level});await new Promise(resolve=>setTimeout(resolve,0));}
     }
     plan.cacheKey=ranchImportCacheKey(base,plan.level,rules,plan.capacities);
-    plan.cache={version:2,results,failures:[],quantityFits:[]};
+    plan.cache={version:2,results,failures,quantityFits:[]};
   }
   onProgress({completed,total,level:base.maxLevel});
   const requested=Number(settings.level??bundle.level??20);

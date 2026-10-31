@@ -22,7 +22,12 @@ test('exports proven times, bounded results, errors, missing prices and edited q
   let row=ranchExportSheets(ws)[1].rows[1];assert.equal(row[15],null);assert.equal(row[16],25);assert.equal(row[17],20);assert.equal(row[18],'待证明最优');
   plan.results.set(g.key,{proven:true,optimalMinutes:20,feasibleMinutes:20,lowerMinutes:20});assert.equal(ranchExportSheets(ws)[1].rows[1][15],20);
   plan.results.clear();plan.failures.set(g.key,'缺少产能');assert.match(ranchExportSheets(ws)[1].rows[1][18],/缺少产能/);
-  storage.setItem(ranchSettingsKey(base),JSON.stringify({quantityEdits:{2:{[g.id]:[2,3,4,5]}}}));const edited=await workspace();row=ranchExportSheets(edited)[1].rows[1];assert.deepEqual([row[5],row[8],row[11],row[14]],[2,3,4,5]);assert.equal(row[19],98);
+  storage.setItem(ranchSettingsKey(base),JSON.stringify({quantityEdits:{2:{[g.id]:[2,3,4,5]}}}));const edited=await workspace(),editedPlan=edited.plans[1],editedGroup=editedPlan.groups[0];
+  // An old proven cache cannot validate quantities that violate the new rule.
+  editedPlan.results.set(editedGroup.key,{proven:true,optimalMinutes:70,feasibleMinutes:70,lowerMinutes:70});
+  row=ranchExportSheets(edited)[1].rows[1];assert.deepEqual([row[5],row[8],row[11],row[14]],[2,3,4,5]);assert.equal(row[19],98);
+  assert.deepEqual(row.slice(15,18),[null,null,null]);assert.equal(row[18],'相同商品数量不一致，待重新配量');assert.deepEqual(editedGroup.slots.map(v=>v.quantity),[2,3,4,5]);
+  const summary=ranchExportSheets(edited)[0].rows.find(r=>r[0]===2&&r[1]==='同建筑');assert.equal(summary[3],0);assert.equal(summary[5],1);assert.equal(summary[7],null);
   storage.setItem(ranchSettingsKey(base),'{}');
 });
 test('Excel contains complete numeric rows, frozen/filterable headers, and explicit integer display for work and coins',async()=>{

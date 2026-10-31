@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import {buildRanchDistributionPlans,ranchDistributionRows,summarizeMinutes,renderRanchBoxPlot,renderRanchHistogram,ranchTimeBins,ranchDistributionCSV,formatMinutes,reuseRanchDistributionResult} from '../orders/ranch-distribution.js';
+import {buildRanchDistributionPlans,ranchDistributionRows,ranchDashboardRows,ranchDashboardSummary,summarizeMinutes,renderRanchBoxPlot,renderRanchHistogram,ranchTimeBins,ranchDistributionCSV,formatMinutes,reuseRanchDistributionResult} from '../orders/ranch-distribution.js';
 import {ranchImportCacheKey} from '../orders/ranch-import.js';
 import {prepareRanch,solveRanchGroup} from '../orders/ranch-engine.js';
 import {generateRanchLevelGroups} from '../orders/ranch-catalog.js';
@@ -18,11 +18,19 @@ test('all levels use the shared generator, edited quantities and exact scheme ca
   const edited=plans[2].groups.find(g=>g.id===repeat.id);assert.deepEqual(edited.slots.map(v=>v.quantity),[3,2,1,1]);assert.equal(plans[2].work.get(edited.key),7*(30+10));assert.equal(plans[2].capacities[10],2);assert.equal(plans[1].capacities[0],12);assert.equal(JSON.stringify({base,settings}),before);
 });
 test('unproved times and failures never become zero-time optimal samples',()=>{
-  const p=plans[2],building=p.groups.filter(g=>g.types.includes('building'));
+  const p=plans[2],building=p.groups.filter(g=>g.types.includes('building')&&g.id!==repeat.id);
   p.results.set(building[0].key,{proven:true,optimalMinutes:80});p.results.set(building[1].key,{proven:false,optimalMinutes:null,lowerMinutes:60,feasibleMinutes:120});p.failures.set(building[2].key,'limit');
   const row=ranchDistributionRows(plans).find(r=>r.level===3&&r.type==='building');assert.equal(row.proven,1);assert.equal(row.optimized.mean,80);assert.equal(row.bounded,1);assert.equal(row.failed,1);assert.equal(row.pending,row.total-3);assert.equal(row.work.n,row.total);
   assert.equal(ranchDistributionRows(plans,'chain').length,3);assert.equal(ranchDistributionRows(plans,'chain')[0].optimized.min,null);
 });
+test('historical unequal quantities remain visible but stale schedules never enter current time or target statistics',()=>{
+  const p=buildRanchDistributionPlans(base,settings)[2],g=p.groups.find(g=>g.id===repeat.id);p.groups=[g];
+  p.results.set(g.key,{proven:true,optimalMinutes:360,feasibleMinutes:360,lowerMinutes:360});p.failures.set(g.key,'old failure');
+  const before=JSON.stringify(g),targets={3:{targetHours:'6',targetTolerance:'30',targetWork:'900'}},rows=ranchDashboardRows([p],targets),row=rows.find(r=>r.type==='building'),summary=ranchDashboardSummary([p],targets);
+  assert.equal(row.proven,0);assert.equal(row.bounded,0);assert.equal(row.failed,0);assert.equal(row.pending,1);assert.equal(row.optimized.n,0);assert.equal(row.work.n,1);assert.equal(row.within,0);assert.equal(row.statusGroups[0].state,'pending');
+  assert.equal(summary.proven,0);assert.equal(summary.pending,1);assert.equal(summary.targetedProven,0);assert.equal(summary.within,0);assert.equal(summary.withinShare,null);assert.equal(JSON.stringify(g),before);assert.deepEqual(g.slots.map(v=>v.quantity),[3,2,1,1]);
+});
+
 test('overlapping categories count once within each category and never weight permutations',()=>{
   const p=buildRanchDistributionPlans(base)[2],g=p.groups.find(g=>g.types.includes('chain'));g.types.push('building');
   const rows=ranchDistributionRows([p]);for(const row of rows)assert.equal(row.total,p.groups.filter(g=>g.types.includes(row.type)).length);

@@ -50,9 +50,9 @@ test('certificates validate resource and predecessor constraints',()=>{
  const starts=Array(t.tasks.length);for(const row of r.schedule)starts[row.id]=Math.round(row.start*t.scale);assert(validateRanchSchedule(t.tasks,t.edges,starts,caps));assert.throws(()=>validateRanchSchedule(t.tasks,t.edges,starts.map(()=>0),caps),/原料/);
 });
 test('unfinished exact search returns bounds instead of a false optimum',()=>{
- const ps=[product(1,2,0),product(2,1,3,[[1,1]]),product(3,3,2,[[2,1],[1,1]]),product(4,2,1,[[2,1]]),product(5,1,2,[[3,1],[4,1]])];
- const m=prepareRanch(base(ps)),g=group([5,1,1,1]),caps={0:2,1:1,2:1,3:1};
- const stopped=solveRanchGroup(m,g,20,caps,{timeLimitMs:0});assert.equal(stopped.optimalMinutes,null);assert.equal(stopped.proven,false);assert(stopped.lowerMinutes<=8&&stopped.feasibleMinutes>=8);
- const solved=solveRanchGroup(m,g,20,caps);assert.equal(solved.optimalMinutes,8);assert(solved.nodes>0);
+ const ps=[product(1,2,0),product(2,4,2,[[1,1]]),product(3,2,2,[[2,1]]),product(4,2,1,[[2,1]]),product(5,3,0,[[3,1]])];
+ const m=prepareRanch(base(ps)),g=group([1,2,2,5]),caps={0:1,1:2,2:2};
+ const stopped=solveRanchGroup(m,g,20,caps,{timeLimitMs:0});assert.equal(stopped.optimalMinutes,null);assert.equal(stopped.proven,false);assert.equal(stopped.lowerMinutes,11);assert.equal(stopped.feasibleMinutes,12);
+ const solved=solveRanchGroup(m,g,20,caps);assert.equal(solved.optimalMinutes,12);assert(solved.nodes>0);
 });
 console.log(count+' ranch regression cases passed');

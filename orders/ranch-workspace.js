@@ -4,7 +4,7 @@ import {prepareRanch,groupMetrics} from './ranch-engine.js';
 import {ranchSettingsKey} from './ranch-import.js';
 import {buildRanchDistributionPlans,reuseRanchDistributionResult} from './ranch-distribution.js';
 import {loadRanchCache,mergeRanchCache,mergeRanchCacheValue} from './ranch-cache.js';
-import {quantityGroup,quantityOptions,QUANTITY_SEARCH_VERSION,estimateRanchWorkRatio,ranchQuantityFitKey,reuseRanchQuantityFit} from './ranch-quantity.js';
+import {quantityGroup,quantityOptions,QUANTITY_SEARCH_VERSION,estimateRanchWorkRatio,ranchQuantityFitKey,reuseRanchQuantityFit,hasEqualProductQuantities} from './ranch-quantity.js';
 
 export const RANCH_TARGET_DEFAULTS={targetHours:'6',targetTolerance:'30',targetWork:'',fitCropMax:'42',fitProductMax:'12',quantityBudget:'2500'};
 const targetKeys=Object.keys(RANCH_TARGET_DEFAULTS);
@@ -36,6 +36,9 @@ export async function loadRanchWorkspace(deps={}){
     plan.quantityFits=new Map();plan.quantityErrors=new Map();
     const cache=await services.loadCache(plan.cacheKey);
     if(cache?.version===1||cache?.version===2){plan.results=new Map(cache.results??[]);plan.failures=new Map(cache.failures??[]);plan.quantityFits=new Map(cache.quantityFits??[]);for(const [id,fit] of plan.quantityFits)if(fit.error)plan.quantityErrors.set(id,fit.error);}
+    // Retain historical inputs, but do not count an allocation violating the
+    // current rule as a completed design. Refit it on the next explicit run.
+    for(const group of plan.groups)if(!hasEqualProductQuantities(group)){plan.results.delete(group.key);plan.quantityFits.delete(group.id);plan.failures.set(group.key,'相同商品数量不一致，请按目标重新配量。');}
   }
   return {base,filename:source.filename??base.filename??'加工链路',storageKey,settings,model,plans,services};
 }
@@ -82,7 +85,7 @@ export function ranchAutoWorkTarget(ws,plan,target=readRanchTarget(ws.settings,p
 }
 export function ranchFitIsCurrent(fit,group,options){
   const best=fit?.recommendations?.[0];
-  return Boolean(best&&(fit.within===true||fit.searchVersion===QUANTITY_SEARCH_VERSION)&&best.group.key===group.key&&['targetMinutes','toleranceMinutes','targetWorkMinutes','cropMax','productMax','timeLimitMs'].every(k=>fit.options?.[k]===options[k]));
+  return Boolean(best&&hasEqualProductQuantities(group)&&fit.recommendations.every(v=>hasEqualProductQuantities(v.group))&&(fit.within===true||fit.searchVersion===QUANTITY_SEARCH_VERSION)&&best.group.key===group.key&&['targetMinutes','toleranceMinutes','targetWorkMinutes','cropMax','productMax','timeLimitMs'].every(k=>fit.options?.[k]===options[k]));
 }
 
 // The same worker and verified schedules power all three views. Quantity search
@@ -90,7 +93,7 @@ export function ranchFitIsCurrent(fit,group,options){
 export async function calculateRanchWorkspace(ws,{mode='quantity',signal,onProgress=()=>{},onChange=()=>{}}={}){
   if(!['schedule','quantity'].includes(mode))throw Error('未知计算方式。');
   if(ws.running)throw Error('当前项目正在计算。');
-  ws.running=true;let owned=null,active=null,saveQueue=Promise.resolve(),lastSave=0,saveError=null;
+  ws.running=true;let owned=null,active=null,saveQueue=Promise.resolve(),lastSave=0,saveError=null,requestSequence=0;
   const pendingEdits=new Map(),pendingRatios=new Map();
   const flushQuantities=()=>{
     if(!pendingEdits.size&&!pendingRatios.size)return;
@@ -119,22 +122,24 @@ export async function calculateRanchWorkspace(ws,{mode='quantity',signal,onProgr
     if(i<0||!best)throw Error('配量结果缺少对应组合或数量建议。');
     const previous=plan.groups[i],updated=quantityGroup(previous,best.group.slots.map(v=>v.quantity));
     if(updated.slots.some((v,j)=>v.id!==best.group.slots[j].id)||updated.key!==best.group.key)throw Error('配量结果的商品与当前组合不一致。');
-    plan.groups[i]=updated;plan.results=new Map(mergeRanchCacheValue({results:[...plan.results]},{results:[[updated.key,best.result]]}).results);best.result=plan.results.get(updated.key);fit.within=best.result.lowerMinutes>=options.targetMinutes-options.toleranceMinutes-1e-7&&best.result.feasibleMinutes<=options.targetMinutes+options.toleranceMinutes+1e-7;plan.failures.delete(updated.key);plan.quantityErrors.delete(updated.id);plan.quantityFits.set(updated.id,fit);
+    if(!fit.recommendations.every(v=>hasEqualProductQuantities(v.group)))throw Error('同一组合内相同商品必须使用相同数量。');
+    plan.groups[i]=updated;plan.results.set(updated.key,new Map(mergeRanchCacheValue({results:[[updated.key,plan.results.get(updated.key)]]},{results:[[updated.key,best.result]]}).results).get(updated.key));best.result=plan.results.get(updated.key);fit.within=best.result.lowerMinutes>=options.targetMinutes-options.toleranceMinutes-1e-7&&best.result.feasibleMinutes<=options.targetMinutes+options.toleranceMinutes+1e-7;plan.failures.delete(previous.key);plan.failures.delete(updated.key);plan.quantityErrors.delete(updated.id);plan.quantityFits.set(updated.id,fit);
     const metrics=groupMetrics(ws.model,updated,plan.level);plan.metrics.set(updated.key,metrics);plan.work.set(updated.key,metrics.totalMinutes);
     persistQuantity(plan,updated,fit,options);report.fitted++;if(reused)report.reused++;
     fitReuse.set(ranchQuantityFitKey(ws.model,updated,plan.capacities,options),fit);changed(plan);
   };
   const run=(plan,items,phase,options=null)=>new Promise((resolve,reject)=>{
     if(!items.length||signal?.aborted){resolve();return;}
-    const worker=ws.services.workerFactory();owned=worker;let ended=false;
-    const finish=error=>{if(ended)return;ended=true;worker.terminate();if(owned===worker)owned=null;signal?.removeEventListener('abort',abort);error?reject(error):resolve();};
-    const abort=()=>finish();signal?.addEventListener('abort',abort,{once:true});
+    // Keep one prepared model and its certified schedule cache across levels.
+    const worker=owned??=ws.services.workerFactory(),requestId=++requestSequence;let ended=false;
+    const finish=(error,terminate=false)=>{if(ended)return;ended=true;if(error||terminate){worker.terminate();if(owned===worker)owned=null;}signal?.removeEventListener('abort',abort);error?reject(error):resolve();};
+    const abort=()=>finish(null,true);signal?.addEventListener('abort',abort,{once:true});
     worker.onmessage=({data})=>{
-      if(ended||signal?.aborted||owned!==worker)return;
+      if(ended||signal?.aborted||owned!==worker||(data.requestId!=null&&data.requestId!==requestId))return;
       try{
         if(data.type==='result'){
           const g=plan.groups.find(g=>g.key===data.id);if(!g)throw Error('排产结果不属于当前组合。');
-          const merged=mergeRanchCacheValue({results:[...plan.results]},{results:[[g.key,data.result]]});plan.results=new Map(merged.results);plan.failures.delete(g.key);report.scheduled++;
+          const merged=mergeRanchCacheValue({results:[[g.key,plan.results.get(g.key)]]},{results:[[g.key,data.result]]});plan.results.set(g.key,new Map(merged.results).get(g.key));plan.failures.delete(g.key);report.scheduled++;
           if(proven(plan.results.get(g.key)))reuse.set(JSON.stringify([plan.capacities,g.key]),{group:g,result:plan.results.get(g.key)});
           changed(plan);
         }else if(data.type==='quantityResult'){
@@ -150,7 +155,7 @@ export async function calculateRanchWorkspace(ws,{mode='quantity',signal,onProgr
       }catch(error){finish(error);}
     };
     worker.onerror=e=>finish(Error(e.message||'计算中断，已完成结果已保留。'));
-    worker.postMessage(phase==='quantity'?{mode:'quantity',base:ws.base,groups:items,level:plan.level,capacities:plan.capacities,options,baselines:Object.fromEntries(items.map(g=>[g.id,plan.results.get(g.key)]))}:{base:ws.base,groups:items.map(g=>({...g,id:g.key})),level:plan.level,capacities:plan.capacities,timeLimitMs:Number(ws.settings.searchLimit??2000)});
+    try{worker.postMessage(phase==='quantity'?{requestId,mode:'quantity',base:ws.base,groups:items,level:plan.level,capacities:plan.capacities,options,baselines:Object.fromEntries(items.map(g=>[g.id,plan.results.get(g.key)]))}:{requestId,base:ws.base,groups:items.map(g=>({...g,id:g.key})),level:plan.level,capacities:plan.capacities,timeLimitMs:Number(ws.settings.searchLimit??2000)});}catch(error){finish(error);}
   });
   try{
     if(mode==='quantity')for(const p of ws.plans)if(p.groups.length)validateRanchTarget(readRanchTarget(ws.settings,p.level));

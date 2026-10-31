@@ -1,7 +1,7 @@
 import {DEFAULT_CROP_QUANTITY} from './order-quantity-rules.js';
 import {prepareRanch,ranchCapacities,groupMetrics} from './ranch-engine.js';
 import {generateRanchLevelGroups,remapRanchResult} from './ranch-catalog.js';
-import {quantityGroup} from './ranch-quantity.js';
+import {quantityGroup,hasEqualProductQuantities} from './ranch-quantity.js';
 import {ranchImportCacheKey} from './ranch-import.js';
 
 export const ranchTypes=[{id:'building',name:'同建筑',color:'#28795f'},{id:'chain',name:'高级加工链',color:'#a8773b'}];
@@ -39,7 +39,11 @@ export function ranchDistributionRows(plans,type='all'){
   return plans.flatMap(plan=>ranchTypes.filter(t=>type==='all'||t.id===type).map(t=>{
     const groups=plan.groups.filter(g=>g.types.includes(t.id)),work=[],optimized=[];let bounded=0,failed=0;
     for(const g of groups){
-      work.push(plan.work.get(g.key));const r=plan.results.get(g.key);
+      work.push(plan.work.get(g.key));
+      // Preserve historical quantities for review, but an old schedule is not
+      // a current result if repeated products no longer meet the quantity rule.
+      if(!hasEqualProductQuantities(g))continue;
+      const r=plan.results.get(g.key);
       if(r?.proven&&Number.isFinite(r.optimalMinutes)&&r.optimalMinutes>=0)optimized.push(r.optimalMinutes);
       else if(r&&!r.proven)bounded++;
       else if(plan.failures.has(g.key))failed++;
@@ -69,7 +73,7 @@ export function ranchDashboardRows(plans,targets={},type='all'){
       if(Number.isFinite(m?.coinValue)&&m.coinValue>=0)coins.push(m.coinValue);
     }
     const target=ranchDashboardTarget(targets[row.level]),within=target.minutes==null?null:row.optimizedValues.filter(v=>v>=target.lower-1e-8&&v<=target.upper+1e-8).length;
-    const statusGroups=groups.map(g=>{const r=plan.results.get(g.key);return {key:`${plan.level}:${g.key}`,state:r?.proven&&Number.isFinite(r.optimalMinutes)&&r.optimalMinutes>=0?'proven':r&&!r.proven?'bounded':plan.failures.has(g.key)?'failed':'pending'};});
+    const statusGroups=groups.map(g=>{if(!hasEqualProductQuantities(g))return {key:`${plan.level}:${g.key}`,state:'pending'};const r=plan.results.get(g.key);return {key:`${plan.level}:${g.key}`,state:r?.proven&&Number.isFinite(r.optimalMinutes)&&r.optimalMinutes>=0?'proven':r&&!r.proven?'bounded':plan.failures.has(g.key)?'failed':'pending'};});
     return {...row,target,within,withinShare:row.proven&&within!=null?within/row.proven:null,complexity:summarizeMinutes(complexity),coins:summarizeMinutes(coins),missingCoins:groups.length-coins.length,statusGroups};
   });
 }
@@ -86,6 +90,7 @@ export function ranchDashboardSummary(plans,targets={},type='all'){
       if(seen.has(g.key))continue;seen.add(g.key);result.total++;
       const r=plan.results.get(g.key),m=plan.metrics?.get(g.key);
       if(!Number.isFinite(m?.coinValue)||m.coinValue<0)result.missingCoins++;
+      if(!hasEqualProductQuantities(g)){result.pending++;continue;}
       if(r?.proven&&Number.isFinite(r.optimalMinutes)&&r.optimalMinutes>=0){
         result.proven++;
         if(target.minutes!=null){result.targetedProven++;if(r.optimalMinutes>=target.lower-1e-8&&r.optimalMinutes<=target.upper+1e-8)result.within++;}

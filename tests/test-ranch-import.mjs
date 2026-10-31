@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import {prepareRanch,groupMetrics} from '../orders/ranch-engine.js';
+import {prepareRanch,groupMetrics,solveRanchGroup} from '../orders/ranch-engine.js';
 import {generateRanchLevelGroups} from '../orders/ranch-catalog.js';
 import {calculateRanchImport,readRanchResultBundle,ranchImportCacheKey,ranchSettingsKey,canMigrateRanchSettings,backupRanchBeforeImport} from '../orders/ranch-import.js';
 const p=(id,b,inputs=[])=>({id,name:'商品'+id,buildingId:b,buildingName:'建筑'+b,level:b?2:1,isCrop:!b,stepMinutes:5,analysisBatchYield:1,inputs:inputs.map(([id,quantity])=>({id,quantity})),coinValue:id});
@@ -13,6 +13,11 @@ await test('all levels are recalculated and fabricated imported optimality is ig
 await test('matching IDs retain edited quantities, targets and capacities under changed recipes',async()=>{
   const model=prepareRanch(base),g=generateRanchLevelGroups(model,2,payload.rules).groups.find(g=>g.types.includes('chain')),settings={level:2,cropQuantity:7,productQuantity:1,allowRepeated:false,quantityEdits:{2:{[g.id]:[9,2,3,4]}},quantityTargetsByLevel:{2:{targetHours:'6',targetWork:'900'}},capacities:{2:{0:6,10:2}}};
   const result=await calculateRanchImport(payload,{settings}),plan=result.plans[1],actual=plan.groups.find(x=>x.id===g.id),r=plan.cache.results.find(([key])=>key===actual.key)[1];assert.deepEqual(actual.slots.map(v=>v.quantity),[9,2,3,4]);assert.equal(plan.capacities[0],6);assert.equal(plan.capacities[10],2);assert.equal(r.totalMinutes,groupMetrics(model,actual,2).totalMinutes);assert.deepEqual(result.settings.quantityTargetsByLevel,settings.quantityTargetsByLevel);assert.deepEqual(result.settings.quantityEdits,settings.quantityEdits);assert.notEqual(result.settings,settings);
+});
+await test('legacy unequal repeated goods keep their quantities but are not recomputed or accepted as current results',async()=>{
+  const model=prepareRanch(base),g=generateRanchLevelGroups(model,2,payload.rules).groups.find(g=>g.slots.every(v=>v.id===5)),settings={level:2,cropQuantity:7,productQuantity:1,allowRepeated:false,quantityEdits:{2:{[g.id]:[2,3,4,5]}},quantityTargetsByLevel:{2:{targetHours:'6',targetWork:'900'}}},before=JSON.stringify(settings),solved=[],progress=[];
+  const result=await calculateRanchImport(payload,{settings,onProgress:value=>progress.push(value),solve:(model,group,...args)=>{assert.notEqual(group.id,g.id);solved.push(group.id);return solveRanchGroup(model,group,...args);}}),plan=result.plans[1],actual=plan.groups.find(v=>v.id===g.id);
+  assert.deepEqual(actual.slots.map(v=>v.quantity),[2,3,4,5]);assert(!plan.cache.results.some(([key])=>key===actual.key));assert.deepEqual(plan.cache.failures.find(([key])=>key===actual.key),[actual.key,'相同商品数量不一致，待重新配量']);assert(solved.length>0);assert.equal(progress.at(-1).completed,result.total);assert.equal(JSON.stringify(settings),before);assert.deepEqual(result.settings.quantityEdits,settings.quantityEdits);assert.deepEqual(result.settings.quantityTargetsByLevel,settings.quantityTargetsByLevel);
 });
 await test('migration requires the same complete product and source IDs',()=>{
   const changed=structuredClone(base);changed.products[5].name='改名';changed.products[5].inputs[0].quantity=3;changed.products[5].coinValue=99;assert(canMigrateRanchSettings(base,changed));assert.notEqual(ranchSettingsKey(base),ranchSettingsKey(changed));changed.products.pop();assert(!canMigrateRanchSettings(base,changed));assert(!canMigrateRanchSettings(null,base));
