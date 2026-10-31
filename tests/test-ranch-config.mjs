@@ -1,13 +1,15 @@
+import {ranchObjective} from '../orders/ranch-objective.js';
+import {saveRanchObjective} from '../orders/ranch-workspace.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
 import {createConfigClipboard} from '../orders/config-clipboard.js';
 
 const html=fs.readFileSync(new URL('../orders/ranch-config.html',import.meta.url),'utf8'),source=fs.readFileSync(new URL('../orders/ranch-config-app.js',import.meta.url),'utf8');
-const context=vm.createContext({console,AbortController,createConfigClipboard});
+const context=vm.createContext({ranchObjective,saveRanchObjective,console,AbortController,createConfigClipboard});
 vm.runInContext(source.replace(/^import .*;\r?\n/gm,'').replace(/^export /gm,''),context);
 const evaluate=(expression,args={})=>{Object.assign(context,args);return vm.runInContext(expression,context);};
-const columns=evaluate('RANCH_CONFIG_COLUMNS'),defaults={targetHours:'6',targetTolerance:'30',targetWork:'',fitCropMax:'42',fitProductMax:'12',quantityBudget:'2500'};
+const columns=evaluate('RANCH_CONFIG_COLUMNS'),defaults={targetCoins:'300',coinTolerance:'30',targetHours:'6',targetTolerance:'30',targetWork:'',fitCropMax:'42',fitProductMax:'12',quantityBudget:'2500'};
 let checks=0;const test=async(name,fn)=>{await fn();checks++;console.log('PASS '+name);};
 const plan=(level,count=2)=>({level,groups:Array.from({length:count},(_,i)=>({id:'G'+i,key:'L'+level+'G'+i})),results:new Map(),failures:new Map(),capacityError:null});
 
@@ -63,12 +65,12 @@ function createDocument(){
 }
 function setup({empty=false,failLoad=false,holdAfterAbort=false}={}){
   const doc=createDocument(),workspace={base:{maxLevel:3},filename:'synthetic.xlsx',settings:{quantityTargetsByLevel:{1:{targetHours:'6.50'}}},plans:[plan(1,0),plan(2),plan(3)]};let writes=0,loads=0,watch=null,unwatched=false,pending=null;const runs=[];
-  function read(settings,level){return {...defaults,...settings.quantityTargetsByLevel?.[level]};}
+  function read(settings,level){return {...defaults,objective:ranchObjective(settings),...settings.quantityTargetsByLevel?.[level]};}
   function save(ws,cells){
-    const draft=structuredClone(ws.settings);for(const {level,key,value} of cells){const n=Number(value);if(!columns.includes(key)||!Number.isInteger(level)||level<1||level>3)throw Error('无效单元格');if(!(key==='targetWork'&&value==='')&&(!Number.isFinite(n)||(key==='targetTolerance'?n<0:n<=0)))throw Error('需要正数；允许偏差可为 0');if(key.startsWith('fit')&&!Number.isInteger(n))throw Error('数量上限需要整数');((draft.quantityTargetsByLevel??={})[level]??={})[key]=String(value);}
+    const draft=structuredClone(ws.settings);for(const {level,key,value} of cells){const n=Number(value);if(![...columns,'targetCoins','coinTolerance'].includes(key)||!Number.isInteger(level)||level<1||level>3)throw Error('无效单元格');if(!(key==='targetWork'&&value==='')&&(!Number.isFinite(n)||(['targetTolerance','coinTolerance'].includes(key)?n<0:n<=0)))throw Error('需要正数；允许偏差可为 0');if(key.startsWith('fit')&&!Number.isInteger(n))throw Error('数量上限需要整数');((draft.quantityTargetsByLevel??={})[level]??={})[key]=String(value);}
     ws.settings=draft;writes++;watch?.();
   }
-  const api={document:doc,createConfigClipboard,readRanchTarget:read,loadRanchWorkspace:async()=>{loads++;if(failLoad)throw Error('导入配方不完整');return empty?null:workspace;},saveRanchTargets:save,watchRanchWorkspace:callback=>{watch=callback;return ()=>{unwatched=true;};},calculateRanchWorkspace:(ws,options)=>{runs.push(options);return new Promise((resolve,reject)=>{pending={resolve,reject,options};options.signal.addEventListener('abort',()=>{if(!holdAfterAbort)resolve();});});}};
+  const api={document:doc,createConfigClipboard,readRanchTarget:read,loadRanchWorkspace:async()=>{loads++;if(failLoad)throw Error('导入配方不完整');return empty?null:workspace;},saveRanchTargets:save,saveRanchObjective:(ws,objective)=>{ws.settings={...ws.settings,objective};writes++;watch?.();},watchRanchWorkspace:callback=>{watch=callback;return ()=>{unwatched=true;};},calculateRanchWorkspace:(ws,options)=>{runs.push(options);return new Promise((resolve,reject)=>{pending={resolve,reject,options};options.signal.addEventListener('abort',()=>{if(!holdAfterAbort)resolve();});});}};
   const page=evaluate('createRanchConfigPage(api)',{api});
   return {doc,workspace,page,runs,get writes(){return writes;},get loads(){return loads;},get pending(){return pending;},get unwatched(){return unwatched;},notify:()=>watch(),input:(level,key)=>doc.getElementById('ranchConfigRows').inputs.get(level+':'+key),get:id=>doc.getElementById(id)};
 }
@@ -136,5 +138,11 @@ await test('pagehide disposal aborts work as a best-effort fallback',async()=>{
 await test('empty project and import failures have explicit states and do not start work',async()=>{
   const empty=setup({empty:true});await empty.page.ready;assert.equal(empty.get('ranchConfigEmpty').hidden,false);assert.equal(empty.get('ranchConfigWorkspace').hidden,true);assert.equal(empty.runs.length,0);
   const failed=setup({failLoad:true});await failed.page.ready;assert.equal(failed.get('ranchConfigError').textContent,'导入配方不完整');assert.equal(failed.get('ranchConfigWorkspace').hidden,true);empty.page.dispose();failed.page.dispose();s.page.dispose();assert(s.unwatched);
+});
+await test('coin target columns support downward fill and switching back preserves time values',async()=>{
+  const c=setup();await c.page.ready;c.get('ranchObjective').value='coins';c.get('ranchObjective').onchange();assert.equal(c.workspace.settings.objective,'coins');assert.equal(c.input(1,'targetCoins').value,'300');
+  const input=c.input(2,'targetCoins');input.value='330';c.get('ranchConfigRows').emit('keydown',{target:input,key:'Enter',ctrlKey:true});
+  assert.equal(c.workspace.settings.quantityTargetsByLevel[2].targetCoins,'330');assert.equal(c.workspace.settings.quantityTargetsByLevel[3].targetCoins,'330');assert.equal(c.input(1,'targetCoins').value,'300');
+  c.get('ranchObjective').value='time';c.get('ranchObjective').onchange();assert.equal(c.input(1,'targetHours').value,'6.50');assert.equal(c.workspace.settings.quantityTargetsByLevel[2].targetCoins,'330');c.page.dispose();
 });
 console.log(checks+' ranch config checks passed');

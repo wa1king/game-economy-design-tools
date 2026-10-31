@@ -1,3 +1,5 @@
+import {ranchObjective,ranchGoal,ranchGoalOptions,ranchGoalWithin} from './ranch-objective.js';
+import {estimateRanchCoinWork} from './ranch-quantity.js';
 import {ranchOrderAdmission} from './ranch-actual-orders.js';
 import {ranchWorkRules,ranchWorkRangeText} from './ranch-work-rules.js';
 import {DEFAULT_CROP_QUANTITY,readRanchSettings} from './order-quantity-rules.js';
@@ -40,8 +42,8 @@ function fingerprint(value){let h=2166136261;for(const c of JSON.stringify(value
 function message(text=''){$('message').textContent=text;$('message').hidden=!text;}
 function persist(){
   if(!model)return;
-  (savedSettings.quantityEdits??={})[level]=structuredClone(quantityEdits);(savedSettings.quantityTargetsByLevel??={})[level]=Object.fromEntries(['targetHours','targetTolerance','targetWork','fitCropMax','fitProductMax','quantityBudget'].map(id=>[id,$(id).value]));
-  savedSettings={...savedSettings,browser:{type,buildingId:browserBuildingId,familyId:$('family').value,groupId:current?.id},level,cropQuantity:Number($('cropQuantity').value),productQuantity:Number($('productQuantity').value),allowRepeated:$('allowRepeated').checked,searchLimit:$('searchLimit').value,quantityTargets:Object.fromEntries(['targetHours','targetTolerance','targetWork','fitCropMax','fitProductMax','quantityBudget'].map(id=>[id,$(id).value]))};
+  (savedSettings.quantityEdits??={})[level]=structuredClone(quantityEdits);(savedSettings.quantityTargetsByLevel??={})[level]=Object.fromEntries(['targetHours','targetTolerance','targetCoins','coinTolerance','targetWork','fitCropMax','fitProductMax','quantityBudget'].map(id=>[id,$(id).value]));
+  savedSettings={...savedSettings,browser:{type,buildingId:browserBuildingId,familyId:$('family').value,groupId:current?.id},level,cropQuantity:Number($('cropQuantity').value),productQuantity:Number($('productQuantity').value),allowRepeated:$('allowRepeated').checked,searchLimit:$('searchLimit').value,quantityTargets:Object.fromEntries(['targetHours','targetTolerance','targetCoins','coinTolerance','targetWork','fitCropMax','fitProductMax','quantityBudget'].map(id=>[id,$(id).value]))};
   try{savedSettings=mergeRanchSettings(persistedSettings,savedSettings,readRanchSettings(localStorage,storageKey));localStorage.setItem(storageKey,JSON.stringify(savedSettings));persistedSettings=structuredClone(savedSettings);model.orderWorkRules=ranchWorkRules(savedSettings);quantityEdits=structuredClone(savedSettings.quantityEdits?.[level]??{});restoreQuantityTargets();$('cropQuantity').value=savedSettings.cropQuantity??DEFAULT_CROP_QUANTITY;$('productQuantity').value=savedSettings.productQuantity??1;$('allowRepeated').checked=savedSettings.allowRepeated??false;$('searchLimit').value=savedSettings.searchLimit??'2000';notifyRanchChange(storageKey,'settings');}catch{message('本页设置未能保存，请导出备份。');}
 }
 function saveCache(){clearTimeout(saveTimer);if(!cacheKey)return;const key=cacheKey,sourceKey=storageKey,changedFits=[...quantityFits].filter(([id,fit])=>JSON.stringify(fit)!==fitCacheSnapshot.get(id)),value={version:2,results:[...results],failures:[...failures],quantityFits:changedFits};cacheQueue=cacheQueue.catch(()=>{}).then(()=>mergeRanchCache(key,value)).then(()=>{cacheSaveError=null;if(cacheKey===key)for(const [id,fit] of changedFits)fitCacheSnapshot.set(id,JSON.stringify(fit));notifyRanchChange(sourceKey,'results');}).catch(error=>{cacheSaveError=error;message('计算结果暂时无法缓存；本页结果仍可查看和导出。');});}
@@ -157,12 +159,15 @@ function renderTable(){
 function sample(){if(!viewRows.length)return;const random=new Uint32Array(1);crypto.getRandomValues(random);current=viewRows[Math.floor(random[0]/4294967296*viewRows.length)];renderSelected();renderTable();persist();}
 
 function restoreQuantityTargets(){
-  const defaults={targetHours:'6',targetTolerance:'30',targetWork:'',fitCropMax:'42',fitProductMax:'12',quantityBudget:'2500'},saved=savedSettings.quantityTargetsByLevel?.[level]??(Number(savedSettings.level)===level?savedSettings.quantityTargets:null);
+  $('targetObjective').value=ranchObjective(savedSettings);
+  const coins=ranchObjective(savedSettings)==='coins';for(const id of ['timeGoalField','timeToleranceField'])$(id).hidden=coins;for(const id of ['coinGoalField','coinToleranceField'])$(id).hidden=!coins;
+  const defaults={targetHours:'6',targetTolerance:'30',targetCoins:'300',coinTolerance:'30',targetWork:'',fitCropMax:'42',fitProductMax:'12',quantityBudget:'2500'},saved=savedSettings.quantityTargetsByLevel?.[level]??(Number(savedSettings.level)===level?savedSettings.quantityTargets:null);
   for(const [id,value] of Object.entries({...defaults,...saved}))if($(id))$(id).value=value;
 }
 function workRatioKey(){return JSON.stringify([level,capacities]);}
 let autoReferenceMemo;
 function autoWorkReference(){
+  if(ranchObjective(savedSettings)==='coins')return estimateRanchCoinWork(model,groups,Number($('targetCoins').value));
   const key=JSON.stringify([storageKey,level,groups.length,capacities,savedSettings.workRatios?.[workRatioKey()],$('targetHours').value]);if(autoReferenceMemo?.key===key)return autoReferenceMemo.value;
   const saved=savedSettings.workRatios?.[workRatioKey()];let ratio=saved;
   if(!(ratio>0)){const values=groups.map(g=>resultFor(g)).filter(r=>r?.proven&&r.optimalMinutes>0).map(r=>r.totalMinutes/r.optimalMinutes).sort((a,b)=>a-b);ratio=values.length?(values[(values.length-1)>>1]+values[values.length>>1])/2:estimateRanchWorkRatio(model,groups.filter(g=>g.slots.every(v=>model.by.get(v.id).level<=level)),capacities);}
@@ -171,17 +176,18 @@ function autoWorkReference(){
 function renderQuantityControls(){
   const reference=model?autoWorkReference():null;$('workReference').textContent=reference>0?`${$('targetWork').value?'本级参考':'自动目标'} ${fmt(reference)} 分钟`:'按配方与产能自动估算';
   $('fitOne').disabled=busy||!current||(!$('targetWork').value&&!(reference>0));$('fitFiltered').disabled=busy||!viewRows.length||(!$('targetWork').value&&!(reference>0));$('resetOneQuantity').disabled=busy||!current;$('resetLevelQuantities').disabled=busy||!groups.length;
-  for(const input of document.querySelectorAll('#slots input'))input.disabled=busy;for(const id of ['targetHours','targetTolerance','targetWork','fitCropMax','fitProductMax','quantityBudget'])$(id).disabled=busy;
+  for(const input of document.querySelectorAll('#slots input'))input.disabled=busy;$('targetObjective').disabled=busy;for(const id of ['targetHours','targetTolerance','targetCoins','coinTolerance','targetWork','fitCropMax','fitProductMax','quantityBudget'])$(id).disabled=busy;
 }
 function readQuantityTargets(){
   const work=$('targetWork').value.trim()===''?autoWorkReference():Number($('targetWork').value);
   if(!(work>0))throw Error('无法估算共同累计工时，请填写累计工时目标。');
-  return quantityOptions({...ranchWorkRules(savedSettings),targetMinutes:Number($('targetHours').value)*60,toleranceMinutes:Number($('targetTolerance').value),targetWorkMinutes:work,cropMax:Number($('fitCropMax').value),productMax:Number($('fitProductMax').value),timeLimitMs:Number($('quantityBudget').value)});
+  const target={...readRanchTarget(savedSettings,level),...Object.fromEntries(['targetHours','targetTolerance','targetCoins','coinTolerance','fitCropMax','fitProductMax','quantityBudget'].map(id=>[id,$(id).value]))};return quantityOptions({...ranchWorkRules(savedSettings),...ranchGoalOptions(target,work)});
 }
 function quantityComparison(g,r,m){
-  const T=Number($('targetHours').value)*60,tol=Number($('targetTolerance').value),work=$('targetWork').value.trim()===''?autoWorkReference():Number($('targetWork').value),delta=r?.proven?r.optimalMinutes-T:null,hit=r&&r.lowerMinutes>=T-tol&&r.feasibleMinutes<=T+tol;
-  return `<div class="quantity-compare"><span class="${r?(hit?'hit':'miss'):''}">${delta==null?'优化待确认':`优化 ${delta>=0?'+':''}${fmt(delta)}分`}</span><span>${work>0?`累计 ${m.totalMinutes-work>=0?'+':''}${fmt(m.totalMinutes-work)}分`:'累计目标待定'}</span></div>`;
+  const goal=ranchGoal(readRanchTarget(savedSettings,level)),value=goal.metric==='coins'?m.coinValue:r?.proven?r.optimalMinutes:null,delta=value==null||goal.target==null?null:value-goal.target,hit=delta!=null&&Math.abs(delta)<=goal.tolerance+1e-8;
+  return `<div class="quantity-compare"><span class="${hit?'hit':'miss'}">${delta==null?'目标待确认':`${goal.label} ${delta>=0?'+':''}${fmt(delta)} ${goal.unit}`}</span></div>`;
 }
+
 function setGroupQuantities(id,quantities,result=null){
   const index=groups.findIndex(g=>g.id===id);if(index<0)throw Error('当前等级中找不到该商品组合。');
   const old=groups[index],updated=quantityGroup(old,quantities);if(result&&!orderWorkBalance(model,updated).valid)throw Error(`每单累计工时必须占整组的${ranchWorkRangeText(savedSettings)}。`);if(result&&!hasEqualProductQuantities(updated))throw Error('同一组合内相同商品必须使用相同数量。');groups[index]=updated;quantityEdits[id]=[...quantities];
@@ -195,28 +201,28 @@ function renderRecommendations(){
   if(!fit)return;
   $('quantitySearchMeta').textContent=fit.error?'本轮配量失败':`对照 ${fit.evaluatedCount??fit.tried} 个数量配置 · ${fit.provenCount} 个排程已证明最优`;
   $('quantityReason').textContent=fit.error??`${fit.reason} 数量采用候选搜索，未证明为全范围最优配量。`;
-  $('recommendationCards').innerHTML=(fit.recommendations||[]).map((v,i)=>{const r=v.result,selected=ranchDemandKey(v.group)===groupKey(g),o=fit.options;return `<article class="recommendation-card"><strong>${esc(v.label)}</strong><div class="recommendation-quantities">${v.group.slots.map(x=>`<span>${esc(model.by.get(x.id).name)} ×${x.quantity}</span>`).join('')}</div><dl><dt>联合优化时间</dt><dd>${r.proven?fmt(r.optimalMinutes):fmt(r.lowerMinutes)+'～'+fmt(r.feasibleMinutes)} 分</dd><dt>累计工时 / 目标</dt><dd>${fmt(r.totalMinutes)} / ${fmt(o.targetWorkMinutes)} 分</dd><dt>累计工时偏差</dt><dd>${r.totalMinutes-o.targetWorkMinutes>=0?'+':''}${fmt(r.totalMinutes-o.targetWorkMinutes)} 分</dd></dl><button data-recommendation="${i}" ${busy||selected?'disabled':''}>${selected?'当前数量':'采用此数量'}</button></article>`;}).join('');
+  $('recommendationCards').innerHTML=(fit.recommendations||[]).map((v,i)=>{const r=v.result,selected=ranchDemandKey(v.group)===groupKey(g),o=fit.options;return `<article class="recommendation-card"><strong>${esc(v.label)}</strong><div class="recommendation-quantities">${v.group.slots.map(x=>`<span>${esc(model.by.get(x.id).name)} ×${x.quantity}</span>`).join('')}</div><dl>${o.objective==='coins'?`<dt>四单金币总值 / 目标</dt><dd>${fmt(v.result.coinValue??metrics(v.group).coinValue)} / ${fmt(o.targetCoins)} 金币</dd>`:''}<dt>联合优化时间</dt><dd>${r.proven?fmt(r.optimalMinutes):fmt(r.lowerMinutes)+'～'+fmt(r.feasibleMinutes)} 分</dd><dt>累计工时 / 目标</dt><dd>${fmt(r.totalMinutes)} / ${fmt(o.targetWorkMinutes)} 分</dd><dt>累计工时偏差</dt><dd>${r.totalMinutes-o.targetWorkMinutes>=0?'+':''}${fmt(r.totalMinutes-o.targetWorkMinutes)} 分</dd></dl><button data-recommendation="${i}" ${busy||selected?'disabled':''}>${selected?'当前数量':'采用此数量'}</button></article>`;}).join('');
 }
 function fitQuantities(items){
   if(!items.length)return;
   let options;try{options=readQuantityTargets();}catch(error){message(error.message);return;}
   items=items.filter(g=>!ranchFitIsCurrent(quantityFits.get(g.id),g,options,model));if(!items.length){$('quantityStatus').textContent='目标与商品未变化，已复用保存的配量结果。';return;}
-  stop();message();if($('targetWork').value.trim()==='')(savedSettings.workRatios??={})[workRatioKey()]=options.targetWorkMinutes/options.targetMinutes;
+  stop();message();if(ranchObjective(savedSettings)==='time'&&$('targetWork').value.trim()==='')(savedSettings.workRatios??={})[workRatioKey()]=options.targetWorkMinutes/options.targetMinutes;
   persist();busy=true;workerKind='quantity';$('stop').hidden=false;renderQuantityControls();
-  $('quantityStatus').textContent=`正在为 ${items.length} 个组合配量 · 优化目标 ${fmt(options.targetMinutes)}±${fmt(options.toleranceMinutes)}分 · 共同累计工时 ${fmt(options.targetWorkMinutes)}分`;
+  $('quantityStatus').textContent=`正在为 ${items.length} 个组合配量 · ${options.objective==='coins'?`金币目标 ${fmt(options.targetCoins)}±${fmt(options.coinTolerance)}`:`优化目标 ${fmt(options.targetMinutes)}±${fmt(options.toleranceMinutes)}分`} · 共同累计工时 ${fmt(options.targetWorkMinutes)}分`;
   worker=new Worker('./ranch-worker.js',{type:'module'});const ownedWorker=worker,completed=[];let lastPaint=0;
   worker.onmessage=({data})=>{if(worker!==ownedWorker)return;
     if(data.type==='quantityProgress')$('quantityStatus').textContent=`配量 ${data.index} / ${data.total} · 本组已复核 ${data.tried} 个数量配置`;
     if(data.type==='quantityResult'){
       quantityFits.set(data.id,data.fit);completed.push(data.fit);const best=data.fit.recommendations[0];setGroupQuantities(data.id,best.group.slots.map(v=>v.quantity),best.result);persist();scheduleSave();
       if(performance.now()-lastPaint>250||data.index===data.total){updateView();lastPaint=performance.now();}
-      $('quantityStatus').textContent=`已配量 ${data.index} / ${data.total} · ${completed.filter(f=>f.within).length} 个组合进入目标优化时间范围`;
+      $('quantityStatus').textContent=`已配量 ${data.index} / ${data.total} · ${completed.filter(f=>f.within).length} 个组合进入当前目标范围`;
     }
     if(data.type==='groupError'){quantityFits.set(data.id,{error:data.message});$('quantityStatus').textContent=`组合配量失败：${data.message}`;}
     if(data.type==='error'){stop();message(data.message);persist();saveCache();updateView();}
     if(data.type==='done'){
       stop();persist();saveCache();updateView();const values=completed.map(f=>f.recommendations[0].result.totalMinutes);
-      $('quantityStatus').textContent=completed.length?`已配量 ${completed.length} 个组合 · ${completed.filter(f=>f.within).length} 个进入优化时间范围 · 累计工时平均 ${fmt(values.reduce((s,v)=>s+v,0)/values.length)}分（${fmt(Math.min(...values))}～${fmt(Math.max(...values))}分）`:'本轮未完成配量，请查看错误提示。';
+      $('quantityStatus').textContent=completed.length?`已配量 ${completed.length} 个组合 · ${completed.filter(f=>f.within).length} 个进入当前目标范围 · 累计工时平均 ${fmt(values.reduce((s,v)=>s+v,0)/values.length)}分（${fmt(Math.min(...values))}～${fmt(Math.max(...values))}分）`:'本轮未完成配量，请查看错误提示。';
     }
   };
   worker.onerror=event=>{if(worker!==ownedWorker)return;stop();message(event.message||'配量搜索中断；已完成的配置已保留。');persist();saveCache();updateView();};
@@ -244,7 +250,8 @@ $('slots').addEventListener('input',event=>{if(event.target.dataset.quantity==nu
 $('resetOneQuantity').onclick=()=>current&&resetQuantityGroups([representative(current)]);
 $('resetLevelQuantities').onclick=()=>resetQuantityGroups([...groups]);
 $('recommendationCards').onclick=event=>{const button=event.target.closest('[data-recommendation]');if(!button||!current)return;const g=representative(current),candidate=quantityFits.get(g.id)?.recommendations[Number(button.dataset.recommendation)];if(!candidate||!hasEqualProductQuantities(candidate.group)||!orderWorkBalance(model,candidate.group).valid)return;stop();setGroupQuantities(g.id,candidate.group.slots.map(v=>v.quantity),candidate.result);persist();saveCache();updateView();};
-for(const id of ['targetHours','targetTolerance','targetWork','fitCropMax','fitProductMax','quantityBudget'])$(id).onchange=()=>{persist();updateFilters();updateView();renderRecommendations();};
+$('targetObjective').onchange=()=>{savedSettings.objective=$('targetObjective').value;persist();updateView();};
+for(const id of ['targetHours','targetTolerance','targetCoins','coinTolerance','targetWork','fitCropMax','fitProductMax','quantityBudget'])$(id).onchange=()=>{persist();updateFilters();updateView();renderRecommendations();};
 $('importButton').onclick=$('importEmpty').onclick=()=>$('importFile').click();
 $('importFile').onchange=async()=>{
   const file=$('importFile').files[0];if(!file)return;
@@ -275,7 +282,7 @@ $('targetDetails').ontoggle=()=>$('openTargets').setAttribute('aria-expanded',St
 for(const [id,value] of [['compactGraph',true],['levelGraph',false]])$(id).onclick=()=>{graphOverview=value;for(const [button,on] of [['compactGraph',true],['levelGraph',false]]){$(button).classList.toggle('active',on===value);$(button).setAttribute('aria-pressed',String(on===value));}renderSelected();};
 
 window.addEventListener('pagehide',saveCache);
-window.ranchBeforeNavigate=async()=>{if(current&&!commitSlotInputs(false))throw Error('请先填写有效的四单交付数量。');if(model)validateRanchTarget(Object.fromEntries(Object.keys(readRanchTarget(savedSettings,level)).map(id=>[id,$(id).value])));persist();stop();saveCache();await cacheQueue;if(cacheSaveError)throw Error('排产结果尚未保存成功，请重试或先导出备份。');};
+window.ranchBeforeNavigate=async()=>{if(current&&!commitSlotInputs(false))throw Error('请先填写有效的四单交付数量。');if(model)validateRanchTarget(Object.fromEntries(Object.keys(readRanchTarget(savedSettings,level)).map(id=>[id,id==='objective'?ranchObjective(savedSettings):$(id).value])));persist();stop();saveCache();await cacheQueue;if(cacheSaveError)throw Error('排产结果尚未保存成功，请重试或先导出备份。');};
 async function syncRanchView(){
   if(syncing)return;if(busy||$('ranchRulesDialog')?.open||document.activeElement?.matches?.('input,select')){syncQueued=true;return;}
   syncing=true;syncQueued=false;

@@ -1,3 +1,5 @@
+import {ranchObjective,ranchGoal,ranchGoalOptions,ranchGoalWithin} from '../orders/ranch-objective.js';
+import {estimateRanchCoinWork} from '../orders/ranch-quantity.js';
 import {ranchOrderAdmission} from '../orders/ranch-actual-orders.js';
 import {orderWorkBalance} from '../orders/ranch-quantity.js';
 import {ranchWorkRules,ranchWorkRangeText} from '../orders/ranch-work-rules.js';
@@ -77,7 +79,7 @@ test('page keeps catalogue and tuning collapsed after the always-visible scheme 
   for(const m of html.matchAll(/<(\w+)\b([^>]*\bid="[^"]+"[^>]*)>/g)){const a=attributes(m[2]),e=new Element(m[1],a);elements.set(e.id,e);}
   for(const id of ['searchLimit','sort','direction','quantityBudget']){const pattern=new RegExp(`<select[^>]*id="${id}"[^>]*>([\\s\\S]*?)<\\/select>`);elements.get(id).innerHTML=html.match(pattern)[1];}
   const isolatedBase={...base,landsByLevel:{20:30}},memory=new Map([['ranch-source-v1',JSON.stringify({kind:'import',base:isolatedBase,filename:'synthetic.xlsx'})]]),posts=[],scheduleCache=new Map(),notices=[];
-  const context=vm.createContext({ranchOrderAdmission,orderWorkBalance,ranchWorkRules,ranchWorkRangeText,hasEqualProductQuantities,linkedProductQuantities,estimateRanchWorkRatio,ranchFitIsCurrent,DEFAULT_CROP_QUANTITY,readRanchSettings,console,createRanchLevelCatalog:()=>({refresh(){}}),structuredClone,prepareRanch,ranchCapacities,groupMetrics,solveRanchGroup,generateRanchLevelGroups,ranchDemandKey,ranchPermutations,remapRanchResult,ranchBrowserScope,ranchSchemeStep,ranchChainData,renderRanchChain,setupRanchChains,quantityGroup,quantityOptions,renderOrderItems,calculateRanchImport,canMigrateRanchSettings,backupRanchBeforeImport,ranchSettingsKey,ranchImportCacheKey,readRanchResultBundle,
+  const context=vm.createContext({ranchObjective,ranchGoal,ranchGoalOptions,ranchGoalWithin,estimateRanchCoinWork,ranchOrderAdmission,orderWorkBalance,ranchWorkRules,ranchWorkRangeText,hasEqualProductQuantities,linkedProductQuantities,estimateRanchWorkRatio,ranchFitIsCurrent,DEFAULT_CROP_QUANTITY,readRanchSettings,console,createRanchLevelCatalog:()=>({refresh(){}}),structuredClone,prepareRanch,ranchCapacities,groupMetrics,solveRanchGroup,generateRanchLevelGroups,ranchDemandKey,ranchPermutations,remapRanchResult,ranchBrowserScope,ranchSchemeStep,ranchChainData,renderRanchChain,setupRanchChains,quantityGroup,quantityOptions,renderOrderItems,calculateRanchImport,canMigrateRanchSettings,backupRanchBeforeImport,ranchSettingsKey,ranchImportCacheKey,readRanchResultBundle,
     setupItemInfo:base=>({products:new Map(base.products.map(p=>[p.id,p])),hide(){}}),createProjectStore:()=>({load:()=>null}),writeSharedChainSource:(b,n)=>writeSharedChainSource(b,n,{getItem:k=>memory.get(k)??null,setItem:(k,v)=>memory.set(k,v)}),readChainExcel:async file=>file.base,loadRanchCache:async key=>scheduleCache.get(key),saveRanchCache:async(key,value)=>{scheduleCache.set(key,value);},performance:{now:()=>1000},crypto:{getRandomValues:a=>{a[0]=0;}},setTimeout:()=>1,clearTimeout(){},
     mergeRanchSettings,readRanchTarget,validateRanchTarget,notifyRanchChange(...args){notices.push(args);},watchRanchWorkspace(){},ranchSource:()=>JSON.parse(memory.get('order-shared-chain-v1')||memory.get('ranch-source-v1')||'null'),mergeRanchCache:async(key,value)=>scheduleCache.set(key,mergeRanchCacheValue(scheduleCache.get(key),value)),Worker:class{postMessage(v){posts.push(v);}terminate(){}},localStorage:{getItem:k=>memory.get(k)??null,setItem:(k,v)=>memory.set(k,v)},window:{addEventListener(){}},document:{getElementById:id=>elements.get(id),querySelector:()=>new Element('main'),querySelectorAll:q=>q==='#slots input'?elements.get('slots').inputs:[]}});
   vm.runInContext(fs.readFileSync(new URL('../orders/ranch-app.js',import.meta.url),'utf8').replace(/^import .*;\r?\n/gm,''),context);
@@ -178,5 +180,11 @@ test('page keeps catalogue and tuning collapsed after the always-visible scheme 
     elements.get('importFile').files=[{name:'新表.xlsx',size:1000,base:newBase}];await elements.get('importFile').onchange();await vm.runInContext('cacheQueue',context);await new Promise(resolve=>setTimeout(resolve,0));
     test('same-source reimport retains matching cached schedules without recomputing',()=>{assert.equal(vm.runInContext('results.size',context),1);assert.equal(posts.length,postsBefore);});
   }
+  test('single-level objective switch persists gold settings and sends gold fitting options without replacing time values',()=>{
+    const prior=elements.get('targetHours').value;elements.get('targetObjective').value='coins';elements.get('targetObjective').onchange();
+    assert.equal(vm.runInContext('savedSettings.objective',context),'coins');assert.equal(elements.get('coinGoalField').hidden,false);assert.equal(elements.get('timeGoalField').hidden,true);
+    elements.get('fitOne').onclick();assert.equal(posts.at(-1).options.objective,'coins');assert.equal(posts.at(-1).options.targetCoins,300);vm.runInContext('stop()',context);
+    elements.get('targetObjective').value='time';elements.get('targetObjective').onchange();assert.equal(elements.get('targetHours').value,prior);
+  });
 }
 console.log(count+' scheme browser checks passed');

@@ -1,3 +1,4 @@
+import {ranchObjective} from './ranch-objective.js';
 import {ranchDashboardRows,ranchDashboardSummary,renderRanchBoxPlot,renderRanchMetricTrend,renderRanchHistogram,renderRanchDistributionEmpty,ranchDistributionCSV,ranchLevelLink,formatMinutes} from './ranch-distribution.js';
 import {loadRanchWorkspace,readRanchTarget,calculateRanchWorkspace,watchRanchWorkspace} from './ranch-workspace.js';
 
@@ -16,6 +17,7 @@ function controls(){
 function render(){
   if(!workspace)return;
   const configured=targets(),rows=ranchDashboardRows(plans,configured,filter),summary=ranchDashboardSummary(plans,configured,filter);
+  const coinsMode=ranchObjective(workspace.settings)==='coins';$('distributionGoalHeading').textContent=coinsMode?'金币目标范围':'优化时间目标范围 · 分钟';$('optimizedTargetTag').textContent=coinsMode?'金币达标后的排产耗时':'各级目标带';
   $('distributionSummary').innerHTML=`<article><span>达标实际订单组</span><strong>${count(summary.accepted)}<small>${plans.length} 级</small></strong><small>所有图表仅统计达标实际订单 · 每组等权</small></article><article><span>平均联合优化时间</span><strong>${formatMinutes(summary.optimized.mean)}<small>分钟</small></strong><small>仅统计已证明最优且符合本级目标的订单</small></article><article><span>平均四单金币总值</span><strong>${summary.missingCoins?'—':formatMinutes(summary.coins.mean)}<small>金币 / 组</small></strong><small>${summary.missingCoins?`${count(summary.missingCoins)} 个实际订单组缺少单价`:'实际交付数量 × 商品单价'}</small></article>`;
   $('presetSummary').textContent=`预设 ${count(summary.total)} 组 · 实际入库 ${count(summary.accepted)} 组 · 未入库 ${count(summary.excluded)} 组`;
   $('presetProgress').innerHTML=`<span>已证明排程 ${count(summary.proven)}</span><span>待计算 ${count(summary.pending)}</span><span>待证明 ${count(summary.bounded)}</span><span>排产失败 ${count(summary.failed)}</span><p>预设组合中，只有排程已证明最优、优化时间达标、数量与单单工时占比符合当前规则的组合才进入实际订单。其余可到单等级分析的“预设组合”中查看。</p>`;
@@ -26,7 +28,7 @@ function render(){
   $('coinCoverageNote').textContent=summary.missingCoins?`${count(summary.missingCoins)} 组缺少单价，未计入`:'数量 × 商品单价';
   $('distributionRows').innerHTML=rows.map((r,index)=>{
     const start=index===0||rows[index-1].level!==r.level;
-    return `<tr class="${start?'level-start':''}"><td><a href="${ranchLevelLink(r.level,r.type)}">Lv ${r.level}<span class="distribution-type-${r.type}">${r.name}</span></a></td><td>${count(r.accepted)}</td><td>${r.target.minutes==null?'—':`${formatMinutes(r.target.lower)}～${formatMinutes(r.target.upper)}`}</td><td>${statsCell(r.optimized)}</td><td>${statsCell(r.work)}</td><td>${formatMinutes(r.complexity.mean)}</td><td>${r.missingCoins?'—':formatMinutes(r.coins.mean)}${r.missingCoins?`<small>缺单价 ${r.missingCoins} 组</small>`:''}</td><td><a href="${ranchLevelLink(r.level,r.type)}&amp;pool=preset">预设 ${count(r.total)} 组 / 未入库 ${count(r.total-r.accepted)}</a></td></tr>`;
+    return `<tr class="${start?'level-start':''}"><td><a href="${ranchLevelLink(r.level,r.type)}">Lv ${r.level}<span class="distribution-type-${r.type}">${r.name}</span></a></td><td>${count(r.accepted)}</td><td>${r.target.metric==='coins'?`${formatMinutes(r.target.coinLower)}～${formatMinutes(r.target.coinUpper)} 金币`:r.target.minutes==null?'—':`${formatMinutes(r.target.lower)}～${formatMinutes(r.target.upper)}`}</td><td>${statsCell(r.optimized)}</td><td>${statsCell(r.work)}</td><td>${formatMinutes(r.complexity.mean)}</td><td>${r.missingCoins?'—':formatMinutes(r.coins.mean)}${r.missingCoins?`<small>缺单价 ${r.missingCoins} 组</small>`:''}</td><td><a href="${ranchLevelLink(r.level,r.type)}&amp;pool=preset">预设 ${count(r.total)} 组 / 未入库 ${count(r.total-r.accepted)}</a></td></tr>`;
   }).join('');
   renderDetail(rows);$('downloadDistribution').disabled=!plans.length;controls();
 }

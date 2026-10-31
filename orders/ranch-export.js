@@ -1,3 +1,4 @@
+import {ranchGoal} from './ranch-objective.js';
 import {ranchWorkRangeText} from './ranch-work-rules.js';
 import {ranchTypes,ranchDashboardRows} from './ranch-distribution.js';
 import {ranchPlanAdmission} from './ranch-actual-orders.js';
@@ -8,11 +9,11 @@ import {hasEqualProductQuantities} from './ranch-quantity.js';
 const valid=value=>Number.isFinite(value)&&value>=0?value:null;
 export function ranchExportSheets(ws){
   if(!ws?.plans)throw Error('请先导入加工链路 Excel。');
-  const summary=[['等级','订单类型','预设组合数','预设已证明最优','预设待证明','预设未计算','预设排产失败','实际订单平均联合优化时间（分钟）','实际订单平均累计工时（分钟）','优化时间目标（分钟）','允许偏差（分钟）','累计工时目标（分钟）','数据文件','达标实际订单组数','实际订单平均金币总值']];
+  const summary=[['等级','订单类型','预设组合数','预设已证明最优','预设待证明','预设未计算','预设排产失败','实际订单平均联合优化时间（分钟）','实际订单平均累计工时（分钟）','优化时间目标（分钟，金币模式为空）','时间允许偏差（分钟，金币模式为空）','累计工时目标（分钟）','数据文件','达标实际订单组数','实际订单平均金币总值','配量目标','金币目标','金币允许偏差']];
   const targets=Object.fromEntries(ws.plans.map(p=>[p.level,readRanchTarget(ws.settings,p.level)]));
   for(const row of ranchDashboardRows(ws.plans,targets)){
     const target=readRanchTarget(ws.settings,row.level);
-    summary.push([row.level,row.name,row.total,row.proven,row.bounded,row.pending,row.failed,row.optimized.mean,row.work.mean,Number(target.targetHours)*60,Number(target.targetTolerance),String(target.targetWork).trim()===''?null:Number(target.targetWork),ws.filename,row.accepted,row.missingCoins?null:row.coins.mean]);
+    summary.push([row.level,row.name,row.total,row.proven,row.bounded,row.pending,row.failed,row.optimized.mean,row.work.mean,target.objective==='coins'?null:Number(target.targetHours)*60,target.objective==='coins'?null:Number(target.targetTolerance),String(target.targetWork).trim()===''?null:Number(target.targetWork),ws.filename,row.accepted,row.missingCoins?null:row.coins.mean,ranchGoal(target).label,target.objective==='coins'?Number(target.targetCoins):null,target.objective==='coins'?Number(target.coinTolerance):null]);
   }
   const sources=ws.base.sources??[],header=['等级','组合编号','订单内容',...['A','B','C','D'].flatMap(label=>[label+'商品 ID',label+'商品',label+'数量']),'联合优化时间（分钟，已证明）','可行排程时间（分钟）','时间下界（分钟）','排产状态','累计工时（分钟）','累计复杂度','金币总值',...sources.map(s=>s.name+'工时（分钟）')];
   const sheets=[{name:'等级汇总',rows:summary,widths:[10,18,12,14,12,12,12,27,24,24,22,24,42],integerColumns:[9]}];

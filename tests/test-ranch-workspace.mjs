@@ -6,6 +6,8 @@ import {ranchSettingsKey} from '../orders/ranch-import.js';
 import {prepareRanch,solveRanchGroup,groupMetrics} from '../orders/ranch-engine.js';
 import {fitRanchQuantities,quantityGroup,QUANTITY_SEARCH_VERSION,hasEqualProductQuantities} from '../orders/ranch-quantity.js';
 import {ranchDistributionRows} from '../orders/ranch-distribution.js';
+import {ranchDashboardRows} from '../orders/ranch-distribution.js';
+import {ranchExportSheets} from '../orders/ranch-export.js';
 
 const product=(id,buildingId,time,level=1,inputs=[])=>({id,name:'测试商品'+id,buildingId,buildingName:'来源'+buildingId,stepMinutes:time,level,isCrop:buildingId===0,analysisBatchYield:1,coproducts:[],inputs:inputs.map(([id,quantity])=>({id,quantity})),coinValue:id});
 const simpleBase={maxLevel:2,products:[product(1,10,10)],sources:[{id:10,name:'工坊',level:1}]};
@@ -31,6 +33,19 @@ function harness({base=simpleBase,settings={},automatic=true,source=true}={}){
   }};
   return {base,storageKey,memory,storage,cache,workers,writes,messages,deps,load:()=>loadRanchWorkspace(deps),settings:()=>JSON.parse(memory.get(storageKey)||'{}')};
 }
+
+test('coin mode runner persists goal-based quantities and reuses them without treating six hours as a constraint',async()=>{
+  const b=copy(simpleBase);b.products[0].coinValue=15;b.products[0].stepMinutes=90;
+  const h=harness({base:b,settings:{objective:'coins',quantityTargetsByLevel:{1:{...target,targetCoins:'300',coinTolerance:'0',targetWork:'1800',fitProductMax:'12'},2:{...target,targetCoins:'300',coinTolerance:'0',targetWork:'1800',fitProductMax:'12'}}}}),ws=await h.load();
+  const report=await calculateRanchWorkspace(ws,{mode:'quantity'});assert.equal(report.failed,0);
+  for(const plan of ws.plans){const g=plan.groups[0],r=plan.results.get(g.key);assert.deepEqual(g.slots.map(v=>v.quantity),[5,5,5,5]);assert.equal(r.coinValue,300);assert.equal(r.optimalMinutes,1800);assert(plan.quantityFits.get(g.id).within);}
+  const loaded=await h.load(),count=h.messages.length;await calculateRanchWorkspace(loaded,{mode:'quantity'});assert.equal(h.messages.length,count,'unchanged gold goals reuse saved fits');
+  assert.equal(readRanchTarget(loaded.settings,1).targetHours,target.targetHours);
+  const rows=ranchDashboardRows(loaded.plans,Object.fromEntries(loaded.plans.map(p=>[p.level,readRanchTarget(loaded.settings,p.level)])));
+  for(const row of rows.filter(r=>r.type==='building')){assert.equal(row.accepted,1);assert.equal(row.coins.mean,300);assert.equal(row.optimized.mean,1800);assert.equal(row.target.minutes,null);}
+  const sheets=ranchExportSheets(loaded),actual=sheets.find(s=>s.name==='实际同建筑订单');assert.equal(actual.rows.length,3);
+  const summary=sheets[0];assert.equal(summary.rows[1][summary.rows[0].indexOf('金币目标')],300);assert.equal(summary.rows[1][9],null);
+});
 
 test('workspace load uses imported source, existing quantities and cache without solving or writing',async()=>{
   const h=harness({settings:{level:2,quantityTargets:{...target,targetHours:'1.50'},browser:{type:'building',buildingId:10}}}),first=await h.load(),group=first.plans[1].groups[0],edited=quantityGroup(group,[2,2,2,2]),result=solveRanchGroup(first.model,edited,2,first.plans[1].capacities);

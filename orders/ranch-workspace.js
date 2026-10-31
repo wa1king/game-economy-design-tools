@@ -6,19 +6,21 @@ import {ranchSettingsKey} from './ranch-import.js';
 import {buildRanchDistributionPlans,reuseRanchDistributionResult} from './ranch-distribution.js';
 import {loadRanchCache,mergeRanchCache,mergeRanchCacheValue} from './ranch-cache.js';
 import {quantityGroup,quantityOptions,QUANTITY_SEARCH_VERSION,estimateRanchWorkRatio,ranchQuantityFitKey,reuseRanchQuantityFit,hasEqualProductQuantities,orderWorkBalance} from './ranch-quantity.js';
+import {estimateRanchCoinWork} from './ranch-quantity.js';
+import {ranchObjective,ranchGoal,ranchGoalOptions,ranchGoalWithin} from './ranch-objective.js';
 
-export const RANCH_TARGET_DEFAULTS={targetHours:'6',targetTolerance:'30',targetWork:'',fitCropMax:'42',fitProductMax:'12',quantityBudget:'2500'};
+export const RANCH_TARGET_DEFAULTS={targetHours:'6',targetTolerance:'30',targetCoins:'300',coinTolerance:'30',targetWork:'',fitCropMax:'42',fitProductMax:'12',quantityBudget:'2500'};
 const targetKeys=Object.keys(RANCH_TARGET_DEFAULTS);
 const proven=r=>r?.proven&&Number.isFinite(r.optimalMinutes)&&r.optimalMinutes>=0;
 const readJSON=(storage,key)=>JSON.parse(storage.getItem(key)||'null');
 
 export function readRanchTarget(settings={},level){
   const saved=settings.quantityTargetsByLevel?.[level]??(Number(settings.level)===Number(level)?settings.quantityTargets:null);
-  return Object.fromEntries(targetKeys.map(key=>[key,String(saved?.[key]??RANCH_TARGET_DEFAULTS[key])]));
+  return {objective:ranchObjective(settings),...Object.fromEntries(targetKeys.map(key=>[key,String(saved?.[key]??RANCH_TARGET_DEFAULTS[key])]))};
 }
 export function validateRanchTarget(target){
-  if(String(target.targetHours).trim()===''||String(target.targetTolerance).trim()==='')throw Error('请填写优化时间目标和允许偏差。');
-  quantityOptions({targetMinutes:Number(target.targetHours)*60,toleranceMinutes:Number(target.targetTolerance),targetWorkMinutes:String(target.targetWork).trim()===''?1:Number(target.targetWork),cropMax:Number(target.fitCropMax),productMax:Number(target.fitProductMax),timeLimitMs:Number(target.quantityBudget)});
+  if(ranchGoal(target).target==null)throw Error('请填写当前优化目标和有效允许偏差。');
+  quantityOptions(ranchGoalOptions(target,String(target.targetWork).trim()===''?1:Number(target.targetWork)));
   return target;
 }
 export function notifyRanchChange(storageKey,reason='results',storage=globalThis.localStorage){
@@ -57,6 +59,12 @@ export function saveRanchTargets(ws,cells){
   ws.services.storage.setItem(ws.storageKey,JSON.stringify(next));ws.settings=next;
   notifyRanchChange(ws.storageKey,'targets',ws.services.storage);
 }
+export function saveRanchObjective(ws,objective){
+  if(!['time','coins'].includes(objective))throw Error('请选择优化时间或金币总值。');
+  const next=readRanchSettings(ws.services.storage,ws.storageKey);next.objective=objective;
+  for(const plan of ws.plans)validateRanchTarget(readRanchTarget(next,plan.level));
+  ws.services.storage.setItem(ws.storageKey,JSON.stringify(next));ws.settings=next;notifyRanchChange(ws.storageKey,'targets',ws.services.storage);
+}
 // Only local edits override the latest stored settings. An idle detail tab must
 // not restore an old copy of another view's targets or quantities on navigation.
 export function mergeRanchSettings(previous,edited,latest){
@@ -81,13 +89,16 @@ export function watchRanchWorkspace(callback){
 const median=values=>{values.sort((a,b)=>a-b);return (values[(values.length-1)>>1]+values[values.length>>1])/2;};
 export function ranchAutoWorkTarget(ws,plan,target=readRanchTarget(ws.settings,plan.level)){
   if(String(target.targetWork).trim()!=='')return Number(target.targetWork);
+  if(ranchObjective(target)==='coins')return estimateRanchCoinWork(ws.model,plan.groups,Number(target.targetCoins));
   let ratio=ws.settings.workRatios?.[JSON.stringify([plan.level,plan.capacities])];
   if(!(ratio>0)){const values=plan.groups.map(g=>plan.results.get(g.key)).filter(r=>proven(r)&&r.optimalMinutes>0&&r.totalMinutes>0).map(r=>r.totalMinutes/r.optimalMinutes);ratio=values.length?median(values):(plan.estimatedWorkRatio??=estimateRanchWorkRatio(ws.model,plan.groups,plan.capacities));}
   return ratio>0?ratio*Number(target.targetHours)*60:null;
 }
 export function ranchFitIsCurrent(fit,group,options,model=null){
   const best=fit?.recommendations?.[0];
-  return Boolean(best&&fit.recommendations.every(v=>model?orderWorkBalance(model,v.group).valid:validRanchWorkShares(v.result?.orderWorkShares,options))&&hasEqualProductQuantities(group)&&fit.recommendations.every(v=>hasEqualProductQuantities(v.group))&&(fit.within===true||fit.searchVersion===QUANTITY_SEARCH_VERSION)&&best.group.key===group.key&&['targetMinutes','toleranceMinutes','targetWorkMinutes','cropMax','productMax','timeLimitMs'].every(k=>fit.options?.[k]===options[k])&&Object.keys(ranchWorkRules(options)).every(k=>ranchWorkRules(fit.options)[k]===ranchWorkRules(options)[k]));
+  if(ranchObjective(fit?.options)!==ranchObjective(options))return false;
+  if(ranchObjective(options)==='coins'&&(['targetCoins','coinTolerance'].some(k=>fit?.options?.[k]!==options[k])||model&&best?.result?.coinValue!==groupMetrics(model,group,model.base.maxLevel).coinValue))return false;
+  return Boolean(best&&fit.recommendations.every(v=>model?orderWorkBalance(model,v.group).valid:validRanchWorkShares(v.result?.orderWorkShares,options))&&hasEqualProductQuantities(group)&&fit.recommendations.every(v=>hasEqualProductQuantities(v.group))&&(fit.within===true||fit.searchVersion===QUANTITY_SEARCH_VERSION)&&best.group.key===group.key&&(ranchObjective(options)==='coins'?['targetCoins','coinTolerance','targetWorkMinutes','cropMax','productMax','timeLimitMs']:['targetMinutes','toleranceMinutes','targetWorkMinutes','cropMax','productMax','timeLimitMs']).every(k=>fit.options?.[k]===options[k])&&Object.keys(ranchWorkRules(options)).every(k=>ranchWorkRules(fit.options)[k]===ranchWorkRules(options)[k]));
 }
 
 // The same worker and verified schedules power all three views. Quantity search
@@ -116,7 +127,7 @@ export async function calculateRanchWorkspace(ws,{mode='quantity',signal,onProgr
   const persistQuantity=(plan,group,fit,options)=>{
     if(!pendingEdits.has(plan.level))pendingEdits.set(plan.level,new Map());pendingEdits.get(plan.level).set(group.id,group.slots.map(v=>v.quantity));
     const target=readRanchTarget(ws.settings,plan.level);
-    if(target.targetWork.trim()===''){const key=JSON.stringify([plan.level,plan.capacities]),ratio=options.targetWorkMinutes/options.targetMinutes;pendingRatios.set(key,ratio);(ws.settings.workRatios??={})[key]=ratio;}
+    if(ranchObjective(target)==='time'&&target.targetWork.trim()===''){const key=JSON.stringify([plan.level,plan.capacities]),ratio=options.targetWorkMinutes/options.targetMinutes;pendingRatios.set(key,ratio);(ws.settings.workRatios??={})[key]=ratio;}
     if(!changedFits.has(plan.level))changedFits.set(plan.level,new Map());changedFits.get(plan.level).set(group.id,fit);
   };
   const applyQuantityFit=(plan,id,fit,options,reused=false)=>{
@@ -126,7 +137,7 @@ export async function calculateRanchWorkspace(ws,{mode='quantity',signal,onProgr
     if(updated.slots.some((v,j)=>v.id!==best.group.slots[j].id)||updated.key!==best.group.key)throw Error('配量结果的商品与当前组合不一致。');
     if(!fit.recommendations.every(v=>orderWorkBalance(ws.model,v.group).valid))throw Error(`每单累计工时必须占整组的${ranchWorkRangeText(ws.settings)}。`);
     if(!fit.recommendations.every(v=>hasEqualProductQuantities(v.group)))throw Error('同一组合内相同商品必须使用相同数量。');
-    plan.groups[i]=updated;plan.orderWorkBalance?.set(updated.key,orderWorkBalance(ws.model,updated));plan.results.set(updated.key,new Map(mergeRanchCacheValue({results:[[updated.key,plan.results.get(updated.key)]]},{results:[[updated.key,best.result]]}).results).get(updated.key));best.result=plan.results.get(updated.key);fit.within=best.result.lowerMinutes>=options.targetMinutes-options.toleranceMinutes-1e-7&&best.result.feasibleMinutes<=options.targetMinutes+options.toleranceMinutes+1e-7;plan.failures.delete(previous.key);plan.failures.delete(updated.key);plan.quantityErrors.delete(updated.id);plan.quantityFits.set(updated.id,fit);
+    plan.groups[i]=updated;plan.orderWorkBalance?.set(updated.key,orderWorkBalance(ws.model,updated));plan.results.set(updated.key,new Map(mergeRanchCacheValue({results:[[updated.key,plan.results.get(updated.key)]]},{results:[[updated.key,best.result]]}).results).get(updated.key));best.result=plan.results.get(updated.key);best.result.coinValue=groupMetrics(ws.model,updated,plan.level).coinValue;fit.within=ranchGoalWithin(best.result,options);plan.failures.delete(previous.key);plan.failures.delete(updated.key);plan.quantityErrors.delete(updated.id);plan.quantityFits.set(updated.id,fit);
     const metrics=groupMetrics(ws.model,updated,plan.level);plan.metrics.set(updated.key,metrics);plan.work.set(updated.key,metrics.totalMinutes);
     persistQuantity(plan,updated,fit,options);report.fitted++;if(reused)report.reused++;
     fitReuse.set(ranchQuantityFitKey(ws.model,updated,plan.capacities,options),fit);changed(plan);
@@ -177,9 +188,9 @@ export async function calculateRanchWorkspace(ws,{mode='quantity',signal,onProgr
       }
       if(mode==='quantity'&&!signal?.aborted){
         const work=ranchAutoWorkTarget(ws,plan,target);
-        if(!(work>0)){report.failed++;plan.targetError='无法估算共同累计工时，请填写累计工时目标。';progress(plan,'error',0,plan.groups.length,`Lv ${plan.level}：${plan.targetError}`);}
+        if(!(work>0)){report.failed++;plan.targetError=ranchObjective(target)==='coins'?'缺少有效金币单价，无法按金币估算配量目标，请补全导入价格。':'无法估算共同累计工时，请填写累计工时目标。';progress(plan,'error',0,plan.groups.length,`Lv ${plan.level}：${plan.targetError}`);}
         else{
-          const options=quantityOptions({...ranchWorkRules(ws.settings),targetMinutes:Number(target.targetHours)*60,toleranceMinutes:Number(target.targetTolerance),targetWorkMinutes:work,cropMax:Number(target.fitCropMax),productMax:Number(target.fitProductMax),timeLimitMs:Number(target.quantityBudget)});
+          const options=quantityOptions({...ranchWorkRules(ws.settings),...ranchGoalOptions(target,work)});
           const pending=[];
           for(const g of [...plan.groups]){
             const own=plan.quantityFits.get(g.id),key=ranchQuantityFitKey(ws.model,g,plan.capacities,options);

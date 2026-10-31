@@ -4,6 +4,7 @@ import {generateRanchLevelGroups,remapRanchResult} from './ranch-catalog.js';
 import {quantityGroup,hasEqualProductQuantities,orderWorkBalance} from './ranch-quantity.js';
 import {ranchImportCacheKey} from './ranch-import.js';
 import {ranchActualGroups,ranchPlanAdmission} from './ranch-actual-orders.js';
+import {ranchObjective,ranchGoal} from './ranch-objective.js';
 
 export const ranchTypes=[{id:'building',name:'同建筑',color:'#28795f'},{id:'chain',name:'高级加工链',color:'#a8773b'}];
 const escape=v=>String(v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -58,6 +59,7 @@ export function ranchLevelLink(level,type='building'){
 }
 
 export function ranchDashboardTarget(raw={}){
+  if(ranchObjective(raw)==='coins'){const goal=ranchGoal(raw),work=String(raw.targetWork??'').trim()===''?null:Number(raw.targetWork);return {metric:'coins',minutes:null,tolerance:null,lower:null,upper:null,coinTarget:goal.target,coinTolerance:goal.tolerance,coinLower:goal.lower,coinUpper:goal.upper,work:work>0?work:null};}
   const hours=Number(raw.targetHours),tolerance=Number(raw.targetTolerance),minutes=Number.isFinite(hours)&&hours>0?hours*60:null;
   const valid=minutes!=null&&Number.isFinite(tolerance)&&tolerance>=0;
   const work=String(raw.targetWork??'').trim()===''?null:Number(raw.targetWork);
@@ -101,7 +103,7 @@ export function ranchDashboardSummary(plans,targets={},type='all'){
       if(!hasEqualProductQuantities(g)){result.pending++;continue;}
       if(r?.proven&&Number.isFinite(r.optimalMinutes)&&r.optimalMinutes>=0){
         result.proven++;
-        if(target.minutes!=null){result.targetedProven++;if(ranchPlanAdmission(plan,g,targets[plan.level]).accepted)result.within++;}
+        if(target.minutes!=null||target.coinTarget!=null){result.targetedProven++;if(ranchPlanAdmission(plan,g,targets[plan.level]).accepted)result.within++;}
       }else if(r&&!r.proven)result.bounded++;
       else if(plan.failures.has(g.key))result.failed++;
       else result.pending++;
@@ -127,9 +129,10 @@ export function renderRanchMetricTrend(rows,metric){
   const hasValue=row=>row?.[metric]?.n&&Number.isFinite(row[metric].mean);
   const label=metric==='complexity'?'平均累计复杂度':'平均金币总值',unit=metric==='complexity'?'种 / 组':'金币 / 组';
   if(!rows.some(hasValue))return `<div class="distribution-chart-empty auxiliary-empty"><strong>${metric==='coins'&&rows.some(r=>r.missingCoins)?'实际订单缺少完整金币单价':'暂无达标实际订单'}</strong></div>`;
-  const levels=[...new Set(rows.map(r=>r.level))],width=Math.max(640,levels.length*34+75),height=218,left=48,right=width-20,top=30,bottom=177,step=(right-left)/Math.max(1,levels.length-1),max=ceiling(Math.max(...rows.map(r=>r[metric]?.mean??0))),x=level=>levels.length===1?(left+right)/2:left+levels.indexOf(level)*step,y=value=>bottom-value/max*(bottom-top),parts=[];
+  const levels=[...new Set(rows.map(r=>r.level))],width=Math.max(640,levels.length*34+75),height=218,left=48,right=width-20,top=30,bottom=177,step=(right-left)/Math.max(1,levels.length-1),max=ceiling(Math.max(...rows.map(r=>r[metric]?.mean??0),...rows.map(r=>metric==='coins'?r.target?.coinUpper??0:0))),x=level=>levels.length===1?(left+right)/2:left+levels.indexOf(level)*step,y=value=>bottom-value/max*(bottom-top),parts=[];
   for(let i=0;i<=4;i++){const value=max*i/4;parts.push(`<line x1="${left}" x2="${right}" y1="${y(value)}" y2="${y(value)}" stroke="#e7ede8"/><text x="${left-8}" y="${y(value)+4}" text-anchor="end">${formatMinutes(value)}</text>`);}
   levels.forEach(level=>parts.push(`<text x="${x(level)}" y="199" text-anchor="middle">${level}</text>`));
+  if(metric==='coins'){const targets=levels.map(level=>({level,value:rows.find(r=>r.level===level)?.target?.coinTarget})).filter(r=>Number.isFinite(r.value));if(targets.length)parts.push(`<polyline points="${targets.map(r=>`${x(r.level)},${y(r.value)}`).join(' ')}" fill="none" stroke="#8290a6" stroke-dasharray="4 3"><title>各级金币目标</title></polyline>`);}
   for(const [typeIndex,type] of ranchTypes.entries()){
     const series=levels.map(level=>rows.find(r=>r.level===level&&r.type===type.id)),segments=[];let active=[];
     for(const row of series){if(hasValue(row))active.push(row);else if(active.length){segments.push(active);active=[];}}if(active.length)segments.push(active);

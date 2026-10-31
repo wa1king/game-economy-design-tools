@@ -1,3 +1,4 @@
+import {ranchObjective} from '../orders/ranch-objective.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
@@ -40,7 +41,7 @@ for(const match of app.matchAll(/\$\('([^']+)'\)/g))assert(elements.has(match[1]
 assert(html.includes('data-ranch-view="dashboard"'));assert(html.includes('ranch-config.html'));assert(!app.includes('new Worker'));assert(!app.includes('saveRanchCache'));
 let loadCount=0,watchCallback,watchDisposed=false,activeCall=null,lastCSV='',loadValue={filename:'mock.xlsx',base:{maxLevel:2,products:[{}]},settings:{level:2},plans:structuredClone(plans)},failNext=false;
 const typeButtons=['all','building','chain'].map(type=>{const e=new Element();e.dataset.type=type;return e;}),events=[],windowHandlers={},calls=[];
-const context=vm.createContext({console,structuredClone,AbortController,CustomEvent:class{constructor(type,options){this.type=type;this.detail=options.detail;}},setTimeout,clearTimeout,
+const context=vm.createContext({ranchObjective,console,structuredClone,AbortController,CustomEvent:class{constructor(type,options){this.type=type;this.detail=options.detail;}},setTimeout,clearTimeout,
   ranchDashboardRows,ranchDashboardSummary,renderRanchBoxPlot,renderRanchMetricTrend,renderRanchHistogram,renderRanchDistributionEmpty,ranchDistributionCSV,ranchLevelLink,formatMinutes,
   loadRanchWorkspace:async()=>{loadCount++;return loadValue;},readRanchTarget:(settings,level)=>targets[level],watchRanchWorkspace:callback=>{watchCallback=callback;return()=>{watchDisposed=true;};},
   calculateRanchWorkspace:async(workspace,options)=>{calls.push({workspace,options});if(failNext){failNext=false;throw Error('模拟计算失败');}return new Promise(resolve=>{activeCall={workspace,options,resolve};options.signal.addEventListener('abort',resolve,{once:true});});},

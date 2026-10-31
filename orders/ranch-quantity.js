@@ -2,6 +2,8 @@ import {solveRanchGroupCached as solveRanchGroup} from './ranch-schedule-cache.j
 import {ranchDemandKey} from './ranch-catalog.js';
 import {groupMetrics} from './ranch-engine.js';
 import {ranchWorkRules,ranchWorkRangeText,validRanchWorkShares} from './ranch-work-rules.js';
+import {ranchCoinCandidates} from './ranch-coin-candidates.js';
+import {ranchObjective,ranchGoalWithin} from './ranch-objective.js';
 export const QUANTITY_SEARCH_VERSION=6;
 const clamp=(x,l,h)=>Math.max(l,Math.min(h,x));
 const unitProfiles=new WeakMap();
@@ -29,9 +31,11 @@ export function orderWorkBalance(model,group,rules=model.orderWorkRules){
   return {minutes,shares,valid:validRanchWorkShares(shares,rules)};
 }
 export function quantityOptions(options={}){
-  const value={targetMinutes:360,toleranceMinutes:30,targetWorkMinutes:1080,cropMax:42,productMax:12,timeLimitMs:2500,maxEvaluations:42,...options};
-  for(const key of ['targetMinutes','targetWorkMinutes','timeLimitMs'])if(!Number.isFinite(value[key])||value[key]<=0)throw Error('目标时间和搜索预算必须大于0。');
-  if(!Number.isFinite(value.toleranceMinutes)||value.toleranceMinutes<0||value.toleranceMinutes>=value.targetMinutes)throw Error('允许偏差应不小于0且小于目标优化时间。');
+  const value={objective:'time',targetCoins:300,coinTolerance:30,targetMinutes:360,toleranceMinutes:30,targetWorkMinutes:1080,cropMax:42,productMax:12,timeLimitMs:2500,maxEvaluations:42,...options};
+  if(!['time','coins'].includes(value.objective))throw Error('请选择优化时间或金币总值目标。');
+  const targetKey=value.objective==='coins'?'targetCoins':'targetMinutes',toleranceKey=value.objective==='coins'?'coinTolerance':'toleranceMinutes';
+  for(const key of [targetKey,'targetWorkMinutes','timeLimitMs'])if(!Number.isFinite(value[key])||value[key]<=0)throw Error('目标值、累计工时和搜索预算必须大于0。');
+  if(!Number.isFinite(value[toleranceKey])||value[toleranceKey]<0||value[toleranceKey]>=value[targetKey])throw Error('允许偏差应不小于0且小于当前目标值。');
   for(const key of ['cropMax','productMax'])if(!Number.isSafeInteger(value[key])||value[key]<1||value[key]>100)throw Error('自动配量的数量上限需为1至100的整数。');
   if(!Number.isSafeInteger(value.maxEvaluations)||value.maxEvaluations<1||value.maxEvaluations>200)throw Error('候选复核数量超出范围。');
   return {...value,...ranchWorkRules(options)};
@@ -47,6 +51,7 @@ export function ranchQuantityProfile(model,group,capacities){
   return {units,resources,estimate(q){const sourceMinutes=Object.fromEntries(resources.map(b=>[b,units.reduce((s,u,i)=>s+(u.work[b]||0)*q[i],0)]));return {totalMinutes:units.reduce((s,u,i)=>s+u.total*q[i],0),taskCount:units.reduce((s,u,i)=>s+u.tasks*q[i],0),lowerMinutes:Math.max(...units.map(u=>u.critical),...resources.map(b=>sourceMinutes[b]/capacities[b])),sourceMinutes};}};
 }
 export function quantityRank(candidate,options,mode='work'){
+  if(ranchObjective(options)==='coins'){const r=candidate.result,value=r.coinValue,valid=Number.isFinite(value),within=valid&&ranchGoalWithin(r,options,value);return [r.orderWorkBalanced===false?4:within?(r.proven?0:1):r.proven?2:3,valid?Math.abs(value-options.targetCoins):Infinity,Math.abs(r.totalMinutes-options.targetWorkMinutes),candidate.group.slots.reduce((s,v)=>s+v.quantity,0)];}
   const {result,group}=candidate,T=options.targetMinutes,tol=options.toleranceMinutes,lo=T-tol,hi=T+tol;
   const lower=result.lowerMinutes,upper=result.feasibleMinutes,certified=lower>=lo-1e-7&&upper<=hi+1e-7;
   const actual=result.proven?result.optimalMinutes:upper,timeError=Math.abs(actual-T),workError=Math.abs(result.totalMinutes-options.targetWorkMinutes),quantity=group.slots.reduce((s,v)=>s+v.quantity,0);
@@ -166,6 +171,7 @@ export function quantityEndpointDominated(lowerMinutes,options,evaluated){
   return evaluated.some(v=>v.result.proven&&(quantityRank(v,options)[0]===0||Math.abs(v.result.optimalMinutes-options.targetMinutes)<minimumError));
 }
 function* quantitySearch(model,group,level,capacities,rawOptions={},baseline=null,onProgress=()=>{}){
+  if(ranchObjective(rawOptions)==='coins')return yield* coinQuantitySearch(model,group,level,capacities,rawOptions,baseline,onProgress);
   const options=quantityOptions({...ranchWorkRules(model.orderWorkRules),...rawOptions}),start=performance.now(),pool=quantityCandidates(model,group,capacities,options,baseline),evaluated=[],failures=[];let tried=0,prunedCount=0,endpointProofSkips=0;
   const evaluate=(candidate,result)=>({group:candidate,result:{...result,orderWorkShares:orderWorkBalance(model,candidate,options).shares,orderWorkBalanced:orderWorkBalance(model,candidate,options).valid}});
   const pruningProfile=ranchQuantityProfile(model,group,capacities),pruningMax=group.slots.map(v=>model.by.get(v.id).isCrop?options.cropMax:options.productMax);
@@ -220,6 +226,34 @@ function* quantitySearch(model,group,level,capacities,rawOptions={},baseline=nul
   return {searchVersion:QUANTITY_SEARCH_VERSION,orderWorkBalanced:true,options,recommendations,within,reason,tried,prunedCount,endpointProofSkips,evaluatedCount:evaluated.length,considered:pool.considered,taskLimited:pool.taskLimited,workUpperAtTime:workUpper,provenCount:evaluated.filter(v=>v.result.proven).length,elapsedMs:Math.round(performance.now()-start),quantitySearchProven:false,method:'bounded_candidate_search_with_joint_schedule_verification'};
 }
 
+function* coinQuantitySearch(model,group,level,capacities,rawOptions,baseline,onProgress){
+  const options=quantityOptions({...ranchWorkRules(model.orderWorkRules),...rawOptions}),start=performance.now(),profile=ranchQuantityProfile(model,group,capacities),pool=ranchCoinCandidates(model,group,profile,options),evaluated=[],errors=[];let tried=0;
+  for(const item of pool.candidates.slice(0,options.maxEvaluations)){
+    if(tried&&performance.now()-start>=options.timeLimitMs)break;
+    const candidate=quantityGroup(group,item.q);
+    try{
+      const cached=candidate.key===ranchDemandKey(group)&&baseline;
+      const result=cached?.proven?cached:yield {model,group:candidate,level,capacities,options:{timeLimitMs:Math.min(500,Math.max(0,options.timeLimitMs-(performance.now()-start))),nodeLimit:10000}};
+      const metric=groupMetrics(model,candidate,level),balance=orderWorkBalance(model,candidate,options);
+      evaluated.push({group:candidate,result:{...result,coinValue:metric.coinValue,orderWorkShares:balance.shares,orderWorkBalanced:balance.valid}});
+      tried++;onProgress({tried,candidates:pool.candidates.length});
+      // Candidate gold/work ranks are exact and sorted before scheduling.
+      // Once the best rank is also proven schedulable, no extra schedule is needed.
+      if(result.proven)break;
+    }catch(error){tried++;errors.push(error.message);}
+  }
+  if(!evaluated.length)throw Error(errors[0]||'金币配量没有取得可验证排程，请增加搜索预算。');
+  evaluated.sort((a,b)=>compare(quantityRank(a,options),quantityRank(b,options)));
+  const best=evaluated[0],within=ranchGoalWithin(best.result,options),gap=Math.abs(best.result.coinValue-options.targetCoins);
+  return {searchVersion:QUANTITY_SEARCH_VERSION,options,orderWorkBalanced:true,recommendations:[{...best,label:'金币总值更接近'}],within,reason:within?'金币总值已落入目标范围，联合排产时间单独计算。':`在当前数量上限和工时占比约束下，已复核配置的金币差值为 ${Number(gap.toFixed(6))}，未进入目标范围。`,tried,evaluatedCount:evaluated.length,considered:pool.considered,taskLimited:pool.taskLimited,provenCount:evaluated.filter(v=>v.result.proven).length,elapsedMs:Math.round(performance.now()-start),quantitySearchProven:false,method:'linear_coin_integer_search_with_joint_schedule_verification'};
+}
+
+export function estimateRanchCoinWork(model,groups,targetCoins){
+  const ratios=[];
+  for(const group of groups){const units=orderWorkBalance(model,quantityGroup(group,[1,1,1,1])).minutes,largest=Math.max(...units),prices=group.slots.map(v=>model.by.get(v.id).coinValue);if(prices.some(v=>!Number.isFinite(v)||v<0))continue;const value=prices.reduce((s,p,i)=>s+p*largest/units[i],0);if(value>0)ratios.push(largest*4/value);}
+  ratios.sort((a,b)=>a-b);return ratios.length?targetCoins*(ratios[(ratios.length-1)>>1]+ratios[ratios.length>>1])/2:null;
+}
+
 // This ratio is an inexpensive planning estimate. It is never a claimed schedule.
 export function estimateRanchWorkRatio(model,groups,capacities){
   const ratios=groups.map(group=>{const profile=ranchQuantityProfile(model,group,capacities),largest=Math.max(...profile.units.map(u=>u.total));const balanced=profile.units.map(u=>largest/u.total),value=profile.estimate(balanced);return value.totalMinutes/value.lowerMinutes;}).filter(v=>Number.isFinite(v)&&v>0).sort((a,b)=>a-b);
@@ -229,7 +263,7 @@ export function ranchQuantityFitKey(model,group,capacities,options){
   const profile=ranchQuantityProfile(model,group,capacities);
   let signatures=fitSignatures.get(model);if(!signatures){signatures=new Map();fitSignatures.set(model,signatures);}
   const recipes=group.slots.map(v=>{if(!signatures.has(v.id))signatures.set(v.id,[...model.chains.get(v.id)].sort((a,b)=>a-b).map(id=>{const p=model.by.get(id);return [id,p.buildingId,p.stepMinutes,p.inputs];}));return signatures.get(v.id);});
-  return JSON.stringify([QUANTITY_SEARCH_VERSION,group.slots.map(v=>v.id),recipes,profile.resources.sort().map(id=>[id,Number(capacities[id])]),quantityOptions({...ranchWorkRules(model.orderWorkRules),...options})]);
+  return JSON.stringify([QUANTITY_SEARCH_VERSION,group.slots.map(v=>v.id),recipes,profile.resources.sort().map(id=>[id,Number(capacities[id])]),quantityOptions({...ranchWorkRules(model.orderWorkRules),...options}),...(ranchObjective(options)==='coins'?[group.slots.map(v=>model.by.get(v.id).coinValue)]:[])]);
 }
 export function reuseRanchQuantityFit(fit,group,capacities,model=null){
   if(!fit?.recommendations?.length)throw Error('缺少可复用的配量结果。');

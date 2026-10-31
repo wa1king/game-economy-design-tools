@@ -12,7 +12,7 @@
     <section id="distributionSummary" class="distribution-summary" aria-label="计算与目标覆盖情况"></section>
     <div class="distribution-progress-line"><span id="distributionProgress" role="status">读取排产结果</span><span>按各等级目标自动配量，再计算四单联合排产</span></div>
     <div class="distribution-chart-grid">
-      <section class="panel"><div class="panel-heading"><div><h2>联合优化时间</h2><span class="muted">达标实际订单 · 四单一起排产</span></div><span class="chart-tag">各级目标带</span></div><div id="optimizedPlot" class="distribution-scroll"></div></section>
+      <section class="panel"><div class="panel-heading"><div><h2>联合优化时间</h2><span class="muted">达标实际订单 · 四单一起排产</span></div><span id="optimizedTargetTag" class="chart-tag">各级目标带</span></div><div id="optimizedPlot" class="distribution-scroll"></div></section>
       <section class="panel"><div class="panel-heading"><div><h2>累计工时</h2><span class="muted">达标实际订单 · 全部上游生产</span></div><span id="workTargetNote" class="chart-tag"></span></div><div id="workPlot" class="distribution-scroll"></div></section>
     </div>
     <div class="distribution-chart-key">须线：最小～最大　箱体：中间 50%　横线：中位数　点：平均数　·　点击查看单级方案</div>
@@ -20,7 +20,7 @@
       <section class="panel"><div class="panel-heading"><h2>累计复杂度 <span>平均值</span></h2></div><div id="complexityPlot" class="distribution-scroll"></div></section>
       <section class="panel"><div class="panel-heading"><h2>四单金币总值 <span>平均值</span></h2><span id="coinCoverageNote" class="muted"></span></div><div id="coinPlot" class="distribution-scroll"></div></section>
     </div>
-    <section class="panel distribution-level-table"><div class="panel-heading"><div><h2>逐级对照</h2><span class="muted">优化时间、累计工时、复杂度、金币均使用同一份达标实际订单名单</span></div><button id="downloadDistribution" hidden disabled>导出统计 CSV</button></div><div class="distribution-table-scroll"><table class="distribution-table"><thead><tr><th>等级 / 类型</th><th>实际订单组</th><th>目标范围 · 分钟</th><th>优化时间 · 中位 / 均值 / 范围</th><th>累计工时 · 中位 / 均值 / 范围</th><th>平均复杂度</th><th>平均金币</th><th>预设组合</th></tr></thead><tbody id="distributionRows"></tbody></table></div></section>
+    <section class="panel distribution-level-table"><div class="panel-heading"><div><h2>逐级对照</h2><span class="muted">优化时间、累计工时、复杂度、金币均使用同一份达标实际订单名单</span></div><button id="downloadDistribution" hidden disabled>导出统计 CSV</button></div><div class="distribution-table-scroll"><table class="distribution-table"><thead><tr><th>等级 / 类型</th><th>实际订单组</th><th id="distributionGoalHeading">优化时间目标范围 · 分钟</th><th>优化时间 · 中位 / 均值 / 范围</th><th>累计工时 · 中位 / 均值 / 范围</th><th>平均复杂度</th><th>平均金币</th><th>预设组合</th></tr></thead><tbody id="distributionRows"></tbody></table></div></section>
     <details class="panel"><summary id="presetSummary">预设组合与计算状态</summary><div id="presetProgress" class="coverage-meta"></div></details>
     <details class="panel distribution-detail"><summary>查看单级分段分布</summary><div class="panel-heading"><span id="selectedDistributionMeta" class="muted"></span><label>等级 <select id="distributionLevel" aria-label="查看分布的等级"></select></label></div><div class="distribution-chart-grid"><div><h3>联合优化时间</h3><div id="optimizedHistogram"></div></div><div><h3>累计工时</h3><div id="workHistogram"></div></div></div></details>
   </div>
