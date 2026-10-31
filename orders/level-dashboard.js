@@ -20,6 +20,29 @@ export function dashboardRows(api){
   });
 }
 
+// Shared by the panel and exports. Callers pass only fresh, error-free results.
+export function dashboardStatistics(catalog,row,selection,byId){
+  const {level,c,info,r,targets}=row;
+  const outcome=r?summarizeOrderOutcomes(catalog,r,level):null;
+  const comparison=customOrderTimeComparison(catalog,selection,level,r,byId);
+  const mixTargets=normalizedMixWeights(c.mix,info.counts);
+  return {
+    outcome,comparison,
+    problems:row.error?[row.error]:r&&!r.matched?resultFeedback(r,catalog):[],
+    candidateOrders:info.orders.length,
+    nonZeroOrders:r?(r.quantization?.nonZeroOrders??r.probabilities.filter(v=>v>0).length):null,
+    targetMean:Number(c.mean),actualMean:r?.mean??null,
+    targetSpreadPercent:spreadPercent(c),actualSpreadPercent:r?actualSpread(r):null,
+    mixMaxDeviationPoints:r?Math.max(...r.actualMix.map((v,j)=>Math.abs(v*100-mixTargets[j]))):null,
+    sourceMaxDeviationPoints:r&&c.sourceEnabled?Math.max(...r.shares.map((v,j)=>info.active[j]?Math.abs(v*100-targets[j]):0)):null,
+    timeShape:r?.shapeAssessment?.label??null,
+    sources:catalog.sources.map((source,j)=>({id:source.id,name:source.name,active:!!info.active[j],constrained:!!c.sourceEnabled,
+      actualShare:r&&info.active[j]?r.shares[j]:null,
+      targetShare:c.sourceEnabled&&info.active[j]?targets[j]/100:null,
+      deviationPoints:r&&c.sourceEnabled&&info.active[j]?r.shares[j]*100-targets[j]:null}))
+  };
+}
+
 function trend(rows,series,label,fixedMax=null,{width=600,height=220,ticks=4,emptyText='拟合后显示趋势'}={}){
   const W=Math.max(260,Math.round(width),rows.length*26+68),H=height,p={l:52,r:16,t:28,b:42},w=W-p.l-p.r,h=H-p.t-p.b;
   const axisDigits=series.some(s=>/分钟|金币/.test(s.unit||''))?0:2;
@@ -71,7 +94,7 @@ export function createLevelDashboard(api){
     const chartSize={width:(width-(columns-1)*14)/columns-34};
     const rows=dashboardRows(api),catalog=api.getCatalog(),fresh=rows.filter(row=>row.r),counts=Object.fromEntries(Object.keys(states).map(s=>[s,rows.filter(row=>row.state===s).length]));
     const products=new Map(catalog.products.map(p=>[p.id,p])),byId=new Map(catalog.orders.map(o=>[o.id,o])),selection=api.getSelection?.();
-    for(const row of rows){row.outcome=row.r?summarizeOrderOutcomes(catalog,row.r,row.level):null;row.customComparison=customOrderTimeComparison(catalog,selection,row.level,row.r,byId);}
+    for(const row of rows){row.statistics=dashboardStatistics(catalog,row,selection,byId);row.outcome=row.statistics.outcome;row.customComparison=row.statistics.comparison;}
     const problems=rows.flatMap(row=>row.error?[{level:row.level,state:'无法拟合',messages:[row.error]}]:row.r&&!row.r.matched?[{level:row.level,state:'近似解',messages:resultFeedback(row.r,catalog)}]:[]);
     const dualLegend=()=>'<div class="dash-legend"><span class="dash-average" title="按订单实际生成概率加权">平均数</span><span class="dash-result" title="按订单实际生成概率计算的50%分位数">中位数</span></div>';
     const series=(name,get,unit='')=>({name,get,unit,color:'#27775c'});
@@ -94,7 +117,7 @@ export function createLevelDashboard(api){
         return `<td title="${esc(title)}" style="background:${color}">${show?num(v):'—'}</td>`;
       }).join('')}</tr>`).join('')}</tbody></table></div></article>
       <article class="panel dash-validation"><div class="panel-heading"><h3>拟合校验</h3><span class="hint">目标 / 实际</span></div><div class="dash-scroll"><table class="dash-results"><thead><tr><th>等级</th><th>状态</th><th>候选订单</th><th>非零订单</th><th>均值 · 分钟</th><th>工时波动 %</th><th>种类最大偏差<br>百分点</th><th>来源最大偏差<br>百分点</th><th title="按最终生成概率加权；订单奖励=交付物品金币总值×5">平均金币奖励</th><th>工时形态</th><th></th></tr></thead><tbody>${rows.map(row=>{
-        const r=row.r,mixTargets=normalizedMixWeights(row.c.mix,row.info.counts),mixError=r?Math.max(...r.actualMix.map((v,j)=>Math.abs(v*100-mixTargets[j]))):null,sourceError=r&&row.c.sourceEnabled?Math.max(...r.shares.map((v,j)=>row.info.active[j]?Math.abs(v*100-row.targets[j]):0)):null;
+        const r=row.r,mixError=row.statistics.mixMaxDeviationPoints,sourceError=row.statistics.sourceMaxDeviationPoints;
         return `<tr><th>Lv ${row.level}</th><td><span class="dash-status ${row.state}" title="${esc(row.error||'')}">${states[row.state]}</span></td><td>${num(row.info.orders.length)}</td><td>${r?num(r.quantization?.nonZeroOrders??r.probabilities.filter(v=>v>0).length):'—'}</td><td>${num(row.c.mean,0)} / <b>${r?num(r.mean,0):'—'}</b></td><td>${num(spreadPercent(row.c))} / <b>${r?num(actualSpread(r)):'—'}</b></td><td>${num(mixError)}</td><td>${r&&!row.c.sourceEnabled?'未约束':num(sourceError)}</td><td title="${row.outcome?.coinRewardCoverage.missingOrderCount?'有 '+row.outcome.coinRewardCoverage.missingOrderCount+' 张可生成订单缺少金币单价':'按最终生成概率加权 · 物品金币总值×5'}">${row.outcome?.coinRewardCoverage.missingOrderCount?'缺少单价':num(row.outcome?.stats.coinReward.mean,0)}</td><td>${esc(r?.shapeAssessment?.label||'—')}</td><td><button class="text-button" data-open="${row.level}">查看单级</button></td></tr>`;
       }).join('')}</tbody></table></div></article>`;
     root.querySelector('#dashboardSourceMode').onchange=e=>{sourceMode=e.target.value;render();};

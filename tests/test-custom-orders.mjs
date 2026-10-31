@@ -49,7 +49,7 @@ test('Excel sheets keep custom tasks separate and export no stale probability re
  const o=c.orders.find(o=>o.id==='S1-1');
  const levels=[{level:1,status:'matched',fit:{orders:[{...o,probability:1,relativeWeight:10000,weightScale:10000,generationAllowed:true}]}},{level:2,status:'not_fitted',fit:null},{level:3,status:'blocked',fit:null}];
  const sheets=projectExportSheets(c,p,levels);
- assert.deepEqual(sheets.map(s=>s.name),['概率订单','定制订单','等级配置']);assert.equal(sheets[0].rows.length,2);assert.equal(sheets[1].rows.length,3);assert.equal(sheets[2].rows.length,4);
+ assert.deepEqual(sheets.map(s=>s.name),['概率订单','定制订单','等级配置','总面板统计','来源工时占比','定制工时对照']);assert.equal(sheets[0].rows.length,2);assert.equal(sheets[1].rows.length,3);assert.equal(sheets[2].rows.length,4);
  assert.deepEqual(sheets[1].rows.slice(1).map(r=>r.slice(0,3)),[[2,1,'S1-2'],[2,2,'S1-1']]);
  assert(!sheets[1].rows[0].includes('生成概率'));assert.equal(sheets[2].rows[2][1],'未拟合 / 结果待更新');
  const module={exports:{}};new Function('module','exports',fs.readFileSync(new URL('../orders/vendor/jszip.min.js',import.meta.url),'utf8'))(module,module.exports);const Zip=module.exports;

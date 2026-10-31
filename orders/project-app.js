@@ -10,7 +10,7 @@ import {buildCatalog,DEFAULT_RULES,levelInfo,availableAt,normalizedSourceWeights
 import {normalizedMixWeights,mixWeightsIssue} from './mix-weights.js';
 import {readChainExcel,initialSourceConfig} from './excel-import.js';
 import {createAllLevelPanel} from './all-level-panel.js';
-import {createLevelDashboard} from './level-dashboard.js';
+import {createLevelDashboard,dashboardRows,dashboardStatistics} from './level-dashboard.js';
 import {spreadPercent,actualSpread,migrateSpread,setTimeTarget,spreadInterval} from './time-spread.js';
 import {createProjectStore,PROJECT_STORAGE_KEY} from './project-storage.js';
 import {migrateProjectPrecision,setProjectProbabilityScale} from './project-precision.js';
@@ -416,12 +416,20 @@ $('excelFile').onchange=async()=>{
 };
 $('exportCSV').onclick=()=>{if(result&&!dirty)download(toCSV(catalog,result),`订单权重_Lv${activeLevel}.csv`,'text/csv;charset=utf-8');};
 $('exportJSON').onclick=()=>{if(result&&!dirty)download(toJSON(catalog,result),`订单权重_Lv${activeLevel}.json`,'application/json');};
-function exportLevels(){return Array.from({length:catalog.maxLevel},(_,i)=>{const level=i+1,saved=results.get(level),fresh=saved?.revision===revision(level);return {level,rawSettings:project.configs[level],normalizedTargets:fittedConfig(level),status:fresh?(saved.result.matched?'matched':'approximate'):errors.has(level)?'blocked':'not_fitted',error:errors.get(level)||null,fit:fresh?JSON.parse(toJSON(catalog,saved.result)):null};});}
+function exportLevels(){
+  const byId=new Map(catalog.orders.map(o=>[o.id,o]));
+  return dashboardRows({getCatalog:()=>catalog,getConfig:level=>project.configs[level],getInfo:info,getResult:level=>results.get(level),getError:level=>errors.get(level),getIssue:configIssue}).map(row=>({
+    level:row.level,rawSettings:row.c,normalizedTargets:fittedConfig(row.level),
+    status:row.r?(row.r.matched?'matched':'approximate'):row.error?'blocked':'not_fitted',error:row.error||null,
+    dashboard:dashboardStatistics(catalog,row,project.customOrders,byId),
+    fit:row.r?JSON.parse(toJSON(catalog,row.r)):null
+  }));
+}
 function customTimingRequests(){return Array.from({length:catalog.maxLevel},(_,i)=>customOrdersAt(catalog,project.customOrders,i+1).flatMap(e=>e.order?[{order:e.order,level:i+1}]:[])).flat();}
 $('exportProject').onclick=()=>{
   if(!project)return;
   const fitted=[...results].filter(([level,saved])=>saved.revision===revision(level)).length,count=Object.values(project.customOrders.levels).reduce((s,ids)=>s+ids.length,0);
-  $('projectExportSummary').textContent=`${fitted} / ${catalog.maxLevel} 级概率结果有效 · ${count} 个定制任务。未拟合或待更新等级见“等级配置”表。`;
+  $('projectExportSummary').textContent=`${fitted} / ${catalog.maxLevel} 级概率结果有效 · ${count} 个定制任务。同时导出总面板统计、来源工时占比和定制工时对照；未拟合或待更新等级保留状态，实际统计留空。`;
   $('projectExportError').hidden=true;$('projectExportDialog').showModal();
 };
 $('closeProjectExport').onclick=()=>$('projectExportDialog').close();
