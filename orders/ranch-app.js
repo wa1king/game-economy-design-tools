@@ -1,3 +1,4 @@
+import {createRanchLevelCatalog} from './ranch-level-catalog.js';
 import {calculateRanchImport,canMigrateRanchSettings,backupRanchBeforeImport,ranchSettingsKey,ranchImportCacheKey,readRanchResultBundle} from './ranch-import.js';
 import {ranchBrowserScope,ranchSchemeStep} from './ranch-browser.js';
 import {ranchChainData,renderRanchChain,setupRanchChains} from './ranch-chain.js';
@@ -14,6 +15,16 @@ const fmt=(v,d=1)=>v==null?'—':Number(v).toLocaleString('zh-CN',{maximumFracti
 let base,model,filename,level=20,type='building',families=[],groups=[],current,capacities={},worker,busy=false,page=0,results=new Map(),failures=new Map(),savedSettings={},storageKey,downloadUrl,exportedJSON,cacheKey,buildToken=0,saveTimer,viewRows=[],viewRevision=0,sortedRevision=-1,sortedRows=[],itemInfo,metricCache=new Map(),cacheQueue=Promise.resolve(),quantityEdits={},quantityFits=new Map(),expandedChainId=null,workerKind=null,manualTimer,browserBuildingId=null,graphOverview=true,graphSignature='',slotSignature='',schemeSignature='';
 const groupKey=g=>g.key??ranchDemandKey(g);
 let persistedSettings={},fitCacheSnapshot=new Map(),syncQueued=false,syncing=false,cacheSaveError=null;
+const levelCatalog=createRanchLevelCatalog({
+  getState:()=>({level,groups,products:itemInfo?.products??new Map(),sources:base?.sources??[],metrics,resultFor}),
+  beforeOpen:()=>commitSlotInputs(false),
+  onChoose:group=>{
+    if(!commitSlotInputs(false))return false;type=group.types.includes(type)?type:group.types[0];
+    const family=families.find(f=>f.type===type&&group.familyIds.includes(f.id));
+    if(family){browserBuildingId=model.by.get(family.anchorId??family.productIds[0]).buildingId;$('family').value=family.id;savedSettings.browser={...savedSettings.browser,familyId:family.id};}
+    $('search').value='';$('expandPermutations').checked=false;current=group;updateFilters();updateView();persist();
+  }
+});
 const navigationRequest=globalThis.URLSearchParams?new URLSearchParams(window.location?.search??''):null;
 let navigationApplied=false;
 const representative=g=>groups.find(v=>v.key===groupKey(g))??g;
@@ -116,6 +127,7 @@ function entries(){
   });sortedRevision=viewRevision;return sortedRows;
 }
 function renderTable(){
+  levelCatalog.refresh();
   const query=$('search').value.trim().toLowerCase(),list=entries().filter(({g})=>!query||g.slots.some(v=>model.by.get(v.id).name.toLowerCase().includes(query))),maxPage=Math.max(0,Math.ceil(list.length/40)-1);page=Math.min(page,maxPage);$('candidateCount').textContent=fmt(list.length,0)+' 组';
   const solved=groups.filter(g=>results.has(g.key)).length,proven=groups.filter(g=>results.get(g.key)?.proven),done=proven.length;
   $('candidateSummary').textContent=`本级${busy?'正在计算':'已计算'} ${solved+failures.size} / ${groups.length} 个组合 · 最优 ${done} · 待证明 ${solved-done}${failures.size?' · 失败 '+failures.size:''}`;
