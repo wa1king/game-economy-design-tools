@@ -3,6 +3,7 @@ import {prepareRanch,ranchCapacities,groupMetrics} from './ranch-engine.js';
 import {generateRanchLevelGroups,remapRanchResult} from './ranch-catalog.js';
 import {quantityGroup,hasEqualProductQuantities,orderWorkBalance} from './ranch-quantity.js';
 import {ranchImportCacheKey} from './ranch-import.js';
+import {ranchActualGroups,ranchPlanAdmission} from './ranch-actual-orders.js';
 
 export const ranchTypes=[{id:'building',name:'同建筑',color:'#28795f'},{id:'chain',name:'高级加工链',color:'#a8773b'}];
 const escape=v=>String(v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -31,7 +32,7 @@ export function buildRanchDistributionPlans(base,settings={}){
     const actual=groups.map(g=>Object.hasOwn(edits,g.id)?quantityGroup(g,edits[g.id]):g);
     const missing=base.sources.filter(s=>s.level<=level&&(!Number.isSafeInteger(Number(capacities[s.id]))||Number(capacities[s.id])<1));
     const metrics=new Map(actual.map(g=>[g.key,groupMetrics(model,g,level)]));
-    return {level,capacities,groups:actual,orderWorkBalance:new Map(actual.map(g=>[g.key,orderWorkBalance(model,g)])),metrics,work:new Map(actual.map(g=>[g.key,metrics.get(g.key).totalMinutes])),results:new Map(),failures:new Map(),quantityFits:[],capacityError:missing.length?'缺少有效产能：'+missing.map(s=>s.name).join('、'):null,cacheKey:ranchImportCacheKey(base,level,rules,capacities)};
+    return {level,model,capacities,groups:actual,orderWorkBalance:new Map(actual.map(g=>[g.key,orderWorkBalance(model,g)])),metrics,work:new Map(actual.map(g=>[g.key,metrics.get(g.key).totalMinutes])),results:new Map(),failures:new Map(),quantityFits:[],capacityError:missing.length?'缺少有效产能：'+missing.map(s=>s.name).join('、'):null,cacheKey:ranchImportCacheKey(base,level,rules,capacities)};
   });
 }
 
@@ -66,22 +67,26 @@ export function ranchDashboardTarget(raw={}){
 export function ranchDashboardRows(plans,targets={},type='all'){
   const byLevel=new Map(plans.map(p=>[p.level,p]));
   return ranchDistributionRows(plans,type).map(row=>{
-    const plan=byLevel.get(row.level),groups=plan.groups.filter(g=>g.types.includes(row.type)),complexity=[],coins=[];
+    const plan=byLevel.get(row.level),candidates=plan.groups.filter(g=>g.types.includes(row.type)),groups=ranchActualGroups(plan,targets[row.level]).filter(g=>g.types.includes(row.type)),complexity=[],coins=[];
     for(const group of groups){
       const m=plan.metrics?.get(group.key);
       if(Number.isFinite(m?.complexity)&&m.complexity>=0)complexity.push(m.complexity);
       if(Number.isFinite(m?.coinValue)&&m.coinValue>=0)coins.push(m.coinValue);
     }
-    const target=ranchDashboardTarget(targets[row.level]),within=target.minutes==null?null:groups.filter(g=>plan.orderWorkBalance?.get(g.key)?.valid!==false&&plan.results.get(g.key)?.proven&&plan.results.get(g.key).optimalMinutes>=target.lower-1e-8&&plan.results.get(g.key).optimalMinutes<=target.upper+1e-8).length;
-    const statusGroups=groups.map(g=>{if(!hasEqualProductQuantities(g))return {key:`${plan.level}:${g.key}`,state:'pending'};const r=plan.results.get(g.key);return {key:`${plan.level}:${g.key}`,state:r?.proven&&Number.isFinite(r.optimalMinutes)&&r.optimalMinutes>=0?'proven':r&&!r.proven?'bounded':plan.failures.has(g.key)?'failed':'pending'};});
-    return {...row,target,within,withinShare:row.proven&&within!=null?within/row.proven:null,complexity:summarizeMinutes(complexity),coins:summarizeMinutes(coins),missingCoins:groups.length-coins.length,statusGroups};
+    const target=ranchDashboardTarget(targets[row.level]),within=groups.length;
+    const statusGroups=candidates.map(g=>{if(!hasEqualProductQuantities(g))return {key:`${plan.level}:${g.key}`,state:'pending'};const r=plan.results.get(g.key);return {key:`${plan.level}:${g.key}`,state:r?.proven&&Number.isFinite(r.optimalMinutes)&&r.optimalMinutes>=0?'proven':r&&!r.proven?'bounded':plan.failures.has(g.key)?'failed':'pending'};});
+    const work=groups.map(g=>plan.work.get(g.key)),optimized=groups.map(g=>plan.results.get(g.key).optimalMinutes),coinStats=summarizeMinutes(coins);
+    if(coins.length!==groups.length)coinStats.mean=null;
+    const admissions=candidates.map(g=>({key:`${plan.level}:${g.key}`,...ranchPlanAdmission(plan,g,targets[row.level])}));
+    return {...row,target,accepted:groups.length,within,withinShare:row.proven?within/row.proven:null,work:summarizeMinutes(work),optimized:summarizeMinutes(optimized),workValues:work,optimizedValues:optimized,complexity:summarizeMinutes(complexity),coins:coinStats,missingCoins:groups.length-coins.length,statusGroups,admissions};
   });
 }
 
 // Totals visit each level's actual groups once, even when a group belongs to
 // both categories. Missing/bounded schedules never enter exact-time statistics.
 export function ranchDashboardSummary(plans,targets={},type='all'){
-  const result={levels:plans.length,total:0,proven:0,bounded:0,pending:0,failed:0,within:0,targetedProven:0,missingCoins:0,capacityLevels:0};
+  const result={levels:plans.length,total:0,accepted:0,proven:0,bounded:0,pending:0,failed:0,within:0,targetedProven:0,missingCoins:0,capacityLevels:0,excluded:0};
+  const times=[],work=[],coins=[];
   for(const plan of plans){
     const target=ranchDashboardTarget(targets[plan.level]),groups=plan.groups.filter(g=>type==='all'||g.types.includes(type));
     if(groups.length&&plan.capacityError)result.capacityLevels++;
@@ -89,21 +94,27 @@ export function ranchDashboardSummary(plans,targets={},type='all'){
     for(const g of groups){
       if(seen.has(g.key))continue;seen.add(g.key);result.total++;
       const r=plan.results.get(g.key),m=plan.metrics?.get(g.key);
-      if(!Number.isFinite(m?.coinValue)||m.coinValue<0)result.missingCoins++;
+      if(ranchPlanAdmission(plan,g,targets[plan.level]).accepted){
+        result.accepted++;times.push(r.optimalMinutes);work.push(plan.work.get(g.key));
+        if(Number.isFinite(m?.coinValue)&&m.coinValue>=0)coins.push(m.coinValue);else result.missingCoins++;
+      }
       if(!hasEqualProductQuantities(g)){result.pending++;continue;}
       if(r?.proven&&Number.isFinite(r.optimalMinutes)&&r.optimalMinutes>=0){
         result.proven++;
-        if(target.minutes!=null){result.targetedProven++;if(r.optimalMinutes>=target.lower-1e-8&&r.optimalMinutes<=target.upper+1e-8)result.within++;}
+        if(target.minutes!=null){result.targetedProven++;if(ranchPlanAdmission(plan,g,targets[plan.level]).accepted)result.within++;}
       }else if(r&&!r.proven)result.bounded++;
       else if(plan.failures.has(g.key))result.failed++;
       else result.pending++;
     }
   }
   result.withinShare=result.targetedProven?result.within/result.targetedProven:null;
+  result.excluded=result.total-result.accepted;result.optimized=summarizeMinutes(times);result.work=summarizeMinutes(work);result.coins=summarizeMinutes(coins);
+  if(result.missingCoins)result.coins.mean=null;
   return result;
 }
 
 export function renderRanchDistributionEmpty(rows,metric='optimized'){
+  if(rows.every(r=>Array.isArray(r.admissions)))return '<div class="distribution-chart-empty"><strong>暂无达标实际订单</strong><span>预设组合、待证明及未达标结果不计入统计。请到全部等级配置计算，或到单等级分析查看预设组合。</span></div>';
   const unique=rows.every(r=>r.statusGroups)?new Map(rows.flatMap(r=>r.statusGroups.map(g=>[g.key,g.state]))):null,statesCount=state=>unique?[...unique.values()].filter(v=>v===state).length:rows.reduce((n,r)=>n+r[state],0);
   const total=unique?unique.size:rows.reduce((n,r)=>n+r.total,0),bounded=statesCount('bounded'),pending=statesCount('pending'),failed=statesCount('failed'),capacity=rows.some(r=>r.total&&r.capacityError);
   if(!total)return '<div class="distribution-chart-empty"><strong>暂无符合规则的组合</strong><span>切换类型或查看后续等级</span></div>';
@@ -113,17 +124,18 @@ export function renderRanchDistributionEmpty(rows,metric='optimized'){
 }
 
 export function renderRanchMetricTrend(rows,metric){
+  const hasValue=row=>row?.[metric]?.n&&Number.isFinite(row[metric].mean);
   const label=metric==='complexity'?'平均累计复杂度':'平均金币总值',unit=metric==='complexity'?'种 / 组':'金币 / 组';
-  if(!rows.some(r=>r[metric]?.n))return `<div class="distribution-chart-empty auxiliary-empty"><strong>${metric==='coins'?'暂无完整金币单价':'暂无组合'}</strong></div>`;
+  if(!rows.some(hasValue))return `<div class="distribution-chart-empty auxiliary-empty"><strong>${metric==='coins'&&rows.some(r=>r.missingCoins)?'实际订单缺少完整金币单价':'暂无达标实际订单'}</strong></div>`;
   const levels=[...new Set(rows.map(r=>r.level))],width=Math.max(640,levels.length*34+75),height=218,left=48,right=width-20,top=30,bottom=177,step=(right-left)/Math.max(1,levels.length-1),max=ceiling(Math.max(...rows.map(r=>r[metric]?.mean??0))),x=level=>levels.length===1?(left+right)/2:left+levels.indexOf(level)*step,y=value=>bottom-value/max*(bottom-top),parts=[];
   for(let i=0;i<=4;i++){const value=max*i/4;parts.push(`<line x1="${left}" x2="${right}" y1="${y(value)}" y2="${y(value)}" stroke="#e7ede8"/><text x="${left-8}" y="${y(value)+4}" text-anchor="end">${formatMinutes(value)}</text>`);}
   levels.forEach(level=>parts.push(`<text x="${x(level)}" y="199" text-anchor="middle">${level}</text>`));
   for(const [typeIndex,type] of ranchTypes.entries()){
     const series=levels.map(level=>rows.find(r=>r.level===level&&r.type===type.id)),segments=[];let active=[];
-    for(const row of series){if(row?.[metric]?.n)active.push(row);else if(active.length){segments.push(active);active=[];}}if(active.length)segments.push(active);
+    for(const row of series){if(hasValue(row))active.push(row);else if(active.length){segments.push(active);active=[];}}if(active.length)segments.push(active);
     for(const segment of segments)parts.push(`<polyline points="${segment.map(r=>`${x(r.level)},${y(r[metric].mean)}`).join(' ')}" fill="none" stroke="${type.color}" stroke-width="2"/>`);
     for(const row of series){
-      if(!row?.[metric]?.n)continue;const s=row[metric],labelY=Math.max(14,Math.min(bottom+13,y(s.mean)+(typeIndex===0?-9:17))),tip=`Lv ${row.level} · ${type.name}\n平均 ${formatMinutes(s.mean)} · 最小 ${formatMinutes(s.min)} · 最大 ${formatMinutes(s.max)}\n${s.n} / ${row.total} 组${metric==='coins'&&row.missingCoins?` · ${row.missingCoins} 组缺少单价`:''}`;
+      if(!hasValue(row))continue;const s=row[metric],labelY=Math.max(14,Math.min(bottom+13,y(s.mean)+(typeIndex===0?-9:17))),tip=`Lv ${row.level} · ${type.name}\n平均 ${formatMinutes(s.mean)} · 最小 ${formatMinutes(s.min)} · 最大 ${formatMinutes(s.max)}\n${s.n} / ${row.accepted??row.total} 个实际订单组${metric==='coins'&&row.missingCoins?` · ${row.missingCoins} 组缺少单价`:''}`;
       parts.push(`<a href="${ranchLevelLink(row.level,type.id)}" aria-label="查看 Lv ${row.level} ${type.name}"><title>${tip}</title><circle cx="${x(row.level)}" cy="${y(s.mean)}" r="8" fill="transparent"/><circle cx="${x(row.level)}" cy="${y(s.mean)}" r="3.5" fill="${type.color}" stroke="white"/><text class="distribution-point-label" x="${x(row.level)}" y="${labelY}" fill="${type.color}" text-anchor="middle">${formatMinutes(s.mean)}</text></a>`);
     }
   }
@@ -148,7 +160,7 @@ export function renderRanchBoxPlot(rows,metric){
     types.forEach((t,j)=>{
       const r=rows.find(r=>r.level===level&&r.type===t.id),s=r?.[metric];if(!s?.n)return;
       const x=center+(j-(types.length-1)/2)*18,boxWidth=12;
-      pieces.push(`<a href="${ranchLevelLink(level,t.id)}" aria-label="查看 Lv ${level} ${t.name}"><title>Lv ${level} · ${t.name}\n${statsTitle(s)}${metric==='optimized'?`\n已证明 ${r.proven} / ${r.total} 组`:''}</title><rect x="${x-8}" y="${Math.max(top,y(s.max)-8)}" width="16" height="${Math.max(16,y(s.min)-y(s.max)+16)}" fill="transparent"/><line x1="${x}" x2="${x}" y1="${y(s.max)}" y2="${y(s.min)}" stroke="${t.color}"/><path d="M${x-4},${y(s.max)}h8 M${x-4},${y(s.min)}h8" stroke="${t.color}"/><rect x="${x-boxWidth/2}" y="${y(s.q3)}" width="${boxWidth}" height="${Math.max(1,y(s.q1)-y(s.q3))}" fill="${t.color}" fill-opacity=".2" stroke="${t.color}"/><line x1="${x-boxWidth/2}" x2="${x+boxWidth/2}" y1="${y(s.median)}" y2="${y(s.median)}" stroke="${t.color}" stroke-width="2"/><circle cx="${x}" cy="${y(s.mean)}" r="2.5" fill="${t.color}"/></a>`);
+      pieces.push(`<a href="${ranchLevelLink(level,t.id)}" aria-label="查看 Lv ${level} ${t.name}"><title>Lv ${level} · ${t.name}\n${statsTitle(s)}${metric==='optimized'?`\n达标实际订单 ${r.accepted??r.proven} 组`:''}</title><rect x="${x-8}" y="${Math.max(top,y(s.max)-8)}" width="16" height="${Math.max(16,y(s.min)-y(s.max)+16)}" fill="transparent"/><line x1="${x}" x2="${x}" y1="${y(s.max)}" y2="${y(s.min)}" stroke="${t.color}"/><path d="M${x-4},${y(s.max)}h8 M${x-4},${y(s.min)}h8" stroke="${t.color}"/><rect x="${x-boxWidth/2}" y="${y(s.q3)}" width="${boxWidth}" height="${Math.max(1,y(s.q1)-y(s.q3))}" fill="${t.color}" fill-opacity=".2" stroke="${t.color}"/><line x1="${x-boxWidth/2}" x2="${x+boxWidth/2}" y1="${y(s.median)}" y2="${y(s.median)}" stroke="${t.color}" stroke-width="2"/><circle cx="${x}" cy="${y(s.mean)}" r="2.5" fill="${t.color}"/></a>`);
     });
   });
   return `<svg role="img" aria-label="${metric==='optimized'?'联合优化时间':'累计工时'}按等级分布，单位分钟" viewBox="0 0 ${width} ${height}" style="min-width:${width}px"><text x="8" y="14">分钟</text>${pieces.join('')}<text x="${width-20}" y="273" text-anchor="end">等级</text></svg>`;

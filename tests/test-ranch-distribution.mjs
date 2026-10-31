@@ -27,7 +27,7 @@ test('historical unequal quantities remain visible but stale schedules never ent
   const p=buildRanchDistributionPlans(base,settings)[2],g=p.groups.find(g=>g.id===repeat.id);p.groups=[g];
   p.results.set(g.key,{proven:true,optimalMinutes:360,feasibleMinutes:360,lowerMinutes:360});p.failures.set(g.key,'old failure');
   const before=JSON.stringify(g),targets={3:{targetHours:'6',targetTolerance:'30',targetWork:'900'}},rows=ranchDashboardRows([p],targets),row=rows.find(r=>r.type==='building'),summary=ranchDashboardSummary([p],targets);
-  assert.equal(row.proven,0);assert.equal(row.bounded,0);assert.equal(row.failed,0);assert.equal(row.pending,1);assert.equal(row.optimized.n,0);assert.equal(row.work.n,1);assert.equal(row.within,0);assert.equal(row.statusGroups[0].state,'pending');
+  assert.equal(row.proven,0);assert.equal(row.bounded,0);assert.equal(row.failed,0);assert.equal(row.pending,1);assert.equal(row.optimized.n,0);assert.equal(row.work.n,0);assert.equal(row.accepted,0);assert.equal(row.within,0);assert.equal(row.statusGroups[0].state,'pending');
   assert.equal(summary.proven,0);assert.equal(summary.pending,1);assert.equal(summary.targetedProven,0);assert.equal(summary.within,0);assert.equal(summary.withinShare,null);assert.equal(JSON.stringify(g),before);assert.deepEqual(g.slots.map(v=>v.quantity),[3,2,1,1]);
 });
 

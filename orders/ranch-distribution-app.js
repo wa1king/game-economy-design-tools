@@ -16,8 +16,9 @@ function controls(){
 function render(){
   if(!workspace)return;
   const configured=targets(),rows=ranchDashboardRows(plans,configured,filter),summary=ranchDashboardSummary(plans,configured,filter);
-  const coverage=['proven','bounded','failed','pending'].map(key=>`<span class="${key}" style="width:${summary.total?summary[key]/summary.total*100:0}%"></span>`).join('');
-  $('distributionSummary').innerHTML=`<article><span>${filter==='all'?'全部组合 · 各级合计':'当前类型 · 各级合计'}</span><strong>${count(summary.total)}<small>${plans.length} 级</small></strong><small>同级重合组合只计一次</small></article><article><span>排产进度</span><strong>${count(summary.proven)}<small>/ ${count(summary.total)} 组已证明最优</small></strong><div class="distribution-coverage" aria-hidden="true">${coverage}</div><div class="coverage-meta"><small>待计算 ${count(summary.pending)}</small><small class="${summary.bounded?'distribution-warning':''}">待证明 ${count(summary.bounded)}</small>${summary.failed?`<small class="distribution-warning">失败 ${count(summary.failed)}</small>`:''}${summary.capacityLevels?`<small class="distribution-warning">${summary.capacityLevels} 级缺少产能</small>`:''}</div></article><article><span>联合优化时间落入目标</span><strong>${percent(summary.withinShare)}</strong><small>${summary.targetedProven?`${count(summary.within)} / ${count(summary.targetedProven)} 个已证明组合`:'计算后查看，不将待计算组合记为未达标'}</small></article>`;
+  $('distributionSummary').innerHTML=`<article><span>达标实际订单组</span><strong>${count(summary.accepted)}<small>${plans.length} 级</small></strong><small>所有图表仅统计达标实际订单 · 每组等权</small></article><article><span>平均联合优化时间</span><strong>${formatMinutes(summary.optimized.mean)}<small>分钟</small></strong><small>仅统计已证明最优且符合本级目标的订单</small></article><article><span>平均四单金币总值</span><strong>${summary.missingCoins?'—':formatMinutes(summary.coins.mean)}<small>金币 / 组</small></strong><small>${summary.missingCoins?`${count(summary.missingCoins)} 个实际订单组缺少单价`:'实际交付数量 × 商品单价'}</small></article>`;
+  $('presetSummary').textContent=`预设 ${count(summary.total)} 组 · 实际入库 ${count(summary.accepted)} 组 · 未入库 ${count(summary.excluded)} 组`;
+  $('presetProgress').innerHTML=`<span>已证明排程 ${count(summary.proven)}</span><span>待计算 ${count(summary.pending)}</span><span>待证明 ${count(summary.bounded)}</span><span>排产失败 ${count(summary.failed)}</span><p>预设组合中，只有排程已证明最优、优化时间达标、数量与单单工时占比符合当前规则的组合才进入实际订单。其余可到单等级分析的“预设组合”中查看。</p>`;
   $('optimizedPlot').innerHTML=renderRanchBoxPlot(rows,'optimized');$('workPlot').innerHTML=renderRanchBoxPlot(rows,'work');
   $('complexityPlot').innerHTML=renderRanchMetricTrend(rows,'complexity');$('coinPlot').innerHTML=renderRanchMetricTrend(rows,'coins');
   const targeted=plans.filter(p=>rows.find(r=>r.level===p.level)?.target.work!=null).length;
@@ -25,15 +26,15 @@ function render(){
   $('coinCoverageNote').textContent=summary.missingCoins?`${count(summary.missingCoins)} 组缺少单价，未计入`:'数量 × 商品单价';
   $('distributionRows').innerHTML=rows.map((r,index)=>{
     const start=index===0||rows[index-1].level!==r.level;
-    return `<tr class="${start?'level-start':''}"><td><a href="${ranchLevelLink(r.level,r.type)}">Lv ${r.level}<span class="distribution-type-${r.type}">${r.name}</span></a>${r.capacityError&&r.total?`<small class="distribution-state">${esc(r.capacityError)}</small>`:''}</td><td>${count(r.total)}</td><td>${count(r.proven)}${r.failed?`<small class="distribution-state">失败 ${r.failed}</small>`:''}</td><td>${count(r.pending)}</td><td>${count(r.bounded)}</td><td>${r.target.minutes==null?'—':`${formatMinutes(r.target.lower)}～${formatMinutes(r.target.upper)}`}</td><td>${statsCell(r.optimized)}</td><td class="${r.withinShare==null?'':r.withinShare===1?'target-hit':'target-miss'}">${percent(r.withinShare)}${r.proven&&r.within!=null?`<small>${r.within} / ${r.proven}</small>`:''}</td><td>${r.target.work==null?'自动估算':formatMinutes(r.target.work)}</td><td>${statsCell(r.work)}</td><td>${formatMinutes(r.complexity.mean)}</td><td>${formatMinutes(r.coins.mean)}${r.missingCoins?`<small>缺单价 ${r.missingCoins} 组</small>`:''}</td></tr>`;
+    return `<tr class="${start?'level-start':''}"><td><a href="${ranchLevelLink(r.level,r.type)}">Lv ${r.level}<span class="distribution-type-${r.type}">${r.name}</span></a></td><td>${count(r.accepted)}</td><td>${r.target.minutes==null?'—':`${formatMinutes(r.target.lower)}～${formatMinutes(r.target.upper)}`}</td><td>${statsCell(r.optimized)}</td><td>${statsCell(r.work)}</td><td>${formatMinutes(r.complexity.mean)}</td><td>${r.missingCoins?'—':formatMinutes(r.coins.mean)}${r.missingCoins?`<small>缺单价 ${r.missingCoins} 组</small>`:''}</td><td><a href="${ranchLevelLink(r.level,r.type)}&amp;pool=preset">预设 ${count(r.total)} 组 / 未入库 ${count(r.total-r.accepted)}</a></td></tr>`;
   }).join('');
   renderDetail(rows);$('downloadDistribution').disabled=!plans.length;controls();
 }
 function renderDetail(rows=ranchDashboardRows(plans,targets(),filter)){
   const selected=rows.filter(r=>r.level===Number($('distributionLevel').value));
-  $('selectedDistributionMeta').textContent=selected.map(r=>`${r.name} ${r.total} 组 · 已证明 ${r.proven}`).join('　/　');
-  $('optimizedHistogram').innerHTML=selected.some(r=>r.proven)?renderRanchHistogram(selected,'optimized'):renderRanchDistributionEmpty(selected,'optimized');
-  $('workHistogram').innerHTML=selected.some(r=>r.total)?renderRanchHistogram(selected,'work'):renderRanchDistributionEmpty(selected,'work');
+  $('selectedDistributionMeta').textContent=selected.map(r=>`${r.name} · 达标实际订单 ${r.accepted} 组`).join('　/　');
+  $('optimizedHistogram').innerHTML=selected.some(r=>r.accepted)?renderRanchHistogram(selected,'optimized'):renderRanchDistributionEmpty(selected,'optimized');
+  $('workHistogram').innerHTML=selected.some(r=>r.accepted)?renderRanchHistogram(selected,'work'):renderRanchDistributionEmpty(selected,'work');
 }
 function schedulePaint(){if(paintTimer==null)paintTimer=setTimeout(()=>{paintTimer=null;render();},180);}
 async function load(){

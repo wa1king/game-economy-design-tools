@@ -4,7 +4,7 @@ import vm from 'node:vm';
 import {ranchDashboardRows,ranchDashboardSummary,ranchDashboardTarget,renderRanchBoxPlot,renderRanchMetricTrend,renderRanchHistogram,renderRanchDistributionEmpty,ranchDistributionCSV,ranchLevelLink,formatMinutes} from '../orders/ranch-distribution.js';
 
 let checks=0;const test=(name,fn)=>{fn();checks++;console.log('PASS '+name);};
-const group=(key,types)=>({key,id:key,types,slots:Array.from({length:4},()=>({id:1,quantity:1}))}),plan=(level,groups)=>({level,groups,results:new Map(),failures:new Map(),work:new Map(groups.map((g,i)=>[g.key,100+i*10])),metrics:new Map(groups.map((g,i)=>[g.key,{totalMinutes:100+i*10,complexity:4+i,coinValue:20+i*5}])),capacityError:null});
+const group=(key,types)=>({key,id:key,types,slots:Array.from({length:4},()=>({id:1,quantity:1}))}),plan=(level,groups)=>({level,groups,results:new Map(),failures:new Map(),work:new Map(groups.map((g,i)=>[g.key,100+i*10])),metrics:new Map(groups.map((g,i)=>[g.key,{totalMinutes:100+i*10,complexity:4+i,coinValue:20+i*5}])),capacityError:null,orderWorkBalance:new Map(groups.map(g=>[g.key,{valid:true}]))});
 const p1=plan(1,[group('a',['building']),group('b',['chain']),group('both',['building','chain']),group('pending',['building']),group('failed',['chain'])]),p2=plan(2,[group('c',['building']),group('d',['chain'])]);
 p1.results.set('a',{proven:true,optimalMinutes:120});p1.results.set('b',{proven:false,optimalMinutes:null,lowerMinutes:80,feasibleMinutes:140});p1.results.set('both',{proven:true,optimalMinutes:150});p1.failures.set('failed','test');p1.metrics.get('pending').coinValue=null;
 p2.results.set('c',{proven:true,optimalMinutes:240});p2.results.set('d',{proven:true,optimalMinutes:270});
@@ -15,19 +15,18 @@ test('per-level targets are shared across types, preserve a blank work target an
   assert.equal(rows[0].within,1);assert.equal(rows[0].withinShare,.5);assert.equal(rows[3].withinShare,1);assert.equal(ranchDashboardTarget({targetHours:'bad',targetTolerance:'1'}).minutes,null);
 });
 test('overlapping types do not inflate overall counts or target denominator, missing coins are not zero',()=>{
-  const summary=ranchDashboardSummary(plans,targets);assert.equal(summary.total,7);assert.equal(rows.reduce((n,r)=>n+r.total,0),8);assert.equal(summary.proven,4);assert.equal(summary.bounded,1);assert.equal(summary.failed,1);assert.equal(summary.pending,1);assert.equal(summary.within,3);assert.equal(summary.withinShare,.75);assert.equal(summary.missingCoins,1);
-  assert.equal(rows[0].coins.n,2);assert.equal(rows[0].coins.mean,25);assert.equal(rows[0].missingCoins,1);assert.equal(ranchDashboardSummary(plans,targets,'chain').total,4);
+  const summary=ranchDashboardSummary(plans,targets);assert.equal(summary.total,7);assert.equal(rows.reduce((n,r)=>n+r.total,0),8);assert.equal(summary.proven,4);assert.equal(summary.bounded,1);assert.equal(summary.failed,1);assert.equal(summary.pending,1);assert.equal(summary.within,3);assert.equal(summary.withinShare,.75);assert.equal(summary.missingCoins,0);assert.equal(summary.accepted,3);
+  assert.equal(rows[0].coins.n,1);assert.equal(rows[0].coins.mean,20);assert.equal(rows[0].work.n,1);assert.equal(rows[0].missingCoins,0);assert.equal(ranchDashboardSummary(plans,targets,'chain').total,4);
 });
 test('box plots show configured targets instead of a hardcoded six-hour line and link each type to single-level analysis',()=>{
   const opt=renderRanchBoxPlot(rows,'optimized'),work=renderRanchBoxPlot(rows,'work');assert(opt.includes('Lv 1 目标 120 ± 15'));assert(opt.includes('Lv 2 目标 240 ± 30'));assert(!opt.includes('6 小时'));assert.equal((opt.match(/class="ranch-target-band"/g)||[]).length,2);assert.equal((work.match(/class="ranch-work-target"/g)||[]).length,1);assert(work.includes('累计工时目标 500'));
   for(const type of ['building','chain'])assert(opt.includes(`ranch.html?level=2&amp;type=${type}`));assert(!/NaN|Infinity/.test(opt+work));
 });
-test('an uncalculated or bounded-only overview has an actionable empty state instead of blank axes',()=>{
+test('uncalculated and bounded presets never become zero-valued actual orders',()=>{
   const pendingPlan=plan(1,[group('a',['building']),group('b',['chain'])]);pendingPlan.results.set('b',{proven:false,lowerMinutes:2,feasibleMinutes:8});
-  const empty=renderRanchBoxPlot(ranchDashboardRows([pendingPlan],targets),'optimized');assert(!empty.includes('<svg'));assert(empty.includes('待计算 1'));assert(empty.includes('待证明最优 1'));assert(empty.includes('data-calculate-ranch'));
-  const none=renderRanchBoxPlot(ranchDashboardRows([plan(1,[])],targets),'optimized');assert(none.includes('暂无符合规则'));assert(!none.includes('data-calculate-ranch'));assert(!none.includes('<svg'));
-  const overlap=renderRanchBoxPlot(ranchDashboardRows([plan(1,[group('shared',['building','chain'])])],targets),'optimized');assert(overlap.includes('待计算 1'));assert(!overlap.includes('待计算 2'));
+  const pendingRows=ranchDashboardRows([pendingPlan],targets),empty=renderRanchBoxPlot(pendingRows,'optimized');assert(!empty.includes('<svg'));assert(empty.includes('暂无达标实际订单'));assert(pendingRows.every(r=>r.accepted===0&&r.work.n===0&&r.coins.n===0));
 });
+
 test('auxiliary trends include visible point values and omit missing prices without connecting through missing samples',()=>{
   for(const metric of ['coins','complexity']){const trend=renderRanchMetricTrend(rows,metric);assert(trend.includes('distribution-point-label'));assert(trend.includes('#28795f'));assert(trend.includes('#a8773b'));assert(trend.includes('ranch.html?level=2&amp;type=chain'));assert(!/NaN|Infinity/.test(trend));}
   const csv=ranchDistributionCSV(rows);assert(csv.includes('优化目标(分)'));assert(csv.includes('平均累计复杂度'));assert(csv.includes('缺少单价组数'));assert(!csv.includes('"null"'));
