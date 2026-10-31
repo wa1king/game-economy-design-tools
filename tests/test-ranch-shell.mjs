@@ -21,7 +21,7 @@ function harness({existing=false,view='dashboard',filename='测试项目.xlsx'}=
   elements.set('ranchShell',header);elements.set('message',message);
   const window={location:{href:'http://example.test/orders/ranch.html',origin:'http://example.test'},addEventListener:(type,fn)=>events.set(type,fn)};
   const document={body:{dataset:{ranchView:view}},getElementById:id=>elements.get(id)??null,querySelector:selector=>selector==='main'?main:null,addEventListener:(type,fn)=>documentEvents.set(type,fn)};
-  vm.runInNewContext(source,{document,window,URL,ranchSource:()=>({filename})});
+  vm.runInNewContext(source,{document,window,URL,URLSearchParams,setupRanchRulesDialog:()=>({open(){}}),ranchSource:()=>({filename})});
   const nav=elements.get('ranchNavigation');
   const linkFor=(href,attributes='',label='')=>({href,attributes,label,getAttribute:name=>name==='href'?href:null,hasAttribute:name=>attributes.includes(name),target:''});
   const links=[...nav.html.matchAll(/<a href="([^"]+)"([^>]*)>([^<]+)<\/a>/g)].map(([,href,attributes,label])=>linkFor(href,attributes,label));
@@ -41,8 +41,8 @@ test('empty and populated shells keep dedicated actions inside main after the sa
   for(const file of ['index.html','ranch.html']){const html=fs.readFileSync(new URL('../orders/'+file,import.meta.url),'utf8'),header=html.match(/<header\b[\s\S]*?<\/header>/)?.[0]??'',main=html.match(/<main\b[\s\S]*?<\/main>/)?.[0]??'';assert(!/id="(?:importExcel|importButton|exportProject|exportButton|solveAll|toggleRules|readProject)"/.test(header),file+' must not leave dedicated actions in the header');assert(main.includes('class="workspace-actionbar"'));}
 });
 
-test('generated content action bar provides the import and rule deep links and displays the current source safely',()=>{
-  const h=harness({filename:'<导入项目>'});assert(h.main.html.includes('href="ranch.html?import=1"'));assert(h.main.html.includes('href="ranch.html?settings=1"'));assert.equal(h.elements.get('shellProjectName').textContent,'<导入项目>');
+test('shared action bar provides the ordinary-project/import entries and an independent rules dialog and displays the current source safely',()=>{
+  const h=harness({filename:'<导入项目>'});assert(h.main.html.includes('href="ranch.html?import=1"'));assert(h.main.html.includes('id="openSettings"'));assert(h.main.html.includes('aria-haspopup="dialog"'));assert(h.main.html.includes('href="ranch.html?source=ordinary"'));assert(!h.main.html.includes('href="ranch.html?settings=1"'));assert.equal(h.elements.get('shellProjectName').textContent,'<导入项目>');
   h.events.get('ranch:source')({detail:{filename:'更新后的项目.xlsx'}});assert.equal(h.elements.get('shellProjectName').textContent,'更新后的项目.xlsx');
 });
 

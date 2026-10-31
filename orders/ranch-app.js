@@ -72,7 +72,7 @@ async function rebuild(autoRun=true,readOnly=false){
   try{const cached=await loadRanchCache(cacheKey);if(token!==buildToken)return;if(cached?.version===1||cached?.version===2){const valid=new Set(groups.map(g=>g.key));results=new Map((cached.results||[]).filter(([key])=>valid.has(key)));failures=new Map((cached.failures||[]).filter(([key])=>valid.has(key)));quantityFits=new Map((cached.quantityFits||[]).filter(([id])=>groups.some(g=>g.id===id)));}}catch{}
   if(token!==buildToken)return;fitCacheSnapshot=new Map([...quantityFits].map(([id,fit])=>[id,JSON.stringify(fit)]));
   const missing=base.sources.find(s=>s.level<=level&&!(Number.isSafeInteger(Number(capacities[s.id]))&&Number(capacities[s.id])>0));
-  if(missing){$('settings').hidden=false;$('openSettings').setAttribute('aria-expanded','true');message(`请在产能设置填写${missing.name}的实际容量，或重新导入含累计土地的 Excel。`);renderTable();return;}
+  if(missing){$('openSettings').click();message(`请在产能设置填写${missing.name}的实际容量，或重新导入含累计土地的 Excel。`);renderTable();return;}
   viewRevision++;renderSelected();renderTable();if(autoRun)run(groups.filter(g=>!results.get(g.key)?.proven));
 }
 function updateView(){
@@ -253,9 +253,6 @@ $('importFile').onchange=async()=>{
 $('level').onchange=()=>{persist();level=Number($('level').value);restoreQuantityTargets();capacities={...ranchCapacities(model,level),...(savedSettings.capacities?.[level]||{})};renderCapacities();rebuild();};
 for(const [id,t] of [['buildingType','building'],['chainType','chain']])$(id).onclick=()=>{clearTimeout(manualTimer);commitSlotInputs(false);type=t;updateFilters();updateView();persist();};
 $('family').onchange=$('expandPermutations').onchange=updateView;$('search').oninput=()=>{page=0;renderTable();};
-$('openSettings').onclick=()=>{$('settings').hidden=!$('settings').hidden;$('openSettings').setAttribute('aria-expanded',String(!$('settings').hidden));};
-$('closeSettings').onclick=()=>{$('settings').hidden=true;$('openSettings').setAttribute('aria-expanded','false');};
-$('applySettings').onclick=()=>{try{const updated={...capacities};for(const input of $('capacities').querySelectorAll('input')){const n=Number(input.value);if(!Number.isSafeInteger(n)||n<1)throw Error('所有已解锁设施的并行容量都必须是正整数。');updated[input.dataset.cap]=n;}for(const id of ['cropQuantity','productQuantity'])if(!Number.isSafeInteger(Number($(id).value))||Number($(id).value)<1)throw Error('需求数量必须是正整数。');capacities=updated;(savedSettings.capacities??={})[level]={...capacities};rebuild();}catch(e){message(e.message);}};
 $('solveOne').onclick=()=>{const g=commitSlotInputs(false);if(g)run([g]);};$('shuffle').onclick=sample;$('solveAll').onclick=()=>run(groups.filter(g=>!results.get(g.key)?.proven));$('stop').onclick=()=>{stop();saveCache();renderSelected();renderTable();};
 $('sort').onchange=$('direction').onchange=()=>{page=0;viewRevision++;renderTable();};$('prev').onclick=()=>{page--;renderTable();};$('next').onclick=()=>{page++;renderTable();};
 $('rows').onclick=event=>{const chain=event.target.closest('[data-chain]');if(chain){expandedChainId=expandedChainId===chain.dataset.chain?null:chain.dataset.chain;renderTable();return;}const target=event.target.closest('[data-select]');if(target){selectScheme(target.dataset.select);$('groupDetails').scrollIntoView({behavior:'smooth',block:'start'});}};
@@ -271,7 +268,7 @@ $('exportButton').onclick=()=>{persist();exportData();};$('closeDownload').oncli
 window.addEventListener('pagehide',saveCache);
 window.ranchBeforeNavigate=async()=>{if(current&&!commitSlotInputs(false))throw Error('请先填写有效的四单交付数量。');if(model)validateRanchTarget(Object.fromEntries(Object.keys(readRanchTarget(savedSettings,level)).map(id=>[id,$(id).value])));persist();stop();saveCache();await cacheQueue;if(cacheSaveError)throw Error('排产结果尚未保存成功，请重试或先导出备份。');};
 async function syncRanchView(){
-  if(syncing)return;if(busy||document.activeElement?.matches?.('input,select')){syncQueued=true;return;}
+  if(syncing)return;if(busy||$('ranchRulesDialog')?.open||document.activeElement?.matches?.('input,select')){syncQueued=true;return;}
   syncing=true;syncQueued=false;
   try{
     await cacheQueue;const source=ranchSource();if(!source?.base)return;
@@ -286,6 +283,6 @@ if(typeof document.addEventListener==='function'){
   watchRanchWorkspace(syncRanchView);
   document.addEventListener('focusout',()=>{if(syncQueued)setTimeout(syncRanchView,0);});
 }
-try{const saved=JSON.parse(localStorage.getItem('ranch-source-v1')||'null');if(saved?.kind==='import')install(saved.base,saved.filename);else readCurrent();}catch(e){message(e.message);}
-if(navigationRequest?.get('settings')==='1'){$('settings').hidden=false;$('openSettings').setAttribute('aria-expanded','true');}
+window.addEventListener('ranch:rules-applied',()=>{void syncRanchView();});
+try{const saved=JSON.parse(localStorage.getItem('ranch-source-v1')||'null');if(navigationRequest?.get('source')==='ordinary')readCurrent();else if(saved?.kind==='import')install(saved.base,saved.filename);else readCurrent();}catch(e){message(e.message);}
 if(navigationRequest?.get('import')==='1'){$('empty').hidden=false;$('empty').scrollIntoView({block:'start'});}

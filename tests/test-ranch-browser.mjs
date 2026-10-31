@@ -1,3 +1,4 @@
+import {RANCH_RULES_FORM} from '../orders/ranch-rules-dialog.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
@@ -43,7 +44,7 @@ test('compact graph preserves every node, recipe, count and workshop color',()=>
   for(const group of catalog.groups){const d=ranchChainData(model,group,20),before=JSON.stringify(d),a=layoutRanchChain(d),b=layoutRanchChain(d,{overview:true});assert.equal(a.edges.length,b.edges.length);assert.deepEqual([...a.positions.keys()].sort(),[...b.positions.keys()].sort());assert(b.height<a.height);assert.equal(JSON.stringify(d),before);const html=renderRanchChain(d,{overview:true});assert(html.includes('data-auto-fit="true"'));assert(!html.includes('解锁等级 · 新建筑'));for(const n of d.nodes)assert(html.includes(`fill="${n.color}"`));}
 });
 test('page keeps catalogue and tuning collapsed after the always-visible scheme graph',()=>{
-  const html=fs.readFileSync(new URL('../orders/ranch.html',import.meta.url),'utf8'),ids=[...html.matchAll(/\bid="([^"]+)"/g)].map(v=>v[1]);assert.equal(new Set(ids).size,ids.length);
+  const html=fs.readFileSync(new URL('../orders/ranch.html',import.meta.url),'utf8')+'<dialog id="ranchRulesDialog">'+RANCH_RULES_FORM+'</dialog>',ids=[...html.matchAll(/\bid="([^"]+)"/g)].map(v=>v[1]);assert.equal(new Set(ids).size,ids.length);
   assert(!html.includes('id="allType"'));assert(html.indexOf('id="chainGraph"')<html.indexOf('id="catalogDetails"'));assert(html.includes('<section id="groupDetails"'));for(const id of ['targetDetails','catalogDetails'])assert(html.includes(`<details id="${id}" class="secondary-section">`));
   const sidebar=html.slice(html.indexOf('<aside class="plan-sidebar">'),html.indexOf('</aside>'));
   for(const id of ['buildingNav','productNav','schemeNav','slots'])assert(sidebar.includes(`id="${id}"`));
@@ -55,7 +56,7 @@ test('page keeps catalogue and tuning collapsed after the always-visible scheme 
 // Minimal DOM/event simulation, not browser execution. Exercise the actual app
 // handlers using isolated memory storage and a worker stub, never user projects.
 {
-  const html=fs.readFileSync(new URL('../orders/ranch.html',import.meta.url),'utf8'),elements=new Map();
+  const html=fs.readFileSync(new URL('../orders/ranch.html',import.meta.url),'utf8')+'<dialog id="ranchRulesDialog">'+RANCH_RULES_FORM+'</dialog>',elements=new Map();
   const attributes=str=>Object.fromEntries([...str.matchAll(/([\w-]+)="([^"]*)"/g)].map(v=>[v[1],v[2]]));
   class Element{
     constructor(tag,attrs={}){this.tag=tag;this.id=attrs.id;this._value=attrs.value??'';this._html='';this.inputs=[];this.buttons=[];this.checked=false;this.open=false;this.hidden=false;this.disabled=false;this.dataset={};this.handlers={};this.style={};this.classList={toggle(){}};}
