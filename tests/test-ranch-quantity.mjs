@@ -19,9 +19,9 @@ test('time band is primary and common accumulated work is secondary within it',(
   const o=quantityOptions({targetWorkMinutes:900}),candidate=(time,work)=>({group:group([1,2,3,4]),result:{proven:true,lowerMinutes:time,feasibleMinutes:time,optimalMinutes:time,totalMinutes:work}});
   assert(quantityRank(candidate(330,900),o)[1]<quantityRank(candidate(360,1100),o)[1]);assert(quantityRank(candidate(320,900),o)[0]>quantityRank(candidate(360,1100),o)[0]);assert(quantityRank(candidate(360,900),o)[0]===0);
 });
-test('joint quantity fitting reaches 120 minutes and common 300 resource minutes',()=>{
+test('joint quantity fitting reaches 120 minutes while balancing all four orders',()=>{
   const m=prepareRanch(base([product(1,10,1),product(2,20,2),product(3,30,3),product(4,40,4)])),g=group([1,2,3,4]),caps={1:1,2:1,3:1,4:1},before=JSON.stringify(g),r=solveRanchGroup(m,g,20,caps),fit=fitRanchQuantities(m,g,20,caps,{targetMinutes:120,toleranceMinutes:0,targetWorkMinutes:300,productMax:6,cropMax:6,timeLimitMs:4000},r),best=fit.recommendations[0];
-  assert.equal(best.result.optimalMinutes,120);assert.equal(best.result.totalMinutes,300);assert.equal(fit.within,true);assert.equal(fit.quantitySearchProven,false);assert.equal(JSON.stringify(g),before);
+  assert.equal(best.result.optimalMinutes,120);assert.equal(best.result.totalMinutes,350);assert.equal(fit.within,true);assert.equal(fit.quantitySearchProven,false);assert.equal(JSON.stringify(g),before);
   for(const v of fit.recommendations){assert(v.group.slots.every(s=>s.quantity>=1&&s.quantity<=6));const t=expandRanchTasks(m,v.group,20,caps),starts=Array(t.tasks.length);for(const task of v.result.schedule)starts[task.id]=Math.round(task.start*t.scale);assert(validateRanchSchedule(t.tasks,t.edges,starts,caps));assert.equal(solveRanchGroup(m,v.group,20,caps).optimalMinutes,v.result.optimalMinutes);}
 });
 test('same building queues quantities rather than summing isolated optimal times',()=>{

@@ -1,7 +1,7 @@
 import {DEFAULT_CROP_QUANTITY} from './order-quantity-rules.js';
 import {prepareRanch,ranchCapacities,groupMetrics} from './ranch-engine.js';
 import {generateRanchLevelGroups,remapRanchResult} from './ranch-catalog.js';
-import {quantityGroup,hasEqualProductQuantities} from './ranch-quantity.js';
+import {quantityGroup,hasEqualProductQuantities,orderWorkBalance} from './ranch-quantity.js';
 import {ranchImportCacheKey} from './ranch-import.js';
 
 export const ranchTypes=[{id:'building',name:'同建筑',color:'#28795f'},{id:'chain',name:'高级加工链',color:'#a8773b'}];
@@ -31,7 +31,7 @@ export function buildRanchDistributionPlans(base,settings={}){
     const actual=groups.map(g=>Object.hasOwn(edits,g.id)?quantityGroup(g,edits[g.id]):g);
     const missing=base.sources.filter(s=>s.level<=level&&(!Number.isSafeInteger(Number(capacities[s.id]))||Number(capacities[s.id])<1));
     const metrics=new Map(actual.map(g=>[g.key,groupMetrics(model,g,level)]));
-    return {level,capacities,groups:actual,metrics,work:new Map(actual.map(g=>[g.key,metrics.get(g.key).totalMinutes])),results:new Map(),failures:new Map(),quantityFits:[],capacityError:missing.length?'缺少有效产能：'+missing.map(s=>s.name).join('、'):null,cacheKey:ranchImportCacheKey(base,level,rules,capacities)};
+    return {level,capacities,groups:actual,orderWorkBalance:new Map(actual.map(g=>[g.key,orderWorkBalance(model,g)])),metrics,work:new Map(actual.map(g=>[g.key,metrics.get(g.key).totalMinutes])),results:new Map(),failures:new Map(),quantityFits:[],capacityError:missing.length?'缺少有效产能：'+missing.map(s=>s.name).join('、'):null,cacheKey:ranchImportCacheKey(base,level,rules,capacities)};
   });
 }
 
@@ -72,7 +72,7 @@ export function ranchDashboardRows(plans,targets={},type='all'){
       if(Number.isFinite(m?.complexity)&&m.complexity>=0)complexity.push(m.complexity);
       if(Number.isFinite(m?.coinValue)&&m.coinValue>=0)coins.push(m.coinValue);
     }
-    const target=ranchDashboardTarget(targets[row.level]),within=target.minutes==null?null:row.optimizedValues.filter(v=>v>=target.lower-1e-8&&v<=target.upper+1e-8).length;
+    const target=ranchDashboardTarget(targets[row.level]),within=target.minutes==null?null:groups.filter(g=>plan.orderWorkBalance?.get(g.key)?.valid!==false&&plan.results.get(g.key)?.proven&&plan.results.get(g.key).optimalMinutes>=target.lower-1e-8&&plan.results.get(g.key).optimalMinutes<=target.upper+1e-8).length;
     const statusGroups=groups.map(g=>{if(!hasEqualProductQuantities(g))return {key:`${plan.level}:${g.key}`,state:'pending'};const r=plan.results.get(g.key);return {key:`${plan.level}:${g.key}`,state:r?.proven&&Number.isFinite(r.optimalMinutes)&&r.optimalMinutes>=0?'proven':r&&!r.proven?'bounded':plan.failures.has(g.key)?'failed':'pending'};});
     return {...row,target,within,withinShare:row.proven&&within!=null?within/row.proven:null,complexity:summarizeMinutes(complexity),coins:summarizeMinutes(coins),missingCoins:groups.length-coins.length,statusGroups};
   });

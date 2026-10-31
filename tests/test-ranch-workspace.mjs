@@ -124,7 +124,7 @@ test('pausing target fitting flushes pending quantity edits and their verified s
 });
 
 test('successful cached fits survive algorithm upgrades, while old failed searches can be retried',()=>{
-  const group={key:'same',slots:Array.from({length:4},()=>({id:1,quantity:1}))},options={targetMinutes:360,toleranceMinutes:30,targetWorkMinutes:1000,cropMax:42,productMax:12,timeLimitMs:2500},fit={options,recommendations:[{group}]};
+  const group={key:'same',slots:Array.from({length:4},()=>({id:1,quantity:1}))},options={targetMinutes:360,toleranceMinutes:30,targetWorkMinutes:1000,cropMax:42,productMax:12,timeLimitMs:2500},fit={options,recommendations:[{group,result:{orderWorkBalanced:true}}]};
   assert.equal(ranchFitIsCurrent({...fit,within:true},group,options),true);assert.equal(ranchFitIsCurrent({...fit,within:false},group,options),false);assert.equal(ranchFitIsCurrent({...fit,within:false,searchVersion:QUANTITY_SEARCH_VERSION},group,options),true);
 });
 
@@ -142,5 +142,5 @@ test('old successful recommendations with unequal copies cannot bypass the new q
   assert(hasEqualProductQuantities(g));assert(!hasEqualProductQuantities(bad));
   assert.equal(ranchFitIsCurrent({within:true,options,recommendations:[{group:bad}]},bad,options),false);
   assert.equal(ranchFitIsCurrent({within:true,options,recommendations:[{group:g},{group:bad}]},g,options),false);
-  assert.equal(ranchFitIsCurrent({within:true,options,recommendations:[{group:g}]},g,options),true);
+  assert.equal(ranchFitIsCurrent({within:true,options,recommendations:[{group:g,result:{orderWorkBalanced:true}}]},g,options),true);
 });

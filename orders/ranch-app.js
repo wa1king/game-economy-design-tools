@@ -4,7 +4,7 @@ import {createRanchLevelCatalog} from './ranch-level-catalog.js';
 import {ranchSettingsKey,ranchImportCacheKey} from './ranch-import.js';
 import {ranchBrowserScope,ranchSchemeStep} from './ranch-browser.js';
 import {ranchChainData,renderRanchChain,setupRanchChains} from './ranch-chain.js';
-import {quantityGroup,quantityOptions,estimateRanchWorkRatio,hasEqualProductQuantities,linkedProductQuantities} from './ranch-quantity.js';
+import {quantityGroup,quantityOptions,estimateRanchWorkRatio,hasEqualProductQuantities,linkedProductQuantities,orderWorkBalance} from './ranch-quantity.js';
 import {renderOrderItems,setupItemInfo} from './item-info.js';
 import {readChainExcel} from './excel-import.js';
 import {prepareRanch,ranchCapacities,groupMetrics} from './ranch-engine.js';
@@ -100,9 +100,9 @@ function renderSelected(){
   const signature=JSON.stringify([level,current?.id,current?.slots]);if(signature!==slotSignature)itemInfo?.hide();
   $('fitOne').disabled=!current||busy;$('groupTitle').textContent=current?'R'+String(viewRows.findIndex(v=>v.id===current.id)+1).padStart(5,'0')+' · 四单详情':'四单详情';$('groupMeta').textContent=current?`Lv ${level} · ${current.types.map(t=>t==='building'?'同建筑':'高级加工链').join(' / ')} · 动物位固定分配`:'本级暂无符合规则的需求组';
   if(!current){$('slots').innerHTML='';slotSignature='';graphSignature='';for(const id of ['optimal','totalMinutes','complexity','coins'])$(id).textContent='—';renderSchedule(null);$('chainGraph').innerHTML='';$('chainMeta').textContent='';$('quantityRecommendations').hidden=true;$('solveState').textContent='无候选';renderSchemeNavigator();return;}
-  if(signature!==slotSignature){$('slots').innerHTML=current.slots.map((v,i)=>{const p=model.by.get(v.id);return `<article class="slot"><div class="slot-top"><b>动物 ${letters[i]}</b><span>${animals[i]}</span></div><strong class="slot-product">${renderOrderItems({items:[v]},itemInfo.products)}</strong><label class="slot-quantity">交付数量<input type="number" min="1" max="1000" step="1" data-quantity="${i}" aria-label="动物${letters[i]}交付数量" value="${v.quantity}" ${busy?'disabled':''}></label><div class="slot-info"><span>${esc(p.buildingName)} · Lv ${p.level}</span><span>单步 ${fmt(p.stepMinutes)}分 · 复杂度 ${model.chains.get(p.id).size}</span></div></article>`;}).join('');slotSignature=signature;}
+  if(signature!==slotSignature){$('slots').innerHTML=current.slots.map((v,i)=>{const p=model.by.get(v.id);return `<article class="slot"><div class="slot-top"><b>动物 ${letters[i]}</b><span>${animals[i]}</span></div><strong class="slot-product">${renderOrderItems({items:[v]},itemInfo.products)}</strong><label class="slot-quantity">交付数量<input type="number" min="1" max="1000" step="1" data-quantity="${i}" aria-label="动物${letters[i]}交付数量" value="${v.quantity}" ${busy?'disabled':''}></label><div class="slot-info"><span>${esc(p.buildingName)} · Lv ${p.level}</span><span>累计 ${fmt(orderWorkBalance(model,current).minutes[i])} 分 · 占组 ${(orderWorkBalance(model,current).shares[i]*100).toFixed(1)}%</span><span>单步 ${fmt(p.stepMinutes)}分 · 复杂度 ${model.chains.get(p.id).size}</span></div></article>`;}).join('');slotSignature=signature;}
   const m=metrics(current),r=resultFor(current,true),error=failures.get(groupKey(current));$('totalMinutes').textContent=fmt(m.totalMinutes);$('complexity').textContent=fmt(m.complexity,0);$('coins').textContent=fmt(m.coinValue);$('coinNote').textContent=m.coinValue==null?'存在未导入金币单价的商品':'数量 × 导入金币单价 · 非Token奖励';
-  $('optimalLabel').textContent=r&&!r.proven?'四单可行完工时间':'四单联合优化时间';$('optimal').textContent=r?fmt(r.proven?r.optimalMinutes:r.feasibleMinutes):'—';$('optimalNote').textContent=r?(r.proven?'已证明最优 · 四单全部备齐':`最优时间范围 ${fmt(r.lowerMinutes)}～${fmt(r.feasibleMinutes)}分`):'空仓 · 尚未排产';if(r?.solverNotice)$('optimalNote').textContent+=' · '+r.solverNotice;$('solveState').textContent=!hasEqualProductQuantities(current)?'待重新配量':error?'计算失败':r?(r.proven?'已证明最优':'待证明最优'):busy?'计算中':'待计算';$('solveState').className='badge'+(error||r&&!r.proven?' warn':'');renderSchedule(r);const graph=ranchChainData(model,current,level),nextGraphSignature=JSON.stringify([graphOverview,graph.nodes,graph.edges]);if(nextGraphSignature!==graphSignature){$('chainGraph').innerHTML=renderRanchChain(graph,{overview:graphOverview});setupRanchChains($('chainGraph'));graphSignature=nextGraphSignature;}$('chainMeta').textContent=`${graph.nodes.length} 种商品 · ${graph.edges.length} 条配方关系`;renderRecommendations();renderQuantityControls();renderSchemeNavigator();
+  $('optimalLabel').textContent=r&&!r.proven?'四单可行完工时间':'四单联合优化时间';$('optimal').textContent=r?fmt(r.proven?r.optimalMinutes:r.feasibleMinutes):'—';$('optimalNote').textContent=r?(r.proven?'已证明最优 · 四单全部备齐':`最优时间范围 ${fmt(r.lowerMinutes)}～${fmt(r.feasibleMinutes)}分`):'空仓 · 尚未排产';if(r?.solverNotice)$('optimalNote').textContent+=' · '+r.solverNotice;$('solveState').textContent=!orderWorkBalance(model,current).valid?'工时占比不符':!hasEqualProductQuantities(current)?'待重新配量':error?'计算失败':r?(r.proven?'已证明最优':'待证明最优'):busy?'计算中':'待计算';$('solveState').className='badge'+(error||!orderWorkBalance(model,current).valid||r&&!r.proven?' warn':'');renderSchedule(r);const graph=ranchChainData(model,current,level),nextGraphSignature=JSON.stringify([graphOverview,graph.nodes,graph.edges]);if(nextGraphSignature!==graphSignature){$('chainGraph').innerHTML=renderRanchChain(graph,{overview:graphOverview});setupRanchChains($('chainGraph'));graphSignature=nextGraphSignature;}$('chainMeta').textContent=`${graph.nodes.length} 种商品 · ${graph.edges.length} 条配方关系`;renderRecommendations();renderQuantityControls();renderSchemeNavigator();
 }
 function renderSchedule(result){
   if(!result){$('schedule').innerHTML='<div class="placeholder">计算本组后查看建筑时间轴</div>';$('completion').hidden=true;$('scheduleMeta').textContent='A / B / C / D 标识对应动物位的生产任务';return;}
@@ -173,14 +173,14 @@ function quantityComparison(g,r,m){
 }
 function setGroupQuantities(id,quantities,result=null){
   const index=groups.findIndex(g=>g.id===id);if(index<0)throw Error('当前等级中找不到该商品组合。');
-  const old=groups[index],updated=quantityGroup(old,quantities);if(result&&!hasEqualProductQuantities(updated))throw Error('同一组合内相同商品必须使用相同数量。');groups[index]=updated;quantityEdits[id]=[...quantities];
+  const old=groups[index],updated=quantityGroup(old,quantities);if(result&&!orderWorkBalance(model,updated).valid)throw Error('每单累计工时必须占整组的15%～35%。');if(result&&!hasEqualProductQuantities(updated))throw Error('同一组合内相同商品必须使用相同数量。');groups[index]=updated;quantityEdits[id]=[...quantities];
   failures.delete(old.key);if(!hasEqualProductQuantities(updated))failures.set(updated.key,'相同商品数量不一致，请按目标重新配量。');
   if(result){results.set(updated.key,result);failures.delete(updated.key);}
   if(current&&(current.id===id||groupKey(current)===old.key))current=updated;
   return updated;
 }
 function renderRecommendations(){
-  const g=current&&representative(current),saved=g&&quantityFits.get(g.id),fit=saved?.recommendations?.some(v=>!hasEqualProductQuantities(v.group))?null:saved;$('quantityRecommendations').hidden=!fit;
+  const g=current&&representative(current),saved=g&&quantityFits.get(g.id),fit=saved?.recommendations?.some(v=>!hasEqualProductQuantities(v.group)||!orderWorkBalance(model,v.group).valid)?null:saved;$('quantityRecommendations').hidden=!fit;
   if(!fit)return;
   $('quantitySearchMeta').textContent=fit.error?'本轮配量失败':`对照 ${fit.evaluatedCount??fit.tried} 个数量配置 · ${fit.provenCount} 个排程已证明最优`;
   $('quantityReason').textContent=fit.error??`${fit.reason} 数量采用候选搜索，未证明为全范围最优配量。`;
@@ -189,7 +189,7 @@ function renderRecommendations(){
 function fitQuantities(items){
   if(!items.length)return;
   let options;try{options=readQuantityTargets();}catch(error){message(error.message);return;}
-  items=items.filter(g=>!ranchFitIsCurrent(quantityFits.get(g.id),g,options));if(!items.length){$('quantityStatus').textContent='目标与商品未变化，已复用保存的配量结果。';return;}
+  items=items.filter(g=>!ranchFitIsCurrent(quantityFits.get(g.id),g,options,model));if(!items.length){$('quantityStatus').textContent='目标与商品未变化，已复用保存的配量结果。';return;}
   stop();message();if($('targetWork').value.trim()==='')(savedSettings.workRatios??={})[workRatioKey()]=options.targetWorkMinutes/options.targetMinutes;
   persist();busy=true;workerKind='quantity';$('stop').hidden=false;renderQuantityControls();
   $('quantityStatus').textContent=`正在为 ${items.length} 个组合配量 · 优化目标 ${fmt(options.targetMinutes)}±${fmt(options.toleranceMinutes)}分 · 共同累计工时 ${fmt(options.targetWorkMinutes)}分`;
@@ -232,7 +232,7 @@ $('slots').addEventListener('change',applyManualQuantity);
 $('slots').addEventListener('input',event=>{if(event.target.dataset.quantity==null)return;clearTimeout(manualTimer);const token=buildToken,index=Number(event.target.dataset.quantity);$('solveState').textContent='数量待计算';$('optimal').textContent='—';manualTimer=setTimeout(()=>{if(token===buildToken)commitSlotInputs(false,index);},450);});
 $('resetOneQuantity').onclick=()=>current&&resetQuantityGroups([representative(current)]);
 $('resetLevelQuantities').onclick=()=>resetQuantityGroups([...groups]);
-$('recommendationCards').onclick=event=>{const button=event.target.closest('[data-recommendation]');if(!button||!current)return;const g=representative(current),candidate=quantityFits.get(g.id)?.recommendations[Number(button.dataset.recommendation)];if(!candidate||!hasEqualProductQuantities(candidate.group))return;stop();setGroupQuantities(g.id,candidate.group.slots.map(v=>v.quantity),candidate.result);persist();saveCache();updateView();};
+$('recommendationCards').onclick=event=>{const button=event.target.closest('[data-recommendation]');if(!button||!current)return;const g=representative(current),candidate=quantityFits.get(g.id)?.recommendations[Number(button.dataset.recommendation)];if(!candidate||!hasEqualProductQuantities(candidate.group)||!orderWorkBalance(model,candidate.group).valid)return;stop();setGroupQuantities(g.id,candidate.group.slots.map(v=>v.quantity),candidate.result);persist();saveCache();updateView();};
 for(const id of ['targetHours','targetTolerance','targetWork','fitCropMax','fitProductMax','quantityBudget'])$(id).onchange=()=>{persist();viewRevision++;renderTable();renderRecommendations();};
 $('importButton').onclick=$('importEmpty').onclick=()=>$('importFile').click();
 $('importFile').onchange=async()=>{

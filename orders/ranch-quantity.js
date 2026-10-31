@@ -1,7 +1,7 @@
 import {solveRanchGroupCached as solveRanchGroup} from './ranch-schedule-cache.js';
 import {ranchDemandKey} from './ranch-catalog.js';
 import {groupMetrics} from './ranch-engine.js';
-export const QUANTITY_SEARCH_VERSION=4;
+export const QUANTITY_SEARCH_VERSION=5;
 const clamp=(x,l,h)=>Math.max(l,Math.min(h,x));
 const unitProfiles=new WeakMap();
 const fitSignatures=new WeakMap();
@@ -18,6 +18,14 @@ export function linkedProductQuantities(group,index,value){
   if(!Number.isInteger(index)||index<0||index>=group.slots.length)throw Error('请选择有效的订单位置。');
   if(!Number.isSafeInteger(value)||value<1)throw Error('交付数量必须是正整数。');
   const id=group.slots[index].id;return group.slots.map(slot=>slot.id===id?value:slot.quantity);
+}
+// Each delivery slot owns its upstream resource work, even for repeated goods.
+const balanceUnits=new WeakMap();
+export function orderWorkBalance(model,group){
+  let memo=balanceUnits.get(model);if(!memo){memo=new Map();balanceUnits.set(model,memo);}
+  function unit(id){if(memo.has(id))return memo.get(id);const p=model.by.get(id);const value=p.stepMinutes+p.inputs.reduce((s,v)=>s+v.quantity*unit(v.id),0);memo.set(id,value);return value;}
+  const minutes=group.slots.map(v=>unit(v.id)*v.quantity),total=minutes.reduce((s,v)=>s+v,0),shares=minutes.map(v=>v/total);
+  return {minutes,shares,valid:shares.length===4&&shares.every(v=>v>=.15-1e-10&&v<=.35+1e-10)};
 }
 export function quantityOptions(options={}){
   const value={targetMinutes:360,toleranceMinutes:30,targetWorkMinutes:1080,cropMax:42,productMax:12,timeLimitMs:2500,maxEvaluations:42,...options};
@@ -41,7 +49,7 @@ export function quantityRank(candidate,options,mode='work'){
   const {result,group}=candidate,T=options.targetMinutes,tol=options.toleranceMinutes,lo=T-tol,hi=T+tol;
   const lower=result.lowerMinutes,upper=result.feasibleMinutes,certified=lower>=lo-1e-7&&upper<=hi+1e-7;
   const actual=result.proven?result.optimalMinutes:upper,timeError=Math.abs(actual-T),workError=Math.abs(result.totalMinutes-options.targetWorkMinutes),quantity=group.slots.reduce((s,v)=>s+v.quantity,0);
-  const category=result.proven&&certified?0:certified?1:result.proven?2:3;
+  const category=result.orderWorkBalanced===false?4:result.proven&&certified?0:certified?1:result.proven?2:3;
   if(category<2)return [category,...(mode==='time'?[timeError,workError,quantity]:mode==='quantity'?[quantity,workError,timeError]:[workError,timeError,quantity])];
   return [category,timeError,workError,quantity];
 }
@@ -80,7 +88,13 @@ export function quantityCandidates(model,group,capacities,options,baseline){
   for(const indices of linkedAxes)if(indices.length>1){const value=clamp(Math.round(indices.reduce((sum,i)=>sum+group.slots[i].quantity,0)/indices.length),1,max[indices[0]]);for(const i of indices)initial[i]=value;}
   const usableBaseline=hasEqualProductQuantities(group)?baseline:null;
   const minimum=profile.estimate([1,1,1,1]),maximum=profile.estimate(max);
-  if(minimum.lowerMinutes>options.targetMinutes+options.toleranceMinutes)return {quantities:[[1,1,1,1]],considered:1,taskLimited:0,minWork:minimum.totalMinutes,maxWork:maximum.totalMinutes};
+  // Necessary total-work interval implied by all four share bounds and caps.
+  // If empty even with fractional quantities, no integer configuration can fit.
+  const minimumBalancedWork=Math.max(minimum.totalMinutes,...profile.units.map(u=>u.total/.35));
+  const maximumBalancedWork=Math.min(maximum.totalMinutes,...profile.units.map((u,i)=>u.total*max[i]/.15));
+  if(minimumBalancedWork>maximumBalancedWork+1e-8)throw Error('当前数量上限无法满足每单累计工时占组15%～35%，请提高较轻订单的数量上限或调整商品组合。');
+
+  if(minimum.lowerMinutes>options.targetMinutes+options.toleranceMinutes&&profile.units.every(u=>u.total>=.15*minimum.totalMinutes-1e-8&&u.total<=.35*minimum.totalMinutes+1e-8))return {quantities:[[1,1,1,1]],considered:1,taskLimited:0,minWork:minimum.totalMinutes,maxWork:maximum.totalMinutes};
   const offset=usableBaseline?.proven?Math.max(0,usableBaseline.optimalMinutes-profile.estimate(group.slots.map(v=>v.quantity)).lowerMinutes):0;
   // Reuse numeric buffers in the enumeration hot loop. Keep the original
   // left-to-right sum order: fractional times must produce the same ranks.
@@ -93,8 +107,11 @@ export function quantityCandidates(model,group,capacities,options,baseline){
   }
   function offer(q,seed=false){
     for(let i=0;i<4;i++)normalized[i]=clamp(Math.round(q[i]),1,max[i]);
-    considered++;const key=((normalized[0]*101+normalized[1])*101+normalized[2])*101+normalized[3];
-    if(seen.has(key))return;seen.add(key);estimate(normalized);if(taskCount>1200){taskLimited++;return;}
+    considered++;estimate(normalized);const balanced=profile.units.every((u,i)=>u.total*normalized[i]>=.15*totalMinutes-1e-8&&u.total*normalized[i]<=.35*totalMinutes+1e-8);
+    const diagnostic=normalized.every(v=>v===1)||normalized.every((v,i)=>v===max[i]);
+    if(!balanced&&!diagnostic)return;
+    const key=((normalized[0]*101+normalized[1])*101+normalized[2])*101+normalized[3];
+    if(seen.has(key))return;seen.add(key);if(taskCount>1200){taskLimited++;return;}
     const predicted=lowerMinutes+offset,excess=Math.max(0,lowerMinutes-options.targetMinutes-options.toleranceMinutes),te=Math.abs(predicted-options.targetMinutes)/options.targetMinutes,we=Math.abs(totalMinutes-options.targetWorkMinutes)/options.targetWorkMinutes;
     banks[0].offer(normalized,[excess,te,we]);banks[1].offer(normalized,[excess,Math.max(0,te-options.toleranceMinutes/options.targetMinutes),we,te]);banks[2].offer(normalized,[excess,te+we,we]);if(seed)seeds.set(normalized.join(','),[...normalized]);
   }
@@ -115,6 +132,10 @@ export function quantityCandidates(model,group,capacities,options,baseline){
     q[axes[0]]=a;q[axes[1]]=b;q[axes[2]]=c;q[pivot]=0;estimate(q);
     const candidates=new Set([1,max[pivot],initial[pivot],(options.targetWorkMinutes-totalMinutes)/profile.units[pivot].total]);
     for(let r=0;r<profile.resources.length;r++){const w=workRows[r][pivot];if(w)for(const t of times)candidates.add(((t-offset)*caps[r]-sourceTimes[r])/w);}
+    // Intersect all four slot-share inequalities before ranking quantities.
+    let qLo=.15/.85*totalMinutes/profile.units[pivot].total,qHi=.35/.65*totalMinutes/profile.units[pivot].total;
+    for(const i of axes){const w=profile.units[i].total*q[i];qLo=Math.max(qLo,(w/.35-totalMinutes)/profile.units[pivot].total);qHi=Math.min(qHi,(w/.15-totalMinutes)/profile.units[pivot].total);}
+    if(qLo<=qHi+1e-8){candidates.add(Math.ceil(qLo-1e-8));candidates.add(Math.floor(qHi+1e-8));candidates.add(totalMinutes/3/profile.units[pivot].total);}
     for(const v of candidates){q[pivot]=Math.floor(v);offer(q);q[pivot]=Math.ceil(v);offer(q);}
   }
   }
@@ -144,6 +165,7 @@ export function quantityEndpointDominated(lowerMinutes,options,evaluated){
 }
 function* quantitySearch(model,group,level,capacities,rawOptions={},baseline=null,onProgress=()=>{}){
   const options=quantityOptions(rawOptions),start=performance.now(),pool=quantityCandidates(model,group,capacities,options,baseline),evaluated=[],failures=[];let tried=0,prunedCount=0,endpointProofSkips=0;
+  const evaluate=(candidate,result)=>({group:candidate,result:{...result,orderWorkShares:orderWorkBalance(model,candidate).shares,orderWorkBalanced:orderWorkBalance(model,candidate).valid}});
   const pruningProfile=ranchQuantityProfile(model,group,capacities),pruningMax=group.slots.map(v=>model.by.get(v.id).isCrop?options.cropMax:options.productMax);
   // Integer-minute inputs give an exact resource-work lower bound. Fractional
   // inputs use zero here rather than risk pruning on floating-point roundoff.
@@ -155,20 +177,20 @@ function* quantitySearch(model,group,level,capacities,rawOptions={},baseline=nul
     return quantityCandidateDominated(candidate,groupMetrics(model,candidate,level),safeLower(q),options,evaluated);
   }
   // A current, already verified schedule is reusable only for exactly the same quantities.
-  if(baseline&&hasEqualProductQuantities(group)&&group.slots.every(v=>v.quantity<=(model.by.get(v.id).isCrop?options.cropMax:options.productMax)))evaluated.push({group:structuredClone(group),result:baseline});
+  if(baseline&&hasEqualProductQuantities(group)&&group.slots.every(v=>v.quantity<=(model.by.get(v.id).isCrop?options.cropMax:options.productMax)))evaluated.push(evaluate(structuredClone(group),baseline));
   for(const q of pool.quantities){
     if(tried&&performance.now()-start>=options.timeLimitMs)break;
     const candidate=quantityGroup(group,q);if(evaluated.some(v=>ranchDemandKey(v.group)===candidate.key))continue;
     if(dominated(candidate,q)){prunedCount++;continue;}
     const skipEndpointProof=endpoint(q)&&quantityEndpointDominated(safeLower(q),options,evaluated);if(skipEndpointProof)endpointProofSkips++;
-    try{const result=yield {model,group:candidate,level,capacities,options:{timeLimitMs:skipEndpointProof?0:Math.min(120,Math.max(0,options.timeLimitMs-(performance.now()-start))),nodeLimit:1500}};evaluated.push({group:candidate,result});}catch(error){failures.push(error.message);}
+    try{const result=yield {model,group:candidate,level,capacities,options:{timeLimitMs:skipEndpointProof?0:Math.min(120,Math.max(0,options.timeLimitMs-(performance.now()-start))),nodeLimit:1500}};evaluated.push(evaluate(candidate,result));}catch(error){failures.push(error.message);}
     tried++;onProgress({tried,candidates:pool.quantities.length});
   }
   if(!evaluated.length)throw Error(failures[0]||'搜索范围内未找到可计算的数量配置。');
   // Correct the resource-bound predictor with real joint schedules. A nearby
   // integer quantity may hit the band even when all top proxy candidates miss it.
   const profileForRefine=ranchQuantityProfile(model,group,capacities),max=group.slots.map(v=>model.by.get(v.id).isCrop?options.cropMax:options.productMax);
-  const certified=v=>v.result.lowerMinutes>=options.targetMinutes-options.toleranceMinutes-1e-7&&v.result.feasibleMinutes<=options.targetMinutes+options.toleranceMinutes+1e-7;
+  const certified=v=>v.result.orderWorkBalanced&&v.result.lowerMinutes>=options.targetMinutes-options.toleranceMinutes-1e-7&&v.result.feasibleMinutes<=options.targetMinutes+options.toleranceMinutes+1e-7;
   const minImpossible=profileForRefine.estimate([1,1,1,1]).lowerMinutes>options.targetMinutes+options.toleranceMinutes;
   const upper=evaluated.find(v=>v.group.slots.every((slot,i)=>slot.quantity===max[i]));
   const maxTooFast=upper?.result.feasibleMinutes<options.targetMinutes-options.toleranceMinutes;
@@ -179,19 +201,21 @@ function* quantitySearch(model,group,level,capacities,rawOptions={},baseline=nul
       if(evaluated.length>=options.maxEvaluations||performance.now()-start>=options.timeLimitMs)break;
       const value=best.group.slots[i].quantity+delta;if(value<1||value>max[i])continue;const q=linkedProductQuantities(best.group,i,value);
       const candidate=quantityGroup(group,q);if(evaluated.some(v=>v.group.key===candidate.key))continue;
-      try{const result=yield {model,group:candidate,level,capacities,options:{timeLimitMs:Math.min(120,Math.max(0,options.timeLimitMs-(performance.now()-start))),nodeLimit:1500}};evaluated.push({group:candidate,result});added++;}catch(error){failures.push(error.message);}tried++;onProgress({tried,candidates:Math.max(pool.quantities.length,evaluated.length)});
+      try{const result=yield {model,group:candidate,level,capacities,options:{timeLimitMs:Math.min(120,Math.max(0,options.timeLimitMs-(performance.now()-start))),nodeLimit:1500}};evaluated.push(evaluate(candidate,result));added++;}catch(error){failures.push(error.message);}tried++;onProgress({tried,candidates:Math.max(pool.quantities.length,evaluated.length)});
     }
     if(!added)break;
   }
+  const eligible=evaluated.filter(v=>v.result.orderWorkBalanced);
+  if(!eligible.length)throw Error('未找到每单累计工时占整组15%～35%的数量配置，请调整数量上限或商品组合。');
   const recommendations=[],labels={work:'累计工时更接近',time:'优化时间更接近',quantity:'交付件数较少'};
-  for(const mode of ['work','time','quantity']){const ranked=[...evaluated].sort((a,b)=>compare(quantityRank(a,options,mode),quantityRank(b,options,mode))),best=ranked[0];if(!recommendations.some(v=>ranchDemandKey(v.group)===ranchDemandKey(best.group)))recommendations.push({...best,label:labels[mode]});}
+  for(const mode of ['work','time','quantity']){const ranked=[...eligible].sort((a,b)=>compare(quantityRank(a,options,mode),quantityRank(b,options,mode))),best=ranked[0];if(!recommendations.some(v=>ranchDemandKey(v.group)===ranchDemandKey(best.group)))recommendations.push({...best,label:labels[mode]});}
   const best=recommendations[0],within=best.result.lowerMinutes>=options.targetMinutes-options.toleranceMinutes-1e-7&&best.result.feasibleMinutes<=options.targetMinutes+options.toleranceMinutes+1e-7,profile=ranchQuantityProfile(model,group,capacities),workUpper=workUpperAtTime(profile,capacities,group.slots.map(v=>model.by.get(v.id).isCrop?options.cropMax:options.productMax),options.targetMinutes+options.toleranceMinutes);
   const minimum=evaluated.find(v=>v.group.slots.every(s=>s.quantity===1));let reason=within?'已找到目标范围内的数量配置。':'本轮搜索未找到已确认落入目标时间范围的配置，可调整数量上限或增加搜索时限。';
   if(maxTooFast)reason=`数量全部达到上限时，已有排程也仅需 ${Math.round(upper.result.feasibleMinutes)} 分钟，低于目标下限；当前数量上限无法达到目标。`;
   if(minimum?.result.lowerMinutes>options.targetMinutes+options.toleranceMinutes)reason='四种商品各1个的最优时间下界已超过目标范围；增加数量不能缩短整组最优时间。';
   if(options.targetWorkMinutes<pool.minWork||options.targetWorkMinutes>pool.maxWork)reason+=` 累计工时目标超出数量范围可达到的 ${Math.round(pool.minWork)}～${Math.round(pool.maxWork)} 分钟。`;
   else if(workUpper!=null&&options.targetWorkMinutes>workUpper)reason+=` 在优化时间不超过 ${Math.round(options.targetMinutes+options.toleranceMinutes)} 分钟时，本组累计工时的理论上限为 ${workUpper} 分钟，低于共同目标。`;
-  return {searchVersion:QUANTITY_SEARCH_VERSION,options,recommendations,within,reason,tried,prunedCount,endpointProofSkips,evaluatedCount:evaluated.length,considered:pool.considered,taskLimited:pool.taskLimited,workUpperAtTime:workUpper,provenCount:evaluated.filter(v=>v.result.proven).length,elapsedMs:Math.round(performance.now()-start),quantitySearchProven:false,method:'bounded_candidate_search_with_joint_schedule_verification'};
+  return {searchVersion:QUANTITY_SEARCH_VERSION,orderWorkBalanced:true,options,recommendations,within,reason,tried,prunedCount,endpointProofSkips,evaluatedCount:evaluated.length,considered:pool.considered,taskLimited:pool.taskLimited,workUpperAtTime:workUpper,provenCount:evaluated.filter(v=>v.result.proven).length,elapsedMs:Math.round(performance.now()-start),quantitySearchProven:false,method:'bounded_candidate_search_with_joint_schedule_verification'};
 }
 
 // This ratio is an inexpensive planning estimate. It is never a claimed schedule.
@@ -205,13 +229,14 @@ export function ranchQuantityFitKey(model,group,capacities,options){
   const recipes=group.slots.map(v=>{if(!signatures.has(v.id))signatures.set(v.id,[...model.chains.get(v.id)].sort((a,b)=>a-b).map(id=>{const p=model.by.get(id);return [id,p.buildingId,p.stepMinutes,p.inputs];}));return signatures.get(v.id);});
   return JSON.stringify([QUANTITY_SEARCH_VERSION,group.slots.map(v=>v.id),recipes,profile.resources.sort().map(id=>[id,Number(capacities[id])]),quantityOptions(options)]);
 }
-export function reuseRanchQuantityFit(fit,group,capacities){
+export function reuseRanchQuantityFit(fit,group,capacities,model=null){
   if(!fit?.recommendations?.length)throw Error('缺少可复用的配量结果。');
-  return {...fit,reused:true,elapsedMs:0,recommendations:fit.recommendations.map(candidate=>{
+    return {...fit,reused:true,elapsedMs:0,recommendations:fit.recommendations.map(candidate=>{
     if(candidate.group.slots.some((v,i)=>v.id!==group.slots[i].id))throw Error('不能复用商品不同的配量结果。');
     if(!hasEqualProductQuantities(candidate.group))throw Error('旧配量中相同商品的数量不一致，需要重新配量。');
+    if(!(model?orderWorkBalance(model,candidate.group).valid:candidate.result?.orderWorkBalanced===true))throw Error('旧配量尚未通过每单工时15%～35%校验，需要重新配量。');
     const updated=quantityGroup(group,candidate.group.slots.map(v=>v.quantity));
-    return {...candidate,group:updated,result:{...candidate.result,assumptions:{...candidate.result.assumptions,capacities:{...capacities}}}};
+    return {...candidate,group:updated,result:{...candidate.result,orderWorkBalanced:true,...(model?{orderWorkShares:orderWorkBalance(model,updated).shares}:{}),assumptions:{...candidate.result.assumptions,capacities:{...capacities}}}};
   })};
 }
 

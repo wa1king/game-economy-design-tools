@@ -71,13 +71,7 @@ recordedSource=recordedSource.replace(/from '(\.\/[^']+)'/g,(_,relative)=>`from 
 const baselineRecordedSource=recordedSource.replace('quantityEndpointDominated(safeLower(q),options,evaluated)','false');
 const {fitRanchQuantities:recordedFit}=await import('data:text/javascript;base64,'+Buffer.from(recordedSource).toString('base64'));
 const {fitRanchQuantities:recordedBaselineFit}=await import('data:text/javascript;base64,'+Buffer.from(baselineRecordedSource).toString('base64'));
-test('a losing maximum endpoint retains a real schedule without branching or changing recommendations',()=>{
+test('endpoint diagnostics cannot become an unbalanced recommendation when the quantity limits exclude balanced orders',()=>{
  const b=base([product(1,2,0),product(2,1,3,[[1,1]]),product(3,3,2,[[2,1],[1,1]]),product(4,2,1,[[2,1]]),product(5,1,2,[[3,1],[4,1]])]),g=group([5,3,4,1]),caps={0:2,1:1,2:1,3:1},o={targetMinutes:10,toleranceMinutes:0,targetWorkMinutes:29,productMax:2,cropMax:2,timeLimitMs:4000};
- const prior=globalThis.__ranchEndpointProofTrace;
- try{
-   globalThis.__ranchEndpointProofTrace=[];const before=recordedBaselineFit(prepareRanch(b),g,1,caps,o),beforeTrace=globalThis.__ranchEndpointProofTrace;
-   globalThis.__ranchEndpointProofTrace=[];const after=recordedFit(prepareRanch(b),g,1,caps,o),afterTrace=globalThis.__ranchEndpointProofTrace;
-   const endpoint=trace=>trace.find(row=>row.quantities.every(q=>q===2));assert(endpoint(beforeTrace).nodes>0);assert.equal(endpoint(afterTrace).budget,0);assert.equal(endpoint(afterTrace).nodes,0);assert(after.endpointProofSkips>0);
-   const summary=fit=>fit.recommendations.map(v=>({key:v.group.key,time:v.result.optimalMinutes,work:v.result.totalMinutes,label:v.label}));assert.deepEqual(summary(after),summary(before));assert.equal(after.reason,before.reason);assert.equal(after.within,before.within);
- }finally{if(prior===undefined)delete globalThis.__ranchEndpointProofTrace;else globalThis.__ranchEndpointProofTrace=prior;}
+ const prior=globalThis.__ranchEndpointProofTrace;try{globalThis.__ranchEndpointProofTrace=[];assert.throws(()=>recordedFit(prepareRanch(b),g,1,caps,o),/15%～35%/);}finally{if(prior===undefined)delete globalThis.__ranchEndpointProofTrace;else globalThis.__ranchEndpointProofTrace=prior;}
 });

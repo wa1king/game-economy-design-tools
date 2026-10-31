@@ -16,10 +16,10 @@ export function ranchExportSheets(ws){
   for(const type of ranchTypes){
     const rows=[header];
     for(const plan of ws.plans)for(const group of plan.groups.filter(g=>g.types.includes(type.id))){
-      const quantitiesValid=hasEqualProductQuantities(group),metric=plan.metrics.get(group.key),result=quantitiesValid?plan.results.get(group.key):null,failure=quantitiesValid?plan.failures.get(group.key):null;
+      const balanceValid=plan.orderWorkBalance?.get(group.key)?.valid!==false,quantitiesValid=hasEqualProductQuantities(group),metric=plan.metrics.get(group.key),result=quantitiesValid?plan.results.get(group.key):null,failure=quantitiesValid?plan.failures.get(group.key):null;
       const optimal=result?.proven?valid(result.optimalMinutes):null;
       const status=!quantitiesValid?'相同商品数量不一致，待重新配量':optimal!=null?'已证明最优':valid(result?.feasibleMinutes)!=null?'待证明最优':failure?'排产失败':'未计算';
-      rows.push([plan.level,group.id,metric.slots.map(v=>`${v.name} × ${v.quantity}`).join(' + '),...metric.slots.flatMap(v=>[v.id,v.name,v.quantity]),optimal,valid(result?.feasibleMinutes),valid(result?.lowerMinutes),failure?status+'：'+String(failure.message??failure):status,metric.totalMinutes,metric.complexity,metric.coinValue,...sources.map(s=>metric.sourceMinutes[s.id]??0)]);
+      rows.push([plan.level,group.id,metric.slots.map(v=>`${v.name} × ${v.quantity}`).join(' + '),...metric.slots.flatMap(v=>[v.id,v.name,v.quantity]),optimal,valid(result?.feasibleMinutes),valid(result?.lowerMinutes),failure?status+'：'+String(failure.message??failure):!balanceValid&&quantitiesValid?status+'；单个订单工时占比不在15%～35%，待重新配量':status,metric.totalMinutes,metric.complexity,metric.coinValue,...sources.map(s=>metric.sourceMinutes[s.id]??0)]);
     }
     sheets.push({name:type.name+'订单',rows,widths:header.map((_,i)=>i===2?68:i===18?32:18),integerColumns:[20,22]});
   }
