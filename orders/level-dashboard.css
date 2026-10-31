@@ -47,7 +47,6 @@
 #dashboardContent .dash-legend{display:flex;align-items:center;gap:14px;white-space:nowrap;font-size:12px;color:#65766b}
 #dashboardContent .dash-legend span{display:inline-flex;align-items:center;gap:6px}
 #dashboardContent .dash-legend span:before{content:"";display:block;width:16px;height:0;border-top:2px solid var(--dash-green)}
-#dashboardContent .dash-legend .dash-p90:before{border-top:2px dashed var(--dash-amber)}
 #dashboardContent .dash-sources select{max-width:220px;padding:5px 8px;border:1px solid var(--dash-line);border-radius:5px;background:#fff;font-size:12px;line-height:1.5}
 #dashboardContent .dash-scroll{max-width:100%;max-height:560px;overflow:auto;overscroll-behavior:contain;scrollbar-width:thin;scrollbar-color:#bacabd #f3f6f2}
 #dashboardContent .dash-scroll table{width:100%;border-collapse:separate;border-spacing:0;font-size:12px;font-variant-numeric:tabular-nums}

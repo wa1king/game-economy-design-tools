@@ -31,10 +31,10 @@ try{
   dashboard.render();
   assert(root.innerHTML.includes('订单体验趋势'));
   assert(root.innerHTML.includes('Lv 1 · 中位数 9 分钟'),'Time trends must use weighted outcome quantiles, not the input mean');
-  assert(root.innerHTML.includes('Lv 1 · P90 14 分钟'));
+  assert(!root.innerHTML.includes('P90')&&!root.innerHTML.includes('90%上限'),'Outcome trends no longer display P90');
   assert(root.innerHTML.includes('Lv 1 · 平均数 10.25 分钟'),'Mean must use final generated probabilities, not the target of 10000');
-  assert(root.innerHTML.includes('90%上限'),'Quantile legend explains P90 in plain language');
-  assert(root.innerHTML.includes('Lv 1 · 平均 1.75'));
+  assert(root.innerHTML.includes('Lv 1 · 平均数 1.75'));
+  assert(root.innerHTML.includes('Lv 1 · 中位数 2'),'Complexity trend retains the weighted median');
   assert(root.innerHTML.includes('Lv 1 · 含作物订单概率 25%'));
   assert(root.innerHTML.includes('Lv 1 · 平均金币奖励 55 金币/单'),'Reward trend uses final probability weights and the existing payout formula');
   assert(root.innerHTML.includes('拟合校验'),'Target acceptance stays available below outcome trends');
