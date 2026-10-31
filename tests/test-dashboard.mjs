@@ -16,7 +16,7 @@ console.log('Dashboard: fresh/stale/blocked/missing states and raw source weight
 const catalog=buildCatalog({maxLevel:2,sources:[{id:'farm',name:'农田'},{id:'mill',name:'磨坊'}],products:[
   {id:1,name:'麦',level:1,buildingId:'farm',category:'田地作物',stepMinutes:2,analysisBatchYield:1,coinValue:2.13,inputs:[]},
   {id:2,name:'粉',level:1,buildingId:'mill',stepMinutes:5,analysisBatchYield:1,coinValue:10.3,inputs:[{id:1,quantity:2}]}
-]});
+]},{cropQuantity:7});
 const target={revision:0,mean:10000,variance:100,mix:[2,0,0],weights:{farm:3,mill:1},sourceEnabled:false};
 const fitted={matched:true,config:{level:1},probabilities:[.25,.75],mean:10.25,sd:2,actualMix:[1,0,0],shares:[.6,.4],tv:.04};
 let current=fitted,busy=false,opened=null;
@@ -30,6 +30,11 @@ try{
   const dashboard=createLevelDashboard(renderApi),snapshot=JSON.stringify({catalog,target,fitted});
   dashboard.render();
   assert(root.innerHTML.includes('订单体验趋势'));
+  assert(root.innerHTML.includes('dash-custom-table'));
+  renderApi.getSelection=()=>({levels:{1:['S1-1']}});dashboard.render();
+  const comparison=root.innerHTML.match(/<table class="dash-custom-table">[\s\S]*?<tbody><tr>([\s\S]*?)<\/tr>/)[1];
+  assert(comparison.includes('data-product-id="1"'));assert(comparison.includes('dash-custom-mean">14</td>'));assert(comparison.includes('dash-normal-mean" title="剔除本级定制订单后，按剩余生成概率重新加权">9</td>'));assert(comparison.includes('dash-custom-delta">+5</td>'));
+  delete renderApi.getSelection;dashboard.render();
   assert(root.innerHTML.includes('Lv 1 · 中位数 9 分钟'),'Time trends must use weighted outcome quantiles, not the input mean');
   assert(!root.innerHTML.includes('P90')&&!root.innerHTML.includes('90%上限'),'Outcome trends no longer display P90');
   assert(root.innerHTML.includes('Lv 1 · 平均数 10 分钟'),'Mean must use final generated probabilities, not the target of 10000');

@@ -3,6 +3,8 @@ import {normalizedSourceWeights} from './order-engine.js';
 import {normalizedMixWeights} from './mix-weights.js';
 import {spreadPercent,actualSpread} from './time-spread.js';
 import {summarizeOrderOutcomes} from './order-outcomes.js';
+import {customOrderTimeComparison} from './custom-order-comparison.js';
+import {renderOrderItems} from './item-info.js';
 const esc=v=>String(v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const num=(v,d=2)=>Number.isFinite(v)?v.toLocaleString('zh-CN',{maximumFractionDigits:d}):'—';
 const states={matched:'目标达标',approximate:'近似解',blocked:'需调整',stale:'待更新',empty:'未计算'};
@@ -68,7 +70,8 @@ export function createLevelDashboard(api){
     const columns=typeof window!=='undefined'&&window.innerWidth<1100?1:2;
     const chartSize={width:(width-(columns-1)*14)/columns-34};
     const rows=dashboardRows(api),catalog=api.getCatalog(),fresh=rows.filter(row=>row.r),counts=Object.fromEntries(Object.keys(states).map(s=>[s,rows.filter(row=>row.state===s).length]));
-    for(const row of rows)row.outcome=row.r?summarizeOrderOutcomes(catalog,row.r,row.level):null;
+    const products=new Map(catalog.products.map(p=>[p.id,p])),byId=new Map(catalog.orders.map(o=>[o.id,o])),selection=api.getSelection?.();
+    for(const row of rows){row.outcome=row.r?summarizeOrderOutcomes(catalog,row.r,row.level):null;row.customComparison=customOrderTimeComparison(catalog,selection,row.level,row.r,byId);}
     const problems=rows.flatMap(row=>row.error?[{level:row.level,state:'无法拟合',messages:[row.error]}]:row.r&&!row.r.matched?[{level:row.level,state:'近似解',messages:resultFeedback(row.r,catalog)}]:[]);
     const dualLegend=()=>'<div class="dash-legend"><span class="dash-average" title="按订单实际生成概率加权">平均数</span><span class="dash-result" title="按订单实际生成概率计算的50%分位数">中位数</span></div>';
     const series=(name,get,unit='')=>({name,get,unit,color:'#27775c'});
@@ -76,6 +79,10 @@ export function createLevelDashboard(api){
       <div class="dash-status-summary">${Object.entries(states).map(([key,label])=>`<span class="dash-status-count ${key}${counts[key]?'':' is-zero'}"><i aria-hidden="true"></i><span>${label}</span><b>${counts[key]}</b></span>`).join('')}</div>
       <nav class="dash-levels" aria-label="按等级查看结果">${rows.map(row=>`<button class="dash-level ${row.state}" data-open="${row.level}" aria-label="Lv ${row.level} · ${states[row.state]} · 查看单级" title="Lv ${row.level} · ${esc(row.error||states[row.state])}" ${api.isBusy?.()?'disabled':''}><b>${row.level}</b></button>`).join('')}</nav></section>
       <section class="fit-problems" ${problems.length?'':'hidden'}>${renderFitProblems(problems)}</section>
+      <article class="panel dash-custom-comparison"><div class="panel-heading"><h3>定制订单 · 累计工时对照 <small>分钟</small></h3><span class="hint">定制等权 · 非定制按生成概率加权</span></div><div class="dash-scroll"><table class="dash-custom-table"><thead><tr><th>等级</th><th>定制订单内容</th><th>定制平均</th><th>非定制平均</th><th>差值 · 定制 − 非定制</th><th></th></tr></thead><tbody>${rows.map(row=>{
+        const v=row.customComparison,delta=v.delta==null?null:Math.round(v.customMean)-Math.round(v.normalMean);
+        return `<tr><th>Lv ${row.level}</th><td class="dash-custom-orders">${v.entries.length?v.entries.map(entry=>entry.order?`<div class="dash-custom-order"><span class="dash-custom-sequence">${entry.sequence}</span><span>${renderOrderItems(entry.order,products,{newAtLevel:row.level})}</span><small>${num(entry.order.cumulativeMinutes,0)} 分</small></div>`:`<div class="dash-custom-unavailable">${esc(entry.id)} · 当前规则下不可用</div>`).join(''):'<span class="hint">未配置</span>'}</td><td class="dash-custom-mean">${v.invalid?'含不可用订单':num(v.customMean,0)}</td><td class="dash-normal-mean" title="剔除本级定制订单后，按剩余生成概率重新加权">${row.r?v.normalMean==null?'无非定制概率':num(v.normalMean,0):row.state==='stale'?'结果待更新':'待拟合'}</td><td class="dash-custom-delta">${delta==null?'—':(delta>0?'+':'')+num(delta,0)}</td><td><button class="text-button" data-custom-level="${row.level}">挑选订单 →</button></td></tr>`;
+      }).join('')}</tbody></table></div></article>
       <section class="dash-charts" aria-label="订单体验趋势"><article class="panel dash-trend"><div class="panel-heading"><h3>累计工时 <small>分钟</small></h3>${dualLegend()}</div>${trend(rows,[{...series('平均数',row=>row.outcome?.stats.time.mean,' 分钟'),color:'#477ea5'},series('中位数',row=>row.outcome?.stats.time.p50,' 分钟')],'各等级累计工时：平均数与中位数',null,chartSize)}</article>
       <article class="panel dash-trend"><div class="panel-heading"><h3>累计复杂度</h3>${dualLegend()}</div>${trend(rows,[{...series('平均数',row=>row.outcome?.stats.complexity.mean),color:'#477ea5'},series('中位数',row=>row.outcome?.stats.complexity.p50)],'各等级累计复杂度：平均数与中位数',null,chartSize)}</article>
       <article class="panel dash-reward"><div class="panel-heading"><h3>平均金币奖励 <small>金币/单</small></h3><span class="hint">概率加权 · 物品价值 × 5</span></div>${trend(rows,[series('平均金币奖励',row=>row.outcome?.stats.coinReward.mean,' 金币/单')],'各等级订单平均金币奖励',null,{...chartSize,height:150,ticks:3,emptyText:'导入金币单价并拟合后显示'})}</article>
@@ -92,7 +99,7 @@ export function createLevelDashboard(api){
       }).join('')}</tbody></table></div></article>`;
     root.querySelector('#dashboardSourceMode').onchange=e=>{sourceMode=e.target.value;render();};
   }
-  root.addEventListener('click',event=>{const open=event.target.closest('[data-open]');if(open&&!api.isBusy())api.onOpen(Number(open.dataset.open));const problem=event.target.closest('[data-problem-level]');if(problem&&!api.isBusy())api.onAdjust?.(Number(problem.dataset.problemLevel));});
+  root.addEventListener('click',event=>{const open=event.target.closest('[data-open]');if(open&&!api.isBusy())api.onOpen(Number(open.dataset.open));const problem=event.target.closest('[data-problem-level]');if(problem&&!api.isBusy())api.onAdjust?.(Number(problem.dataset.problemLevel));const custom=event.target.closest('[data-custom-level]');if(custom&&!api.isBusy())api.onCustom?.(Number(custom.dataset.customLevel));});
   root.addEventListener('keydown',event=>{
     if(!['Enter',' '].includes(event.key))return;
     const point=event.target.closest('circle[data-open]');

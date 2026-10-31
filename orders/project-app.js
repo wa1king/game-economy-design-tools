@@ -293,7 +293,7 @@ function configIssue(level){const c=fittedConfig(level),mixIssue=mixWeightsIssue
   try{validateConfig(c);}catch(error){return {short:'参数需调整',message:error.message};}
   const plan=probabilityFloorPlan(catalog,c);if(c.minimumOrderWeight&&!plan.feasible)return {short:'精度不足',message:plan.reason};return null;}
 function renderDashboard(){
-  if(!levelDashboard)levelDashboard=createLevelDashboard({getCatalog:()=>catalog,getConfig:level=>project.configs[level],getInfo:info,getResult:level=>results.get(level),getError:level=>errors.get(level),getIssue:configIssue,isBusy:()=>busy,onOpen:level=>{loadLevel(level);setView('levels');},onAdjust:openConfigLevel});
+  if(!levelDashboard)levelDashboard=createLevelDashboard({getCatalog:()=>catalog,getSelection:()=>project.customOrders,onCustom:level=>{setView('custom');customOrdersView.open(level);},getConfig:level=>project.configs[level],getInfo:info,getResult:level=>results.get(level),getError:level=>errors.get(level),getIssue:configIssue,isBusy:()=>busy,onOpen:level=>{loadLevel(level);setView('levels');},onAdjust:openConfigLevel});
   levelDashboard.render();
 }
 function assignConfigField(c,key,value){
@@ -357,6 +357,7 @@ function setView(view){
   for(const [id,key] of [['levelWorkspace','levels'],['overviewPanel','overview'],['dashboardPanel','dashboard'],['customPanel','custom']])$(id).hidden=view!==key;
   for(const [id,key] of [['viewLevels','levels'],['viewOverview','overview'],['viewDashboard','dashboard'],['viewCustom','custom']])$(id).classList.toggle('active',view===key);
   if(view==='custom')renderCustomOrders();
+  if(view==='dashboard')renderDashboard();
 }
 function applyCopy(from,to,sourceLevel=activeLevel){
   const source=structuredClone(project.configs[sourceLevel]);for(let level=from;level<=to;level++)if(level!==sourceLevel)project.configs[level]={...structuredClone(source),revision:revision(level)+1};persist();loadLevel(activeLevel);renderNavigation();renderOverview();notice(`已应用到 Lv ${from}～${to}`);

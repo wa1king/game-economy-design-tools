@@ -105,3 +105,7 @@
 }
 
 #dashboardContent .dash-legend .dash-average:before{border-top-color:#477ea5}
+
+#dashboardContent .dash-custom-table{min-width:850px}#dashboardContent .dash-custom-table .dash-custom-orders{text-align:left;white-space:normal;width:55%;min-width:300px}#dashboardContent .dash-custom-order{display:flex;align-items:baseline;gap:8px;margin:4px 0;line-height:1.8}#dashboardContent .dash-custom-sequence{color:var(--muted);font-size:10px;flex:none;min-width:12px}#dashboardContent .dash-custom-order>span:nth-child(2){flex:1;min-width:0}#dashboardContent .dash-custom-order small{color:var(--muted);font-size:11px;white-space:nowrap}#dashboardContent .dash-custom-mean{color:#27775c;font-weight:600}#dashboardContent .dash-normal-mean{color:#477ea5;font-weight:600}#dashboardContent .dash-custom-unavailable{color:#a2652a}#dashboardContent .dash-custom-table .order-item{font-size:12px;white-space:normal;text-align:left}
+
+#dashboardContent .dash-custom-table thead th:nth-child(2){text-align:left}
