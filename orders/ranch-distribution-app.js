@@ -48,16 +48,16 @@ async function load(){
     window.dispatchEvent(new CustomEvent('ranch:source',{detail:{filename:loaded.filename,meta:`${loaded.base.products.length} 商品`}}));
     $('distributionLevel').innerHTML=plans.map(p=>`<option value="${p.level}">Lv ${p.level}</option>`).join('');
     $('distributionLevel').value=String(plans.some(p=>p.level===Number(selected))?selected:Math.min(loaded.base.maxLevel,Math.max(1,Number(loaded.settings.level)||1)));
-    $('distributionProgress').textContent='已同步当前数量与排产结果';render();
+    $('distributionProgress').textContent='已读取保存的配量与排产结果';render();
   }catch(error){if(generation===loadToken)showError(error.message||'读取失败，请重新加载。');}
   finally{if(generation===loadToken){loading=false;controls();}}
 }
 async function calculate(){
   if(running||loading||!workspace||!plans.some(p=>p.groups.length))return;
   const own=new AbortController();controller=own;running=true;reloadQueued=false;showError('');controls();
-  $('distributionProgress').textContent='按当前数量计算全部等级…';
+  $('distributionProgress').textContent='按目标配量并计算全部等级…';
   try{
-    pendingRun=calculateRanchWorkspace(workspace,{mode:'schedule',signal:own.signal,onProgress:progress=>{$('distributionProgress').textContent=progress.message||`计算 Lv ${progress.level} · ${progress.index??0} / ${progress.total??0}`;},onChange:schedulePaint});
+    pendingRun=calculateRanchWorkspace(workspace,{mode:'quantity',signal:own.signal,onProgress:progress=>{$('distributionProgress').textContent=progress.message||`计算 Lv ${progress.level} · ${progress.index??0} / ${progress.total??0}`;},onChange:schedulePaint});
     const report=await pendingRun;
     $('distributionProgress').textContent=own.signal.aborted?'已暂停 · 已完成结果保留':report?.failed?`本轮完成 · ${report.failed} 项需处理，请查看各级状态`:'本轮计算完成 · 待证明组合可继续计算';
   }catch(error){if(!own.signal.aborted)showError(error.message||'计算中断，可继续计算。');else $('distributionProgress').textContent='已暂停 · 已完成结果保留';}

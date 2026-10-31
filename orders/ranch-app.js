@@ -4,13 +4,13 @@ import {createRanchLevelCatalog} from './ranch-level-catalog.js';
 import {ranchSettingsKey,ranchImportCacheKey} from './ranch-import.js';
 import {ranchBrowserScope,ranchSchemeStep} from './ranch-browser.js';
 import {ranchChainData,renderRanchChain,setupRanchChains} from './ranch-chain.js';
-import {quantityGroup,quantityOptions} from './ranch-quantity.js';
+import {quantityGroup,quantityOptions,estimateRanchWorkRatio} from './ranch-quantity.js';
 import {renderOrderItems,setupItemInfo} from './item-info.js';
 import {readChainExcel} from './excel-import.js';
 import {prepareRanch,ranchCapacities,groupMetrics} from './ranch-engine.js';
 import {generateRanchLevelGroups,ranchDemandKey,ranchPermutations,remapRanchResult} from './ranch-catalog.js';
 import {loadRanchCache,saveRanchCache,mergeRanchCache} from './ranch-cache.js';
-import {mergeRanchSettings,notifyRanchChange,watchRanchWorkspace,ranchSource,readRanchTarget,validateRanchTarget} from './ranch-workspace.js';
+import {mergeRanchSettings,notifyRanchChange,watchRanchWorkspace,ranchSource,readRanchTarget,validateRanchTarget,ranchFitIsCurrent} from './ranch-workspace.js';
 const $=id=>document.getElementById(id),esc=v=>String(v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const fmt=(v,d=1)=>v==null?'—':Number(v).toLocaleString('zh-CN',{maximumFractionDigits:d}),letters=['A','B','C','D'],animals=['史莱姆','吞吞貘','陆行鸟','宝箱怪'],colors=['#39866a','#a67b39','#647fac','#a46a80'];
 let base,model,filename,level=20,type='building',families=[],groups=[],current,capacities={},worker,busy=false,page=0,results=new Map(),failures=new Map(),savedSettings={},storageKey,cacheKey,buildToken=0,saveTimer,viewRows=[],viewRevision=0,sortedRevision=-1,sortedRows=[],itemInfo,metricCache=new Map(),cacheQueue=Promise.resolve(),quantityEdits={},quantityFits=new Map(),expandedChainId=null,workerKind=null,manualTimer,browserBuildingId=null,graphOverview=true,graphSignature='',slotSignature='',schemeSignature='';
@@ -40,7 +40,7 @@ function persist(){
 }
 function saveCache(){clearTimeout(saveTimer);if(!cacheKey)return;const key=cacheKey,sourceKey=storageKey,changedFits=[...quantityFits].filter(([id,fit])=>JSON.stringify(fit)!==fitCacheSnapshot.get(id)),value={version:2,results:[...results],failures:[...failures],quantityFits:changedFits};cacheQueue=cacheQueue.catch(()=>{}).then(()=>mergeRanchCache(key,value)).then(()=>{cacheSaveError=null;if(cacheKey===key)for(const [id,fit] of changedFits)fitCacheSnapshot.set(id,JSON.stringify(fit));notifyRanchChange(sourceKey,'results');}).catch(error=>{cacheSaveError=error;message('计算结果暂时无法缓存；本页结果仍可查看和导出。');});}
 function scheduleSave(){clearTimeout(saveTimer);saveTimer=setTimeout(saveCache,800);}
-function stop(){clearTimeout(manualTimer);worker?.terminate();worker=null;busy=false;workerKind=null;$('stop').hidden=true;$('solveAll').disabled=!groups.length;$('solveOne').disabled=!current;renderQuantityControls();if(syncQueued&&!syncing)setTimeout(syncRanchView,0);}
+function stop(){clearTimeout(manualTimer);worker?.terminate();worker=null;busy=false;workerKind=null;$('stop').hidden=true;$('solveAll').disabled=!groups.length;$('fitOne').disabled=!current;renderQuantityControls();if(syncQueued&&!syncing)setTimeout(syncRanchView,0);}
 function install(newBase,name,rules){
   stop();prepareRanch(newBase);base=structuredClone(newBase);model=prepareRanch(base);filename=name||base.filename||'加工链路';if(!itemInfo)itemInfo=setupItemInfo(base,document.querySelector('main'));else{itemInfo.hide();itemInfo.products.clear();base.products.forEach(p=>itemInfo.products.set(p.id,p));}storageKey='ranch-settings-v1:'+fingerprint({products:base.products,sources:base.sources,lands:base.landsByLevel});
   savedSettings={};try{savedSettings=readRanchSettings(localStorage,storageKey);}catch{}
@@ -71,7 +71,7 @@ function renderSchemeNavigator(){
 function selectScheme(id){
   if(!id)return;clearTimeout(manualTimer);commitSlotInputs(false);current=viewRows.find(g=>g.id===id)??current;renderSelected();renderTable();persist();
 }
-async function rebuild(autoRun=true,readOnly=false){
+async function rebuild(autoRun=false,readOnly=false){
   if(!readOnly)saveCache();stop();const token=++buildToken;results=new Map();failures=new Map();quantityFits=new Map();fitCacheSnapshot=new Map();quantityEdits=structuredClone(savedSettings.quantityEdits?.[level]||{});expandedChainId=null;metricCache=new Map();cacheKey=null;current=null;groups=[];viewRows=[];viewRevision++;page=0;graphSignature='';slotSignature='';schemeSignature='';message();
   try{const catalog=generateRanchLevelGroups(model,level,{cropQuantity:Number($('cropQuantity').value),productQuantity:Number($('productQuantity').value),allowRepeated:$('allowRepeated').checked});groups=catalog.groups.map(g=>{const initialQuantities=g.slots.map(v=>v.quantity),q=quantityEdits[g.id];return {...(Array.isArray(q)&&q.length===4&&q.every(n=>Number.isSafeInteger(n)&&n>=1&&n<=1000)?quantityGroup(g,q):g),initialQuantities};});families=catalog.families;
     $('combinationCount').textContent=fmt(groups.length,0);$('permutationCount').textContent=fmt(groups.reduce((total,g)=>total+ranchPermutations(g).length,0),0);
@@ -85,7 +85,7 @@ async function rebuild(autoRun=true,readOnly=false){
   if(token!==buildToken)return;fitCacheSnapshot=new Map([...quantityFits].map(([id,fit])=>[id,JSON.stringify(fit)]));
   const missing=base.sources.find(s=>s.level<=level&&!(Number.isSafeInteger(Number(capacities[s.id]))&&Number(capacities[s.id])>0));
   if(missing){$('openSettings').click();message(`请在产能设置填写${missing.name}的实际容量，或重新导入含累计土地的 Excel。`);renderTable();return;}
-  viewRevision++;renderSelected();renderTable();if(autoRun)run(groups.filter(g=>!results.get(g.key)?.proven));
+  viewRevision++;renderSelected();renderTable();if(autoRun)fitQuantities(groups);
 }
 function updateView(){
   const selectedFamily=$('family').value,expanded=$('expandPermutations').checked;
@@ -96,7 +96,7 @@ function updateView(){
 function metrics(g){const key=groupKey(g);if(!metricCache.has(key))metricCache.set(key,groupMetrics(model,g,level));return metricCache.get(key);}
 function renderSelected(){
   const signature=JSON.stringify([level,current?.id,current?.slots]);if(signature!==slotSignature)itemInfo?.hide();
-  $('solveOne').disabled=!current||busy;$('groupTitle').textContent=current?'R'+String(viewRows.findIndex(v=>v.id===current.id)+1).padStart(5,'0')+' · 四单详情':'四单详情';$('groupMeta').textContent=current?`Lv ${level} · ${current.types.map(t=>t==='building'?'同建筑':'高级加工链').join(' / ')} · 动物位固定分配`:'本级暂无符合规则的需求组';
+  $('fitOne').disabled=!current||busy;$('groupTitle').textContent=current?'R'+String(viewRows.findIndex(v=>v.id===current.id)+1).padStart(5,'0')+' · 四单详情':'四单详情';$('groupMeta').textContent=current?`Lv ${level} · ${current.types.map(t=>t==='building'?'同建筑':'高级加工链').join(' / ')} · 动物位固定分配`:'本级暂无符合规则的需求组';
   if(!current){$('slots').innerHTML='';slotSignature='';graphSignature='';for(const id of ['optimal','totalMinutes','complexity','coins'])$(id).textContent='—';renderSchedule(null);$('chainGraph').innerHTML='';$('chainMeta').textContent='';$('quantityRecommendations').hidden=true;$('solveState').textContent='无候选';renderSchemeNavigator();return;}
   if(signature!==slotSignature){$('slots').innerHTML=current.slots.map((v,i)=>{const p=model.by.get(v.id);return `<article class="slot"><div class="slot-top"><b>动物 ${letters[i]}</b><span>${animals[i]}</span></div><strong class="slot-product">${renderOrderItems({items:[v]},itemInfo.products)}</strong><label class="slot-quantity">交付数量<input type="number" min="1" max="1000" step="1" data-quantity="${i}" aria-label="动物${letters[i]}交付数量" value="${v.quantity}" ${busy?'disabled':''}></label><div class="slot-info"><span>${esc(p.buildingName)} · Lv ${p.level}</span><span>单步 ${fmt(p.stepMinutes)}分 · 复杂度 ${model.chains.get(p.id).size}</span></div></article>`;}).join('');slotSignature=signature;}
   const m=metrics(current),r=resultFor(current,true),error=failures.get(groupKey(current));$('totalMinutes').textContent=fmt(m.totalMinutes);$('complexity').textContent=fmt(m.complexity,0);$('coins').textContent=fmt(m.coinValue);$('coinNote').textContent=m.coinValue==null?'存在未导入金币单价的商品':'数量 × 导入金币单价 · 非Token奖励';
@@ -138,21 +138,9 @@ function renderTable(){
   if($('catalogDetails').open)$('rows').innerHTML=list.slice(page*40,page*40+40).map(({g,i,m,r})=>`<tr class="${g.id===current?.id?'selected':''}"><td><button class="group-button" data-select="${esc(g.id)}">R${String(i+1).padStart(5,'0')}</button></td>${g.slots.map((v,j)=>`<td class="commodity-cell"><span class="slot-item">${renderOrderItems({items:[v]},itemInfo.products)}</span></td>`).join('')}<td><button type="button" class="chain-toggle" data-chain="${esc(g.id)}" aria-expanded="${expandedChainId===g.id}">${expandedChainId===g.id?'收起链路':'查看链路'}</button></td><td><span class="type-tag">${g.types.map(t=>t==='building'?'同建筑':'加工链').join(' / ')}</span></td><td class="optimal-cell">${r?(r.proven?fmt(r.optimalMinutes)+'分':`<span class="bounded" title="已找到可行排程，尚未证明最优">${fmt(r.lowerMinutes)}～${fmt(r.feasibleMinutes)}分</span>`):failures.has(groupKey(g))?`<span title="${esc(failures.get(groupKey(g)))}">计算失败</span>`:busy?'计算中':'待计算'}</td><td>${fmt(m.totalMinutes)}分</td><td>${fmt(m.complexity,0)}</td><td>${fmt(m.coinValue)}</td><td>${quantityComparison(g,r,m)}</td></tr>${expandedChainId===g.id?`<tr class="chain-preview-row"><td colspan="12"><div class="chain-preview-head"><b>R${String(i+1).padStart(5,'0')} · 四单共同加工链</b><button data-select="${esc(g.id)}">调整数量 / 查看排程</button></div><div class="chain-graph">${renderRanchChain(ranchChainData(model,g,level),{compact:true})}</div></td></tr>`:''}`).join('')||'<tr><td colspan="12" class="placeholder">本级暂无符合筛选条件的四单组合</td></tr>';
   else $('rows').innerHTML='';
   setupRanchChains($('rows'));renderSchemeNavigator();
-  $('range').textContent=list.length?`${page*40+1}—${Math.min(list.length,page*40+40)} / ${fmt(list.length,0)} 组`:'0 组';$('prev').disabled=page===0;$('next').disabled=page>=maxPage;$('solveAll').disabled=busy||!groups.length;$('solveAll').hidden=busy||done===groups.length;$('shuffle').disabled=!viewRows.length;renderQuantityControls();
+  $('range').textContent=list.length?`${page*40+1}—${Math.min(list.length,page*40+40)} / ${fmt(list.length,0)} 组`:'0 组';$('prev').disabled=page===0;$('next').disabled=page>=maxPage;$('solveAll').disabled=busy||!groups.length;$('solveAll').hidden=busy||!groups.length;$('shuffle').disabled=!viewRows.length;renderQuantityControls();
 }
-function run(items){
-  stop();if(!items.length){renderTable();return;}message();busy=true;workerKind='schedule';$('solveOne').disabled=true;$('solveAll').disabled=true;$('stop').hidden=false;
-  worker=new Worker('./ranch-worker.js',{type:'module'});const ownedWorker=worker;let lastPaint=0;
-  worker.onmessage=({data})=>{if(worker!==ownedWorker)return;
-    if(data.type==='result'){results.set(data.id,data.result);failures.delete(data.id);}
-    if(data.type==='groupError')failures.set(data.id,data.message);
-    if(data.type==='result'||data.type==='groupError'){scheduleSave();if(performance.now()-lastPaint>250||data.index===data.total){viewRevision++;renderTable();renderSelected();lastPaint=performance.now();}}
-    if(data.type==='error'){stop();saveCache();message(data.message);viewRevision++;renderSelected();renderTable();}
-    if(data.type==='done'){stop();saveCache();viewRevision++;renderSelected();renderTable();}
-  };
-  worker.onerror=event=>{if(worker!==ownedWorker)return;stop();saveCache();message(event.message||'排产计算中断，可继续计算。');renderSelected();renderTable();};
-  worker.postMessage({base,groups:items.map(g=>({...g,id:g.key})),level,capacities,timeLimitMs:Number($('searchLimit').value)});renderTable();
-}
+
 function sample(){if(!viewRows.length)return;const random=new Uint32Array(1);crypto.getRandomValues(random);current=viewRows[Math.floor(random[0]/4294967296*viewRows.length)];renderSelected();renderTable();persist();}
 
 function restoreQuantityTargets(){
@@ -160,19 +148,21 @@ function restoreQuantityTargets(){
   for(const [id,value] of Object.entries({...defaults,...saved}))if($(id))$(id).value=value;
 }
 function workRatioKey(){return JSON.stringify([level,capacities]);}
+let autoReferenceMemo;
 function autoWorkReference(){
+  const key=JSON.stringify([storageKey,level,groups.length,capacities,savedSettings.workRatios?.[workRatioKey()],$('targetHours').value]);if(autoReferenceMemo?.key===key)return autoReferenceMemo.value;
   const saved=savedSettings.workRatios?.[workRatioKey()];let ratio=saved;
-  if(!(ratio>0)){const values=groups.map(g=>resultFor(g)).filter(r=>r?.proven&&r.optimalMinutes>0).map(r=>r.totalMinutes/r.optimalMinutes).sort((a,b)=>a-b);if(!values.length)return null;ratio=(values[(values.length-1)>>1]+values[values.length>>1])/2;}
-  return ratio*Number($('targetHours').value)*60;
+  if(!(ratio>0)){const values=groups.map(g=>resultFor(g)).filter(r=>r?.proven&&r.optimalMinutes>0).map(r=>r.totalMinutes/r.optimalMinutes).sort((a,b)=>a-b);ratio=values.length?(values[(values.length-1)>>1]+values[values.length>>1])/2:estimateRanchWorkRatio(model,groups.filter(g=>g.slots.every(v=>model.by.get(v.id).level<=level)),capacities);}
+  const value=ratio>0?ratio*Number($('targetHours').value)*60:null;autoReferenceMemo={key,value};return value;
 }
 function renderQuantityControls(){
-  const reference=model?autoWorkReference():null;$('workReference').textContent=reference>0?`${$('targetWork').value?'本级参考':'自动目标'} ${fmt(reference)} 分钟`:'排产后可自动估算';
+  const reference=model?autoWorkReference():null;$('workReference').textContent=reference>0?`${$('targetWork').value?'本级参考':'自动目标'} ${fmt(reference)} 分钟`:'按配方与产能自动估算';
   $('fitOne').disabled=busy||!current||(!$('targetWork').value&&!(reference>0));$('fitFiltered').disabled=busy||!viewRows.length||(!$('targetWork').value&&!(reference>0));$('resetOneQuantity').disabled=busy||!current;$('resetLevelQuantities').disabled=busy||!groups.length;
   for(const input of document.querySelectorAll('#slots input'))input.disabled=busy;for(const id of ['targetHours','targetTolerance','targetWork','fitCropMax','fitProductMax','quantityBudget'])$(id).disabled=busy;
 }
 function readQuantityTargets(){
   const work=$('targetWork').value.trim()===''?autoWorkReference():Number($('targetWork').value);
-  if(!(work>0))throw Error('请先完成排产以估算共同累计工时，或手动填写累计工时目标。');
+  if(!(work>0))throw Error('无法估算共同累计工时，请填写累计工时目标。');
   return quantityOptions({targetMinutes:Number($('targetHours').value)*60,toleranceMinutes:Number($('targetTolerance').value),targetWorkMinutes:work,cropMax:Number($('fitCropMax').value),productMax:Number($('fitProductMax').value),timeLimitMs:Number($('quantityBudget').value)});
 }
 function quantityComparison(g,r,m){
@@ -196,6 +186,7 @@ function renderRecommendations(){
 function fitQuantities(items){
   if(!items.length)return;
   let options;try{options=readQuantityTargets();}catch(error){message(error.message);return;}
+  items=items.filter(g=>!ranchFitIsCurrent(quantityFits.get(g.id),g,options));if(!items.length){$('quantityStatus').textContent='目标与商品未变化，已复用保存的配量结果。';return;}
   stop();message();if($('targetWork').value.trim()==='')(savedSettings.workRatios??={})[workRatioKey()]=options.targetWorkMinutes/options.targetMinutes;
   persist();busy=true;workerKind='quantity';$('stop').hidden=false;renderQuantityControls();
   $('quantityStatus').textContent=`正在为 ${items.length} 个组合配量 · 优化目标 ${fmt(options.targetMinutes)}±${fmt(options.toleranceMinutes)}分 · 共同累计工时 ${fmt(options.targetWorkMinutes)}分`;
@@ -217,18 +208,18 @@ function fitQuantities(items){
   worker.onerror=event=>{if(worker!==ownedWorker)return;stop();message(event.message||'配量搜索中断；已完成的配置已保留。');persist();saveCache();updateView();};
   worker.postMessage({mode:'quantity',base,groups:items,level,capacities,options,baselines:Object.fromEntries(items.map(g=>[g.id,resultFor(g)]))});
 }
-function commitSlotInputs(solve=true){
+function commitSlotInputs(solve=false){
   if(!current)return null;
   const inputs=[...$('slots').querySelectorAll('input[data-quantity]')],values=inputs.map(input=>Number(input.value));
   if(inputs.length!==4)return representative(current);
   if(values.some(n=>!Number.isSafeInteger(n)||n<1||n>1000)){message('四个交付数量需为1至1000的整数。');slotSignature='';renderSelected();return null;}
   if(values.every((n,i)=>n===current.slots[i].quantity))return representative(current);
   const source=representative(current),used=new Set(),q=source.slots.map(v=>{const i=current.slots.findIndex((x,j)=>!used.has(j)&&x.id===v.id&&x.quantity===v.quantity);used.add(i);return values[i];});
-  stop();const updated=setGroupQuantities(source.id,q);persist();saveCache();updateView();if(solve)run([updated]);return updated;
+  stop();const updated=setGroupQuantities(source.id,q);persist();saveCache();updateView();if(solve)fitQuantities([updated]);return updated;
 }
 function applyManualQuantity(event){if(event.target.dataset.quantity==null)return;clearTimeout(manualTimer);commitSlotInputs();}
 function resetQuantityGroups(items){
-  stop();for(const g of items){setGroupQuantities(g.id,g.initialQuantities);delete quantityEdits[g.id];quantityFits.delete(g.id);}persist();saveCache();updateView();run(groups.filter(g=>!results.get(g.key)?.proven));
+  stop();for(const g of items){setGroupQuantities(g.id,g.initialQuantities);delete quantityEdits[g.id];quantityFits.delete(g.id);}persist();saveCache();updateView();
 }
 $('fitOne').onclick=()=>{const g=commitSlotInputs(false);if(g)fitQuantities([g]);};
 $('fitFiltered').onclick=()=>{const keys=new Set(viewRows.map(groupKey));fitQuantities(groups.filter(g=>keys.has(g.key)));};
@@ -254,7 +245,7 @@ $('importFile').onchange=async()=>{
 $('level').onchange=()=>{persist();level=Number($('level').value);restoreQuantityTargets();capacities={...ranchCapacities(model,level),...(savedSettings.capacities?.[level]||{})};renderCapacities();rebuild(false);};
 for(const [id,t] of [['buildingType','building'],['chainType','chain']])$(id).onclick=()=>{clearTimeout(manualTimer);commitSlotInputs(false);type=t;updateFilters();updateView();persist();};
 $('family').onchange=$('expandPermutations').onchange=updateView;$('search').oninput=()=>{page=0;renderTable();};
-$('solveOne').onclick=()=>{const g=commitSlotInputs(false);if(g)run([g]);};$('shuffle').onclick=sample;$('solveAll').onclick=()=>run(groups.filter(g=>!results.get(g.key)?.proven));$('stop').onclick=()=>{stop();saveCache();renderSelected();renderTable();};
+$('shuffle').onclick=sample;$('solveAll').onclick=()=>fitQuantities(groups);$('stop').onclick=()=>{stop();saveCache();renderSelected();renderTable();};
 $('sort').onchange=$('direction').onchange=()=>{page=0;viewRevision++;renderTable();};$('prev').onclick=()=>{page--;renderTable();};$('next').onclick=()=>{page++;renderTable();};
 $('rows').onclick=event=>{const chain=event.target.closest('[data-chain]');if(chain){expandedChainId=expandedChainId===chain.dataset.chain?null:chain.dataset.chain;renderTable();return;}const target=event.target.closest('[data-select]');if(target){selectScheme(target.dataset.select);$('groupDetails').scrollIntoView({behavior:'smooth',block:'start'});}};
 $('catalogDetails').ontoggle=renderTable;

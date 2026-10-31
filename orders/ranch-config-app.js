@@ -35,7 +35,7 @@ export function renderRanchConfigRow(plan,target){
 export function createRanchConfigPage(api={}){
   const doc=api.document??document,$=id=>doc.getElementById(id),loadWorkspace=api.loadRanchWorkspace??loadRanchWorkspace,readTarget=api.readRanchTarget??readRanchTarget,saveTargets=api.saveRanchTargets??saveRanchTargets,calculateWorkspace=api.calculateRanchWorkspace??calculateRanchWorkspace,watchWorkspace=api.watchRanchWorkspace??watchRanchWorkspace,makeClipboard=api.createConfigClipboard??createConfigClipboard;
   const body=$('ranchConfigRows'),head=$('ranchConfigHead');
-  let ws=null,busy=false,loading=false,writing=false,controller=null,currentLevel=null,lastMode=null,paused=false,headerAnchor=null,externalChange=false,disposed=false,activeRun=null,lastRunError=null,navigating=false;
+  let ws=null,busy=false,loading=false,writing=false,controller=null,currentLevel=null,paused=false,headerAnchor=null,externalChange=false,disposed=false,activeRun=null,lastRunError=null,navigating=false;
   const invalid=new Map(),maxLevel=()=>ws?.base.maxLevel??0;
   function message(text){$('ranchConfigMessage').textContent=text??'';}
   function error(text){$('ranchConfigError').hidden=!text;$('ranchConfigError').textContent=text??'';}
@@ -55,7 +55,7 @@ export function createRanchConfigPage(api={}){
     if(!ws)return;
     for(const plan of ws.plans){const row=body.querySelector(`tr[data-level="${plan.level}"]`);if(!row)continue;const state=ranchConfigRowState(plan,currentLevel);row.querySelector('[data-done-count]').textContent=`${number(state.done)} / ${number(state.total)}`;row.querySelector('[data-proven-count]').textContent=state.total?`最优已确认 ${number(state.proven)} 组`:'';const label=row.querySelector('[data-row-state]');label.textContent=state.text;label.className='ranch-config-state '+state.kind;label.title=state.detail;}
     body.querySelectorAll('input[data-key]').forEach(input=>{input.disabled=busy;});
-    for(const id of ['scheduleRanchLevels','fitRanchLevels'])$(id).disabled=busy||loading||!ws.plans.some(p=>p.groups.length);
+    for(const id of ['fitRanchLevels'])$(id).disabled=busy||loading||!ws.plans.some(p=>p.groups.length);
     $('pauseRanchLevels').hidden=!busy;$('pauseRanchLevels').disabled=Boolean(controller?.signal.aborted);$('resumeRanchLevels').hidden=!paused||busy;$('resumeRanchLevels').disabled=loading;
     $('reloadRanchConfig').disabled=busy||loading;$('ranchConfigChanged').hidden=!externalChange;
   }
@@ -83,16 +83,17 @@ export function createRanchConfigPage(api={}){
     }catch(e){error(e.message);if(!ws){$('ranchConfigWorkspace').hidden=true;$('ranchConfigEmpty').hidden=false;}}
     finally{loading=false;refresh();}
   }
-  async function performRun(mode){
+  async function performRun(){
+    const mode='quantity';
     if(busy||loading||!ws)return;if(!commit(doc.activeElement)||invalid.size){error([...invalid.values()][0]||'请先修正无效数值。');return;}
-    busy=true;paused=false;lastMode=mode;lastRunError=null;controller=new AbortController();const signal=controller.signal;error('');message('');$('ranchConfigProgressWrap').hidden=false;$('ranchConfigProgress').value=0;$('ranchConfigProgressText').textContent=mode==='quantity'?'开始按目标配量…':'开始按当前数量排产…';refresh();
+    busy=true;paused=false;lastRunError=null;controller=new AbortController();const signal=controller.signal;error('');message('');$('ranchConfigProgressWrap').hidden=false;$('ranchConfigProgress').value=0;$('ranchConfigProgressText').textContent='开始按目标配量…';refresh();
     try{const report=await calculateWorkspace(ws,{mode,signal,onProgress:p=>{currentLevel=p.level??null;const value=p.total>0?Math.max(0,Math.min(1,p.index/p.total)):0;$('ranchConfigProgress').value=value;$('ranchConfigProgressText').textContent=p.message||(p.level?`Lv ${p.level} · ${p.index??0} / ${p.total??0}`:'计算中…');refresh();},onChange:refresh});if(!signal.aborted){$('ranchConfigProgress').value=1;$('ranchConfigProgressText').textContent=report?.failed?`本轮完成 · ${number(report.failed)} 项需处理`:'本轮计算完成';if(report?.failed){const problems=ws.plans.map(plan=>({level:plan.level,...ranchConfigRowState(plan)})).filter(state=>state.kind==='error');error(problems.length?problems.slice(0,3).map(state=>`Lv ${state.level}：${state.detail||state.text}`).join('；'):`本轮有 ${number(report.failed)} 项未完成，请查看各级状态。`);}}}
     catch(e){lastRunError=e;error(e.message);}
     finally{paused=signal.aborted;busy=false;currentLevel=null;controller=null;if(paused)$('ranchConfigProgressText').textContent=lastRunError?'已停止，部分结果未保存':'已暂停，已完成结果已保留';refresh();if(!paused)maybeReload();}
   }
-  function run(mode){
+  function run(){
     if(busy||loading||!ws||navigating||disposed)return Promise.resolve();
-    const task=performRun(mode);activeRun=task;
+    const task=performRun();activeRun=task;
     const clear=()=>{if(activeRun===task)activeRun=null;};task.then(clear,clear);return task;
   }
   async function beforeNavigate({leaving=true}={}){
@@ -110,7 +111,7 @@ export function createRanchConfigPage(api={}){
   });
   head.addEventListener('click',event=>{const cell=event.target.closest?.('[data-select-column],[data-select-group],[data-select-all]');if(cell){event.preventDefault();selectHeader(cell,event.shiftKey);}});
   body.addEventListener('click',event=>{const cell=event.target.closest?.('[data-select-row]');if(cell){event.preventDefault();selectHeader(cell,event.shiftKey);}});
-  $('reloadRanchConfig').onclick=load;$('scheduleRanchLevels').onclick=()=>run('schedule');$('fitRanchLevels').onclick=()=>run('quantity');$('pauseRanchLevels').onclick=()=>{controller?.abort();refresh();};$('resumeRanchLevels').onclick=()=>run(lastMode??'schedule');
+  $('reloadRanchConfig').onclick=load;$('fitRanchLevels').onclick=()=>run();$('pauseRanchLevels').onclick=()=>{controller?.abort();refresh();};$('resumeRanchLevels').onclick=()=>run();
   const unwatch=watchWorkspace(()=>{if(writing)return;externalChange=true;refresh();maybeReload();});
   const ready=load();
   return {ready,reload:load,run,refresh,beforeNavigate,getWorkspace:()=>ws,dispose(){disposed=true;controller?.abort();unwatch?.();}};

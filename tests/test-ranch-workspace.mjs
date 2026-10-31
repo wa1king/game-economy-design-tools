@@ -62,10 +62,10 @@ test('quantity mode applies real fit recommendations under stable group IDs and 
   assert.deepEqual(h.settings().browser,{groupId:'keep'});assert(ranchDistributionRows(ws.plans,'building').every(row=>row.work.mean===60&&row.optimized.mean===60));const restored=await h.load();assert(restored.plans.every(plan=>plan.work.get(plan.groups[0].key)===60));const again=await calculateRanchWorkspace(restored,{mode:'quantity'});assert.equal(again.fitted,0);assert.equal(again.skipped,2);
 });
 
-test('blank automatic work target schedules its initial baseline and persists one shared ratio per level',async()=>{
-  const auto={...target,targetTolerance:'10',targetWork:''},h=harness({base:cropBase,settings:{cropQuantity:1,quantityTargetsByLevel:{2:auto}}}),ws=await h.load();assert.equal(ws.plans[0].groups.length,0);assert.equal(ranchAutoWorkTarget(ws,ws.plans[1]),null);
-  const report=await calculateRanchWorkspace(ws,{mode:'quantity'});assert.equal(report.scheduled,1);assert.equal(report.fitted,1);assert.equal(h.messages[0].mode,undefined);assert.equal(h.messages[1].mode,'quantity');assert.equal(h.messages[1].options.targetWorkMinutes,60*48/42);assert.equal(h.settings().quantityTargetsByLevel[2].targetWork,'');assert.equal(h.settings().workRatios[JSON.stringify([2,ws.plans[1].capacities])],48/42);
-  const restored=await h.load();assert.equal(ranchAutoWorkTarget(restored,restored.plans[1]),60*48/42);assert.equal(restored.plans[1].work.get(restored.plans[1].groups[0].key),groupMetrics(restored.model,restored.plans[1].groups[0],2).totalMinutes);
+test('blank automatic work target estimates a ratio without scheduling arbitrary starting quantities',async()=>{
+  const auto={...target,targetTolerance:'10',targetWork:''},h=harness({base:cropBase,settings:{cropQuantity:1,quantityTargetsByLevel:{2:auto}}}),ws=await h.load();assert.equal(ws.plans[0].groups.length,0);assert.equal(ranchAutoWorkTarget(ws,ws.plans[1]),72);
+  const report=await calculateRanchWorkspace(ws,{mode:'quantity'});assert.equal(report.scheduled,0);assert.equal(report.fitted,1);assert.equal(h.messages.length,1);assert.equal(h.messages[0].mode,'quantity');assert.equal(h.messages[0].options.targetWorkMinutes,72);assert.equal(h.settings().quantityTargetsByLevel[2].targetWork,'');assert.equal(h.settings().workRatios[JSON.stringify([2,ws.plans[1].capacities])],1.2);
+  const restored=await h.load();assert.equal(ranchAutoWorkTarget(restored,restored.plans[1]),72);assert.equal(restored.plans[1].work.get(restored.plans[1].groups[0].key),groupMetrics(restored.model,restored.plans[1].groups[0],2).totalMinutes);
 });
 
 test('pause flushes partial schedules, ignores late messages, and resumes without recalculating confirmed results',async()=>{
@@ -94,4 +94,25 @@ test('re-running a bounded schedule cannot make the current view worse than its 
 
 test('cache write failure releases the workspace running lock so the user can retry',async()=>{
   const h=harness({base:{...simpleBase,maxLevel:1}}),ws=await h.load();ws.services.mergeCache=async()=>{throw Error('simulated storage full');};await assert.rejects(calculateRanchWorkspace(ws,{mode:'schedule'}),/simulated storage full/);assert.equal(ws.running,false,'storage errors must not permanently lock this workspace');
+});
+
+test('equivalent fits are reused across levels even when an unused workshop unlocks',async()=>{
+  const base={...simpleBase,sources:[...simpleBase.sources,{id:20,name:'未使用工坊',level:2}]},h=harness({base,settings:{quantityTargetsByLevel:{1:target,2:target}}}),ws=await h.load();
+  const report=await calculateRanchWorkspace(ws);assert.equal(report.scheduled,0);assert.equal(report.fitted,2);assert.equal(report.reused,1);assert.equal(h.messages.length,1);assert.equal(h.messages[0].mode,'quantity');
+  const again=await h.load(),calls=h.messages.length,result=await calculateRanchWorkspace(again);assert.equal(result.skipped,2);assert.equal(h.messages.length,calls);
+});
+test('changing a goal prevents cross-level reuse of an otherwise identical group',async()=>{
+  const h=harness({settings:{quantityTargetsByLevel:{1:target,2:{...target,targetHours:'2',targetWork:'120'}}}}),ws=await h.load(),report=await calculateRanchWorkspace(ws);
+  assert.equal(report.reused,0);assert.equal(h.messages.length,2);assert.equal(h.messages[0].options.targetMinutes,60);assert.equal(h.messages[1].options.targetMinutes,120);
+});
+test('pausing target fitting flushes pending quantity edits and their verified schedule together',async()=>{
+  const h=harness({base:{...simpleBase,maxLevel:1},settings:{quantityTargetsByLevel:{1:target}},automatic:false}),ws=await h.load(),controller=new AbortController(),pending=calculateRanchWorkspace(ws,{signal:controller.signal});await flush();
+  const worker=h.workers[0],g=worker.data.groups[0],updated=quantityGroup(g,[2,2,1,1]),result=solveRanchGroup(ws.model,updated,1,ws.plans[0].capacities),fit={options:worker.data.options,recommendations:[{group:updated,result}]};
+  worker.emit({type:'quantityResult',id:g.id,fit,index:1,total:1});controller.abort();await pending;
+  assert.deepEqual(h.settings().quantityEdits[1][g.id],[2,2,1,1]);assert(h.cache.get(ws.plans[0].cacheKey).quantityFits.some(([id])=>id===g.id));assert(h.cache.get(ws.plans[0].cacheKey).results.some(([key])=>key===updated.key));
+});
+
+test('successful cached fits survive algorithm upgrades, while old failed searches can be retried',()=>{
+  const group={key:'same'},options={targetMinutes:360,toleranceMinutes:30,targetWorkMinutes:1000,cropMax:42,productMax:12,timeLimitMs:2500},fit={options,recommendations:[{group}]};
+  assert.equal(ranchFitIsCurrent({...fit,within:true},group,options),true);assert.equal(ranchFitIsCurrent({...fit,within:false},group,options),false);assert.equal(ranchFitIsCurrent({...fit,within:false,searchVersion:2},group,options),true);
 });

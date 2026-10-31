@@ -1,6 +1,9 @@
 import {solveRanchGroup} from './ranch-engine.js';
 import {ranchDemandKey} from './ranch-catalog.js';
+export const QUANTITY_SEARCH_VERSION=2;
 const clamp=(x,l,h)=>Math.max(l,Math.min(h,x));
+const unitProfiles=new WeakMap();
+const fitSignatures=new WeakMap();
 const compare=(a,b)=>{for(let i=0;i<a.length;i++){if(a[i]!==b[i])return a[i]-b[i];}return 0;};
 export function quantityGroup(group,quantities){
   if(quantities.length!==4||quantities.some(v=>!Number.isSafeInteger(v)||v<1))throw Error('四个交付数量都必须是正整数。');
@@ -15,7 +18,7 @@ export function quantityOptions(options={}){
   return value;
 }
 export function ranchQuantityProfile(model,group,capacities){
-  const memo=new Map();
+  let memo=unitProfiles.get(model);if(!memo){memo=new Map();unitProfiles.set(model,memo);}
   function unit(id){if(memo.has(id))return memo.get(id);const p=model.by.get(id),work={[p.buildingId]:p.stepMinutes};let tasks=1,critical=0;
     for(const input of p.inputs){const u=unit(input.id);tasks+=input.quantity*u.tasks;critical=Math.max(critical,u.critical);for(const [b,w] of Object.entries(u.work))work[b]=(work[b]||0)+input.quantity*w;}
     const result={work,tasks,critical:critical+p.stepMinutes,total:Object.values(work).reduce((s,v)=>s+v,0)};memo.set(id,result);return result;
@@ -54,9 +57,11 @@ export function workUpperAtTime(profile,capacities,max,H){
   return best==null?null:Math.ceil(best+Math.max(1e-6,Math.abs(best)*1e-8));
 }
 export function quantityCandidates(model,group,capacities,options,baseline){
-  const profile=ranchQuantityProfile(model,group,capacities),max=group.slots.map(v=>model.by.get(v.id).isCrop?options.cropMax:options.productMax),initial=group.slots.map((v,i)=>clamp(v.quantity,1,max[i])),banks=[new Bank(16),new Bank(16),new Bank(16)],seeds=new Map();let considered=0,taskLimited=0;
+  const profile=ranchQuantityProfile(model,group,capacities),max=group.slots.map(v=>model.by.get(v.id).isCrop?options.cropMax:options.productMax),initial=group.slots.map((v,i)=>clamp(v.quantity,1,max[i])),banks=[new Bank(16),new Bank(16),new Bank(16)],seeds=new Map(),seen=new Set();let considered=0,taskLimited=0;
+  const minimum=profile.estimate([1,1,1,1]),maximum=profile.estimate(max);
+  if(minimum.lowerMinutes>options.targetMinutes+options.toleranceMinutes)return {quantities:[[1,1,1,1]],considered:1,taskLimited:0,minWork:minimum.totalMinutes,maxWork:maximum.totalMinutes};
   const offset=baseline?.proven?Math.max(0,baseline.optimalMinutes-profile.estimate(group.slots.map(v=>v.quantity)).lowerMinutes):0;
-  function offer(q,seed=false){q=q.map((v,i)=>clamp(Math.round(v),1,max[i]));const e=profile.estimate(q);considered++;if(e.taskCount>1200){taskLimited++;return;}
+  function offer(q,seed=false){q=q.map((v,i)=>clamp(Math.round(v),1,max[i]));considered++;const key=q.join(',');if(seen.has(key))return;seen.add(key);const e=profile.estimate(q);if(e.taskCount>1200){taskLimited++;return;}
     const predicted=e.lowerMinutes+offset,excess=Math.max(0,e.lowerMinutes-options.targetMinutes-options.toleranceMinutes),te=Math.abs(predicted-options.targetMinutes)/options.targetMinutes,we=Math.abs(e.totalMinutes-options.targetWorkMinutes)/options.targetWorkMinutes;
     banks[0].offer(q,[excess,te,we]);banks[1].offer(q,[excess,Math.max(0,te-options.toleranceMinutes/options.targetMinutes),we,te]);banks[2].offer(q,[excess,te+we,we]);if(seed)seeds.set(q.join(','),q);
   }
@@ -86,12 +91,50 @@ export function fitRanchQuantities(model,group,level,capacities,rawOptions={},ba
     tried++;onProgress({tried,candidates:pool.quantities.length});
   }
   if(!evaluated.length)throw Error(failures[0]||'搜索范围内未找到可计算的数量配置。');
+  // Correct the resource-bound predictor with real joint schedules. A nearby
+  // integer quantity may hit the band even when all top proxy candidates miss it.
+  const profileForRefine=ranchQuantityProfile(model,group,capacities),max=group.slots.map(v=>model.by.get(v.id).isCrop?options.cropMax:options.productMax);
+  const certified=v=>v.result.lowerMinutes>=options.targetMinutes-options.toleranceMinutes-1e-7&&v.result.feasibleMinutes<=options.targetMinutes+options.toleranceMinutes+1e-7;
+  const minImpossible=profileForRefine.estimate([1,1,1,1]).lowerMinutes>options.targetMinutes+options.toleranceMinutes;
+  const upper=evaluated.find(v=>v.group.slots.every((slot,i)=>slot.quantity===max[i]));
+  const maxTooFast=upper?.result.feasibleMinutes<options.targetMinutes-options.toleranceMinutes;
+  for(let pass=0;pass<2&&!minImpossible&&!maxTooFast&&!evaluated.some(certified);pass++){
+    const best=[...evaluated].sort((a,b)=>compare(quantityRank(a,options,'time'),quantityRank(b,options,'time')))[0];let added=0;
+    for(let i=0;i<4;i++)for(const delta of [-1,1]){
+      if(evaluated.length>=options.maxEvaluations||performance.now()-start>=options.timeLimitMs)break;
+      const q=best.group.slots.map(v=>v.quantity);q[i]+=delta;if(q[i]<1||q[i]>max[i])continue;
+      const candidate=quantityGroup(group,q);if(evaluated.some(v=>v.group.key===candidate.key))continue;
+      try{const result=solveRanchGroup(model,candidate,level,capacities,{timeLimitMs:Math.min(120,Math.max(0,options.timeLimitMs-(performance.now()-start))),nodeLimit:1500});evaluated.push({group:candidate,result});added++;}catch(error){failures.push(error.message);}tried++;onProgress({tried,candidates:Math.max(pool.quantities.length,evaluated.length)});
+    }
+    if(!added)break;
+  }
   const recommendations=[],labels={work:'累计工时更接近',time:'优化时间更接近',quantity:'交付件数较少'};
   for(const mode of ['work','time','quantity']){const ranked=[...evaluated].sort((a,b)=>compare(quantityRank(a,options,mode),quantityRank(b,options,mode))),best=ranked[0];if(!recommendations.some(v=>ranchDemandKey(v.group)===ranchDemandKey(best.group)))recommendations.push({...best,label:labels[mode]});}
   const best=recommendations[0],within=best.result.lowerMinutes>=options.targetMinutes-options.toleranceMinutes-1e-7&&best.result.feasibleMinutes<=options.targetMinutes+options.toleranceMinutes+1e-7,profile=ranchQuantityProfile(model,group,capacities),workUpper=workUpperAtTime(profile,capacities,group.slots.map(v=>model.by.get(v.id).isCrop?options.cropMax:options.productMax),options.targetMinutes+options.toleranceMinutes);
   const minimum=evaluated.find(v=>v.group.slots.every(s=>s.quantity===1));let reason=within?'已找到目标范围内的数量配置。':'本轮搜索未找到已确认落入目标时间范围的配置，可调整数量上限或增加搜索时限。';
+  if(maxTooFast)reason=`数量全部达到上限时，已有排程也仅需 ${Math.round(upper.result.feasibleMinutes)} 分钟，低于目标下限；当前数量上限无法达到目标。`;
   if(minimum?.result.lowerMinutes>options.targetMinutes+options.toleranceMinutes)reason='四种商品各1个的最优时间下界已超过目标范围；增加数量不能缩短整组最优时间。';
   if(options.targetWorkMinutes<pool.minWork||options.targetWorkMinutes>pool.maxWork)reason+=` 累计工时目标超出数量范围可达到的 ${Math.round(pool.minWork)}～${Math.round(pool.maxWork)} 分钟。`;
   else if(workUpper!=null&&options.targetWorkMinutes>workUpper)reason+=` 在优化时间不超过 ${Math.round(options.targetMinutes+options.toleranceMinutes)} 分钟时，本组累计工时的理论上限为 ${workUpper} 分钟，低于共同目标。`;
-  return {options,recommendations,within,reason,tried,evaluatedCount:evaluated.length,considered:pool.considered,taskLimited:pool.taskLimited,workUpperAtTime:workUpper,provenCount:evaluated.filter(v=>v.result.proven).length,elapsedMs:Math.round(performance.now()-start),quantitySearchProven:false,method:'bounded_candidate_search_with_joint_schedule_verification'};
+  return {searchVersion:QUANTITY_SEARCH_VERSION,options,recommendations,within,reason,tried,evaluatedCount:evaluated.length,considered:pool.considered,taskLimited:pool.taskLimited,workUpperAtTime:workUpper,provenCount:evaluated.filter(v=>v.result.proven).length,elapsedMs:Math.round(performance.now()-start),quantitySearchProven:false,method:'bounded_candidate_search_with_joint_schedule_verification'};
+}
+
+// This ratio is an inexpensive planning estimate. It is never a claimed schedule.
+export function estimateRanchWorkRatio(model,groups,capacities){
+  const ratios=groups.map(group=>{const profile=ranchQuantityProfile(model,group,capacities),largest=Math.max(...profile.units.map(u=>u.total));const balanced=profile.units.map(u=>largest/u.total),value=profile.estimate(balanced);return value.totalMinutes/value.lowerMinutes;}).filter(v=>Number.isFinite(v)&&v>0).sort((a,b)=>a-b);
+  return ratios.length?(ratios[(ratios.length-1)>>1]+ratios[ratios.length>>1])/2:null;
+}
+export function ranchQuantityFitKey(model,group,capacities,options){
+  const profile=ranchQuantityProfile(model,group,capacities);
+  let signatures=fitSignatures.get(model);if(!signatures){signatures=new Map();fitSignatures.set(model,signatures);}
+  const recipes=group.slots.map(v=>{if(!signatures.has(v.id))signatures.set(v.id,[...model.chains.get(v.id)].sort((a,b)=>a-b).map(id=>{const p=model.by.get(id);return [id,p.buildingId,p.stepMinutes,p.inputs];}));return signatures.get(v.id);});
+  return JSON.stringify([group.slots.map(v=>v.id),recipes,profile.resources.sort().map(id=>[id,Number(capacities[id])]),quantityOptions(options)]);
+}
+export function reuseRanchQuantityFit(fit,group,capacities){
+  if(!fit?.recommendations?.length)throw Error('缺少可复用的配量结果。');
+  return {...fit,reused:true,elapsedMs:0,recommendations:fit.recommendations.map(candidate=>{
+    if(candidate.group.slots.some((v,i)=>v.id!==group.slots[i].id))throw Error('不能复用商品不同的配量结果。');
+    const updated=quantityGroup(group,candidate.group.slots.map(v=>v.quantity));
+    return {...candidate,group:updated,result:{...candidate.result,assumptions:{...candidate.result.assumptions,capacities:{...capacities}}}};
+  })};
 }

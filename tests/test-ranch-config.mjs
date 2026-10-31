@@ -96,13 +96,13 @@ await test('an invalid direct edit is visible and blocks running until corrected
   const input=s.input(2,'targetHours');input.value='0';s.doc.activeElement=input;body.emit('change',{target:input});assert.equal(input.attrs['aria-invalid'],'true');assert.equal(s.get('ranchConfigError').hidden,false);await s.page.run('schedule');assert.equal(s.runs.length,0);
   input.value='5.50';body.emit('change',{target:input});assert.equal(input.attrs['aria-invalid'],undefined);assert.equal(s.workspace.settings.quantityTargetsByLevel[2].targetHours,'5.50');
 });
-await test('current-quantity calculation delegates to shared runner and pausing preserves partial results',async()=>{
-  s.doc.activeElement=null;const running=s.page.run('schedule');await flush();assert.equal(s.runs[0].mode,'schedule');assert.equal(s.input(2,'targetHours').disabled,true);assert.equal(s.get('pauseRanchLevels').hidden,false);
+await test('target-driven calculation delegates to shared runner and pausing preserves partial results',async()=>{
+  s.doc.activeElement=null;const running=s.page.run('schedule');await flush();assert.equal(s.runs[0].mode,'quantity');assert.equal(s.input(2,'targetHours').disabled,true);assert.equal(s.get('pauseRanchLevels').hidden,false);
   const p=s.workspace.plans[1];p.results.set(p.groups[0].key,{proven:true,optimalMinutes:123});s.pending.options.onProgress({level:2,index:1,total:4,message:'Lv 2 · 1 / 4'});s.pending.options.onChange();assert.equal(body.rows.get(2).querySelector('[data-done-count]').textContent,'1 / 2');assert.equal(s.get('ranchConfigProgressText').textContent,'Lv 2 · 1 / 4');
   s.get('pauseRanchLevels').onclick();await running;assert(s.runs[0].signal.aborted);assert.equal(s.get('resumeRanchLevels').hidden,false);assert.equal(s.input(2,'targetHours').disabled,false);assert.equal(p.results.size,1);
 });
-await test('continue retains calculation mode and fitting calls the quantity runner explicitly',async()=>{
-  const resumed=s.get('resumeRanchLevels').onclick();await flush();assert.equal(s.runs[1].mode,'schedule');s.pending.resolve();await resumed;assert.equal(s.get('resumeRanchLevels').hidden,true);const fit=s.get('fitRanchLevels').onclick();await flush();assert.equal(s.runs[2].mode,'quantity');s.pending.resolve();await fit;assert.equal(s.get('ranchConfigProgressText').textContent,'本轮计算完成');
+await test('continue and all calculation entries always use target-driven quantity fitting',async()=>{
+  const resumed=s.get('resumeRanchLevels').onclick();await flush();assert.equal(s.runs[1].mode,'quantity');s.pending.resolve();await resumed;assert.equal(s.get('resumeRanchLevels').hidden,true);const fit=s.get('fitRanchLevels').onclick();await flush();assert.equal(s.runs[2].mode,'quantity');s.pending.resolve();await fit;assert.equal(s.get('ranchConfigProgressText').textContent,'本轮计算完成');
 });
 await test('runner failures appear in row status and the completion summary with actionable reasons',async()=>{
   const running=s.page.run('quantity');await flush();s.workspace.plans[1].targetError='自动累计工时暂无最优基线，请填写累计工时目标';s.workspace.plans[2].quantityErrors=new Map([['G0','本组数量上限无法达到目标']]);s.pending.options.onChange();s.pending.resolve({failed:2});await running;

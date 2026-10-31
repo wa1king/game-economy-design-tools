@@ -7,10 +7,10 @@
   <div id="distributionError" role="alert" hidden></div>
   <section id="distributionEmpty" class="empty" hidden><h1>还没有牧场项目</h1><p>导入加工链路 Excel 后查看各级组合。</p><a class="distribution-button-link" href="ranch.html">导入 Excel →</a></section>
   <div id="distributionWorkspace" hidden>
-    <div class="distribution-page-heading"><div><h1>全部等级面板</h1><span id="distributionSource" class="muted"></span></div><div class="distribution-actions"><button id="reloadDistribution" title="重新读取保存的数量和排产结果">刷新结果</button><a class="distribution-button-link" href="ranch-config.html">目标配置 / 批量配量</a><button id="calculateDistribution" class="primary" disabled>计算全部等级</button><button id="pauseDistribution" hidden>暂停计算</button></div></div>
+    <div class="distribution-page-heading"><div><h1>全部等级面板</h1><span id="distributionSource" class="muted"></span></div><div class="distribution-actions"><button id="reloadDistribution" title="重新读取保存的数量和排产结果">刷新结果</button><a class="distribution-button-link" href="ranch-config.html">目标配置 / 批量配量</a><button id="calculateDistribution" class="primary" disabled>按目标配量并计算</button><button id="pauseDistribution" hidden>暂停计算</button></div></div>
     <div class="distribution-toolbar"><div class="type-switch" role="group" aria-label="统计订单类型"><button data-type="all" class="active" aria-pressed="true">对比两类</button><button data-type="building" aria-pressed="false">同建筑</button><button data-type="chain" aria-pressed="false">高级加工链</button></div><div class="distribution-legend"><span class="building-dot">同建筑</span><span class="chain-dot">高级加工链</span><span class="target-dot">本级目标</span></div><span class="distribution-basis">每组等权 · 不计排列</span></div>
     <section id="distributionSummary" class="distribution-summary" aria-label="计算与目标覆盖情况"></section>
-    <div class="distribution-progress-line"><span id="distributionProgress" role="status">读取排产结果</span><span>计算按当前数量；改数量请用批量配量</span></div>
+    <div class="distribution-progress-line"><span id="distributionProgress" role="status">读取排产结果</span><span>按各等级目标自动配量，再计算四单联合排产</span></div>
     <div class="distribution-chart-grid">
       <section class="panel"><div class="panel-heading"><div><h2>联合优化时间</h2><span class="muted">四单一起排产 · 仅已证明最优</span></div><span class="chart-tag">各级目标带</span></div><div id="optimizedPlot" class="distribution-scroll"></div></section>
       <section class="panel"><div class="panel-heading"><div><h2>累计工时</h2><span class="muted">全部上游生产 · 所有组合</span></div><span id="workTargetNote" class="chart-tag"></span></div><div id="workPlot" class="distribution-scroll"></div></section>

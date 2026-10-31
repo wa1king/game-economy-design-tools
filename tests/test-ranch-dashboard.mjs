@@ -59,8 +59,8 @@ test('type and level controls remain compact filters, while direct links open sc
   elements.get('distributionLevel').value='1';elements.get('distributionLevel').onchange();assert(elements.get('selectedDistributionMeta').textContent.includes('高级加工链'));typeButtons[0].onclick();
 });
 const run=elements.get('calculateDistribution').onclick();await flush();
-test('calculate delegates current quantities to the shared schedule runner and disables duplicate actions',()=>{
-  assert.equal(calls.length,1);assert.equal(activeCall.options.mode,'schedule');assert.equal(activeCall.workspace,loadValue);assert.equal(elements.get('calculateDistribution').disabled,true);assert.equal(elements.get('pauseDistribution').hidden,false);assert.equal(elements.get('pauseDistribution').disabled,false);
+test('calculate delegates to target-driven quantity fitting and disables duplicate actions',()=>{
+  assert.equal(calls.length,1);assert.equal(activeCall.options.mode,'quantity');assert.equal(activeCall.workspace,loadValue);assert.equal(elements.get('calculateDistribution').disabled,true);assert.equal(elements.get('pauseDistribution').hidden,false);assert.equal(elements.get('pauseDistribution').disabled,false);
   activeCall.options.onProgress({level:2,index:1,total:2,message:'计算 Lv 2 · 1 / 2'});assert.equal(elements.get('distributionProgress').textContent,'计算 Lv 2 · 1 / 2');
 });
 activeCall.workspace.plans[0].results.set('pending',{proven:true,optimalMinutes:120});activeCall.options.onChange();elements.get('pauseDistribution').onclick();await run;await flush();

@@ -111,24 +111,36 @@ function bounds(tasks,edges,caps){
   }
   return {lower,starts,tails,ins,outs,resources};
 }
-function earliestSlot(release,duration,intervals,cap){
-  const candidates=[...new Set([release,...intervals.filter(v=>v[1]>=release).map(v=>v[1])])].sort((a,b)=>a-b);
-  for(const start of candidates){const end=start+duration,events=new Map();let active=0;
-    for(const [l,r] of intervals){if(r<=start||l>=end)continue;if(l<=start)active++;else events.set(l,(events.get(l)||0)+1);if(r<end)events.set(r,(events.get(r)||0)-1);}
-    if(active>=cap)continue;let valid=true;for(const [,delta] of [...events].sort((a,b)=>a[0]-b[0])){active+=delta;if(active>=cap){valid=false;break;}}
-    if(valid)return start;
+// A new task only conflicts with intervals already at full capacity. Build
+// those intervals once per resource booking change, then reuse across ready tasks.
+function blockedTimes(intervals,capacity){
+  const events=new Map();for(const [start,end] of intervals){events.set(start,(events.get(start)||0)+1);events.set(end,(events.get(end)||0)-1);}
+  const blocked=[];let count=0,begin=null;
+  for(const [time,delta] of [...events].sort((a,b)=>a[0]-b[0])){
+    const next=count+delta;if(count<capacity&&next>=capacity)begin=time;
+    if(count>=capacity&&next<capacity){blocked.push([begin,time]);begin=null;}count=next;
   }
-  throw Error('无法安排生产任务。');
+  return blocked;
 }
+function earliestSlot(release,duration,blocked){
+  let start=release;for(const [left,right] of blocked){if(right<=start)continue;if(left>=start+duration)break;start=right;}return start;
+}
+
 function feasible(tasks,b,caps){
   let best=null;
   for(let variant=0;variant<5;variant++){
-    const degree=b.ins.map(v=>v.length),ready=new Set(),starts=Array(tasks.length).fill(0),ends=Array(tasks.length).fill(0),bookings={};degree.forEach((v,i)=>{if(!v)ready.add(i);});
+    const degree=b.ins.map(v=>v.length),ready=new Set(),starts=Array(tasks.length).fill(0),ends=Array(tasks.length).fill(0),bookings={},calendars=new Map();degree.forEach((v,i)=>{if(!v)ready.add(i);});
     while(ready.size){let chosen,chosenStart,chosenPriority;
-      for(const i of ready){const t=tasks[i],release=Math.max(0,...b.ins[i].map(j=>ends[j])),start=earliestSlot(release,t.duration,bookings[t.resource]||[],caps[t.resource]);
-        const priorities=[[-b.tails[i]-t.duration,-t.duration,start,i],[start,-b.tails[i]-t.duration,-t.duration,i],[-t.duration,-b.tails[i],start,i],[t.duration,-b.tails[i],start,i],[start+t.duration,-b.tails[i],-t.duration,i]];
-        if(chosen===undefined||compare(priorities[variant],chosenPriority)<0){chosen=i;chosenStart=start;chosenPriority=priorities[variant];}}
-      ready.delete(chosen);const t=tasks[chosen];starts[chosen]=chosenStart;ends[chosen]=chosenStart+t.duration;(bookings[t.resource]??=[]).push([chosenStart,ends[chosen]]);
+      for(const i of ready){
+        const t=tasks[i];let calendar=calendars.get(t.resource);
+        if(!calendar){calendar={blocked:blockedTimes(bookings[t.resource]||[],caps[t.resource]),starts:new Map()};calendars.set(t.resource,calendar);}
+        let release=0;for(const parent of b.ins[i])release=Math.max(release,ends[parent]);
+        const key=release+':'+t.duration;let start=calendar.starts.get(key);
+        if(start===undefined){start=earliestSlot(release,t.duration,calendar.blocked);calendar.starts.set(key,start);}
+        const priority=variant===0?[-b.tails[i]-t.duration,-t.duration,start,i]:variant===1?[start,-b.tails[i]-t.duration,-t.duration,i]:variant===2?[-t.duration,-b.tails[i],start,i]:variant===3?[t.duration,-b.tails[i],start,i]:[start+t.duration,-b.tails[i],-t.duration,i];
+        if(chosen===undefined||compare(priority,chosenPriority)<0){chosen=i;chosenStart=start;chosenPriority=priority;}
+      }
+      ready.delete(chosen);const t=tasks[chosen];starts[chosen]=chosenStart;ends[chosen]=chosenStart+t.duration;(bookings[t.resource]??=[]).push([chosenStart,ends[chosen]]);calendars.delete(t.resource);
       for(const j of b.outs[chosen])if(!--degree[j])ready.add(j);
     }
     const span=Math.max(...ends);if(!best||span<best.span)best={span,starts};

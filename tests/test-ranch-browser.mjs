@@ -12,11 +12,11 @@ import {layoutRanchChain} from '../orders/ranch-chain-layout.js';
 import {ranchCapacities,groupMetrics,solveRanchGroup} from '../orders/ranch-engine.js';
 import {ranchDemandKey,ranchPermutations,remapRanchResult} from '../orders/ranch-catalog.js';
 import {setupRanchChains} from '../orders/ranch-chain.js';
-import {quantityGroup,quantityOptions} from '../orders/ranch-quantity.js';
+import {quantityGroup,quantityOptions,estimateRanchWorkRatio} from '../orders/ranch-quantity.js';
 import {renderOrderItems} from '../orders/item-info.js';
 import {calculateRanchImport,canMigrateRanchSettings,backupRanchBeforeImport,ranchSettingsKey,ranchImportCacheKey,readRanchResultBundle} from '../orders/ranch-import.js';
 import {mergeRanchCacheValue} from '../orders/ranch-cache.js';
-import {mergeRanchSettings,readRanchTarget,validateRanchTarget} from '../orders/ranch-workspace.js';
+import {mergeRanchSettings,readRanchTarget,validateRanchTarget,ranchFitIsCurrent} from '../orders/ranch-workspace.js';
 const p=(id,b,level=1,inputs=[])=>({id,name:'商品'+id,buildingId:b,buildingName:'建筑'+b,level,stepMinutes:5,analysisBatchYield:1,isCrop:b===0,inputs:inputs.map(([id,quantity])=>({id,quantity}))});
 const base={maxLevel:20,sources:[{id:0,name:'田地',level:1},{id:10,name:'磨坊',level:2},{id:20,name:'厨房',level:4}],products:[p(1,0),p(2,0),p(3,0),p(4,0),p(5,10,2,[[1,1]]),p(6,10,2,[[2,1]]),p(7,10,3,[[1,1],[2,1]]),p(8,10,3,[[3,1]]),p(9,20,5,[[5,1],[6,1],[3,1]]),p(10,20,6,[[7,1],[8,1],[4,1]])]};
 const model=prepareRanch(base),catalog=generateRanchLevelGroups(model,20,{allowRepeated:false});
@@ -74,17 +74,20 @@ test('page keeps catalogue and tuning collapsed after the always-visible scheme 
   for(const m of html.matchAll(/<(\w+)\b([^>]*\bid="[^"]+"[^>]*)>/g)){const a=attributes(m[2]),e=new Element(m[1],a);elements.set(e.id,e);}
   for(const id of ['searchLimit','sort','direction','quantityBudget']){const pattern=new RegExp(`<select[^>]*id="${id}"[^>]*>([\\s\\S]*?)<\\/select>`);elements.get(id).innerHTML=html.match(pattern)[1];}
   const isolatedBase={...base,landsByLevel:{20:30}},memory=new Map([['ranch-source-v1',JSON.stringify({kind:'import',base:isolatedBase,filename:'synthetic.xlsx'})]]),posts=[],scheduleCache=new Map(),notices=[];
-  const context=vm.createContext({DEFAULT_CROP_QUANTITY,readRanchSettings,console,createRanchLevelCatalog:()=>({refresh(){}}),structuredClone,prepareRanch,ranchCapacities,groupMetrics,solveRanchGroup,generateRanchLevelGroups,ranchDemandKey,ranchPermutations,remapRanchResult,ranchBrowserScope,ranchSchemeStep,ranchChainData,renderRanchChain,setupRanchChains,quantityGroup,quantityOptions,renderOrderItems,calculateRanchImport,canMigrateRanchSettings,backupRanchBeforeImport,ranchSettingsKey,ranchImportCacheKey,readRanchResultBundle,
+  const context=vm.createContext({estimateRanchWorkRatio,ranchFitIsCurrent,DEFAULT_CROP_QUANTITY,readRanchSettings,console,createRanchLevelCatalog:()=>({refresh(){}}),structuredClone,prepareRanch,ranchCapacities,groupMetrics,solveRanchGroup,generateRanchLevelGroups,ranchDemandKey,ranchPermutations,remapRanchResult,ranchBrowserScope,ranchSchemeStep,ranchChainData,renderRanchChain,setupRanchChains,quantityGroup,quantityOptions,renderOrderItems,calculateRanchImport,canMigrateRanchSettings,backupRanchBeforeImport,ranchSettingsKey,ranchImportCacheKey,readRanchResultBundle,
     setupItemInfo:base=>({products:new Map(base.products.map(p=>[p.id,p])),hide(){}}),createProjectStore:()=>({load:()=>null}),writeSharedChainSource:(b,n)=>writeSharedChainSource(b,n,{getItem:k=>memory.get(k)??null,setItem:(k,v)=>memory.set(k,v)}),readChainExcel:async file=>file.base,loadRanchCache:async key=>scheduleCache.get(key),saveRanchCache:async(key,value)=>{scheduleCache.set(key,value);},performance:{now:()=>1000},crypto:{getRandomValues:a=>{a[0]=0;}},setTimeout:()=>1,clearTimeout(){},
     mergeRanchSettings,readRanchTarget,validateRanchTarget,notifyRanchChange(...args){notices.push(args);},watchRanchWorkspace(){},ranchSource:()=>JSON.parse(memory.get('order-shared-chain-v1')||memory.get('ranch-source-v1')||'null'),mergeRanchCache:async(key,value)=>scheduleCache.set(key,mergeRanchCacheValue(scheduleCache.get(key),value)),Worker:class{postMessage(v){posts.push(v);}terminate(){}},localStorage:{getItem:k=>memory.get(k)??null,setItem:(k,v)=>memory.set(k,v)},window:{addEventListener(){}},document:{getElementById:id=>elements.get(id),querySelector:()=>new Element('main'),querySelectorAll:q=>q==='#slots input'?elements.get('slots').inputs:[]}});
   vm.runInContext(fs.readFileSync(new URL('../orders/ranch-app.js',import.meta.url),'utf8').replace(/^import .*;\r?\n/gm,''),context);
   await vm.runInContext('rebuild()',context);
   test('app opens a scheme graph without generating the collapsed full table',()=>{
-    assert.equal(elements.get('message').textContent,'');assert(elements.get('chainGraph').innerHTML.includes('data-auto-fit="true"'));assert.equal(elements.get('rows').innerHTML,'');assert.equal(elements.get('family').value,'b10');assert.equal(posts.at(-1).groups.length,catalog.groups.length);
+    assert.equal(elements.get('message').textContent,'');assert(elements.get('chainGraph').innerHTML.includes('data-auto-fit="true"'));assert.equal(elements.get('rows').innerHTML,'');assert.equal(elements.get('family').value,'b10');assert.equal(posts.length,0,'opening a viewer must not schedule arbitrary quantities');
+  });
+  test('single-group calculation starts target-driven fitting without an initial scheduling pass',()=>{
+    elements.get('fitOne').onclick();assert(posts.length,elements.get('message').textContent);assert.equal(posts.at(-1).mode,'quantity');assert(posts.at(-1).options.targetWorkMinutes>0);vm.runInContext('stop()',context);
   });
   elements.get('level').value='1';elements.get('level').onchange();await Promise.resolve();
   test('crop-only early levels show an empty same-building view with no stale graph or solve action',()=>{
-    assert.equal(vm.runInContext('groups.length',context),0);assert.equal(elements.get('chainGraph').innerHTML,'');assert.equal(elements.get('solveOne').disabled,true);assert.equal(elements.get('family').value,'');assert(elements.get('buildingNav').innerHTML.includes('暂无'));
+    assert.equal(vm.runInContext('groups.length',context),0);assert.equal(elements.get('chainGraph').innerHTML,'');assert.equal(elements.get('fitOne').disabled,true);assert.equal(elements.get('family').value,'');assert(elements.get('buildingNav').innerHTML.includes('暂无'));
   });
   elements.get('level').value='20';elements.get('level').onchange();await new Promise(resolve=>setTimeout(resolve,0));
   test('actual building, chain product and next-scheme handlers update the persistent viewer',()=>{
