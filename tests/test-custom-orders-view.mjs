@@ -20,7 +20,7 @@ function harness(){
  }
  const root=new Element('customPanel');elements.set('customPanel',root);
  for(const mode of ['pick','overview']){const e=new Element();e.dataset.customMode=mode;modes.push(e);}
- const c=buildCatalog({maxLevel:2,sources:[{id:0,name:'农田'}],products:[{id:1,name:'小麦',level:1,buildingId:0,isCrop:true,stepMinutes:2,analysisBatchYield:1,coinValue:1,inputs:[]},{id:2,name:'玉米',level:2,buildingId:0,isCrop:true,stepMinutes:5,analysisBatchYield:1,coinValue:2,inputs:[]}]});
+ const c=buildCatalog({maxLevel:2,sources:[{id:0,name:'农田'}],products:[{id:1,name:'小麦',level:1,buildingId:0,isCrop:true,stepMinutes:2,analysisBatchYield:1,coinValue:1,inputs:[]},{id:2,name:'玉米',level:2,buildingId:0,isCrop:true,stepMinutes:5,analysisBatchYield:1,coinValue:2,inputs:[]}]},{cropQuantity:7});
  let selection=custom.normalizeCustomOrders(),busy=false,failSave=false;
  const context={document:{getElementById:()=>root},...custom,renderOrderItems,ordinaryOrderReward,unitCoinValue};vm.runInNewContext(source,context);
  const view=context.create({getCatalog:()=>c,getSelection:()=>selection,getInfo:level=>levelInfo(c,level),isBusy:()=>busy,getTiming:()=>({proven:true,optimalMinutes:12}),onChange:next=>{if(failSave)throw Error('另一个页面已更新项目');selection=next;}});view.render();

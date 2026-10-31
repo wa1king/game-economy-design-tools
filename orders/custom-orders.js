@@ -33,7 +33,7 @@ export function editCustomOrders(selection,catalog,level,action,ids=[]){
   }else throw Error('未知的定制订单操作。');
   return normalizeCustomOrders(next,catalog.maxLevel);
 }
-export function filterCustomLibrary(orders,products,query={},selected=new Set()){
+export function filterCustomLibrary(orders,products,query={},selected=new Set(),level=null){
   const text=String(query.search??'').trim().toLocaleLowerCase();
   const bounded=(n,min,max)=>(min==null||min===''||n>=Number(min))&&(max==null||max===''||n<=Number(max));
   const filtered=orders.filter(o=>(!text||(o.id+' '+o.description).toLocaleLowerCase().includes(text))&&
@@ -42,7 +42,10 @@ export function filterCustomLibrary(orders,products,query={},selected=new Set())
     (query.selected!=='yes'||selected.has(o.id))&&(query.selected!=='no'||!selected.has(o.id))&&
     bounded(o.cumulativeMinutes,query.minTime,query.maxTime)&&bounded(o.cumulativeComplexity,query.minComplexity,query.maxComplexity));
   const key=query.sort??'id',sign=query.direction==='desc'?-1:1;
+  const newOrders=new Set(level==null?[]:filtered.filter(o=>o.items.some(i=>Number(products.get(i.id)?.level)===Number(level))).map(o=>o.id));
   return filtered.sort((a,b)=>{
+    const priority=Number(newOrders.has(b.id))-Number(newOrders.has(a.id));
+    if(priority)return priority;
     if(key==='id')return sign*a.id.localeCompare(b.id,undefined,{numeric:true});
     const av=a[key],bv=b[key];
     if(av==null||bv==null)return av==null?(bv==null?a.id.localeCompare(b.id):1):-1;

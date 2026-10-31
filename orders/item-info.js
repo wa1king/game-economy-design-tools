@@ -1,10 +1,11 @@
 import {unitCoinValue} from './coin-values.js';
 const escapeHTML = value => String(value).replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
 
-export function renderOrderItems(order, products) {
+export function renderOrderItems(order, products, {newAtLevel=null}={}) {
   return order.items.map(item => {
     const product = products.get(item.id);
-    return `<button type="button" class="order-item" data-product-id="${item.id}" data-quantity="${item.quantity}" aria-label="${escapeHTML(product.name)}×${item.quantity}，查看商品信息">${escapeHTML(product.name)}<span>×${item.quantity}</span></button>`;
+    const isNew=newAtLevel!=null&&Number(product.level)===Number(newAtLevel);
+    return `<button type="button" class="order-item" data-product-id="${item.id}" data-quantity="${item.quantity}" aria-label="${escapeHTML(product.name)}×${item.quantity}${isNew?'，本级新解锁':''}，查看商品信息">${escapeHTML(product.name)}<span>×${item.quantity}</span>${isNew?'<span class="order-item-new" title="本级新解锁" aria-hidden="true">NEW</span>':''}</button>`;
   }).join('<span class="item-separator" aria-hidden="true"> ＋ </span>');
 }
 
