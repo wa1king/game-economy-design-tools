@@ -16,6 +16,8 @@ import {createProjectStore,PROJECT_STORAGE_KEY} from './project-storage.js';
 import {migrateProjectPrecision,setProjectProbabilityScale} from './project-precision.js';
 import {createOrderSimulator} from './order-simulator.js';
 import {createGameMode} from './game-view.js';
+import {renderCoinBreakdown} from './coin-analysis.js';
+import {ordinaryOrderReward,ORDINARY_ORDER_REWARD_MULTIPLIER} from './coin-values.js';
 import {coinValueCoverage} from './coin-values.js';
 import {createOutcomeAnalysis,matchesOutcomeFilter} from './order-analysis-view.js';
 import {fetchSharedSession,restoreSessionSnapshot} from './session-snapshot.js';
@@ -283,9 +285,10 @@ function renderTable(){
   let list=catalog.orders.map((o,i)=>({o,p:result?.probabilities[i],weight:result?.integerWeights?.[i]})).filter(v=>availableAt(v.o,activeLevel)&&(!result||!positive||v.p>0)&&inTimeRange(v.o.cumulativeMinutes,selectedTimeRange)&&(!search||v.o.description.includes(search)||v.o.id.includes(search)));
   list=list.filter(({o})=>matchesOutcomeFilter(o,selectedOutcomeFilter,itemInfo.products));
   $('outcomeFilter').hidden=!selectedOutcomeFilter;$('outcomeFilterLabel').textContent=selectedOutcomeFilter?.label||'';
-  const sort=$('sort').value,direction=$('sortDirection').value==='asc'?1:-1;list.sort((a,b)=>direction*(sort==='time'?a.o.cumulativeMinutes-b.o.cumulativeMinutes:sort==='complexity'?a.o.cumulativeComplexity-b.o.cumulativeComplexity:sort==='id'?a.o.id.localeCompare(b.o.id):(a.p||0)-(b.p||0)));
+  const reward=o=>ordinaryOrderReward(o,itemInfo.products),coinRate=o=>o.cumulativeMinutes>0&&reward(o)!==null?reward(o)/o.cumulativeMinutes*60:null;
+  const sort=$('sort').value,direction=$('sortDirection').value==='asc'?1:-1;list.sort((a,b)=>{if(sort==='coins'||sort==='coinRate'){const av=sort==='coins'?reward(a.o):coinRate(a.o),bv=sort==='coins'?reward(b.o):coinRate(b.o);return av===null||bv===null?av===bv?0:av===null?1:-1:direction*(av-bv);}return direction*(sort==='time'?a.o.cumulativeMinutes-b.o.cumulativeMinutes:sort==='complexity'?a.o.cumulativeComplexity-b.o.cumulativeComplexity:sort==='id'?a.o.id.localeCompare(b.o.id):(a.p||0)-(b.p||0));});
   const size=30,pages=Math.max(1,Math.ceil(list.length/size));page=Math.max(0,Math.min(page,pages-1));itemInfo.hide();
-  $('orderRows').innerHTML=list.slice(page*size,(page+1)*size).map(({o,p,weight})=>`<tr><td>${escape(o.id)}</td><td>${renderOrderItems(o,itemInfo.products)}</td><td>${o.itemTypes}</td><td>${fmt(o.cumulativeMinutes,0)} 分钟</td><td>${o.cumulativeComplexity}</td><td>${orderProbabilityText(p)}</td><td>${weight==null?(p==null?'—':fmt(p*1e6,4)):fmt(weight,0)}</td></tr>`).join('')||'<tr><td colspan="7" class="empty">没有符合条件的订单</td></tr>';
+  $('orderRows').innerHTML=list.slice(page*size,(page+1)*size).map(({o,p,weight})=>`<tr><td>${escape(o.id)}</td><td>${renderOrderItems(o,itemInfo.products)}</td><td>${o.itemTypes}</td><td>${fmt(o.cumulativeMinutes,0)} 分钟</td><td>${o.cumulativeComplexity}</td><td><details class="coin-order-detail"><summary>${reward(o)===null?'缺少单价':fmt(reward(o),0)}</summary>${renderCoinBreakdown(o.items,itemInfo.products,{multiplier:ORDINARY_ORDER_REWARD_MULTIPLIER})}</details></td><td>${coinRate(o)===null?'—':fmt(coinRate(o),0)}</td><td>${orderProbabilityText(p)}</td><td>${weight==null?(p==null?'—':fmt(p*1e6,4)):fmt(weight,0)}</td></tr>`).join('')||'<tr><td colspan="9" class="empty">没有符合条件的订单</td></tr>';
   $('pageLabel').textContent=`${list.length.toLocaleString()} 单 · ${page+1} / ${pages}`;$('prev').disabled=page===0;$('next').disabled=page>=pages-1;$('tableHint').textContent=`Lv ${activeLevel}`;
   $('timeFilter').hidden=!selectedTimeRange;$('timeFilterLabel').textContent=selectedTimeRange?`${selectedTimeRange.start}～${selectedTimeRange.end} 分钟`:'';
 }

@@ -1,3 +1,6 @@
+import {summarizeCoins,renderCoinAnalysis} from './coin-analysis.js';
+import {ORDINARY_ORDER_REWARD_MULTIPLIER} from './coin-values.js';
+import {availableAt} from './order-engine.js';
 import {summarizeOrderOutcomes} from './order-outcomes.js';
 const esc=v=>String(v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const num=(v,d=1)=>Number.isFinite(v)?v.toLocaleString('zh-CN',{maximumFractionDigits:d}):'—';
@@ -16,6 +19,7 @@ export function matchesOutcomeFilter(order,filter,products){
 export function createOutcomeAnalysis(onFilter){
   const $=id=>document.getElementById(id);let data=null,type='all',sort='probability',direction='desc';
   function clear(){
+    if($('ordinaryCoinAnalysis'))$('ordinaryCoinAnalysis').innerHTML=renderCoinAnalysis(summarizeCoins([],new Map()),{scope:'本级最终概率',multiplier:ORDINARY_ORDER_REWARD_MULTIPLIER});
     data=null;$('metrics').innerHTML=metrics.map(label=>`<div><small>${label}</small><strong>—</strong></div>`).join('');
     for(const id of ['complexityStats','complexityBars','cropPattern','cropDemandRows','productAppearanceRows'])$(id).innerHTML='';
     $('complexityBars').innerHTML=empty;$('productAppearanceSummary').textContent='';$('cropDemandSummary').textContent='';
@@ -23,13 +27,14 @@ export function createOutcomeAnalysis(onFilter){
   function render(catalog,result,level){
     data=summarizeOrderOutcomes(catalog,result,level);if(data.empty){clear();return;}
     const {time:t,complexity:c}=data.stats;
+    if($('ordinaryCoinAnalysis'))$('ordinaryCoinAnalysis').innerHTML=renderCoinAnalysis(summarizeCoins(catalog.orders.flatMap((o,i)=>availableAt(o,level)?[{items:o.items,weight:result.probabilities[i],workMinutes:o.cumulativeMinutes}]:[]),new Map(catalog.products.map(p=>[p.id,p])),{multiplier:ORDINARY_ORDER_REWARD_MULTIPLIER}),{scope:`Lv ${level} · 最终生成概率加权`,multiplier:ORDINARY_ORDER_REWARD_MULTIPLIER});
     const values=[
       [metrics[0],num(t.p50,0),'分钟',`中位数 · 中间 80%：${num(t.p10,0)}–${num(t.p90,0)} 分钟`],
       [metrics[1],num(c.mean),'',`中位数 ${num(c.p50,0)} · 90% 订单不超过 ${num(c.p90,0)}`],
       [metrics[2],num(data.directCropOrderProbability*100,1),'%',`直接索要作物 · 纯作物 ${pct(data.pureCropOrderProbability)}`],
       [metrics[3],num(data.stats.coinReward.mean,0),'金币/单',data.coinRewardCoverage.missingOrderCount?`${data.coinRewardCoverage.missingOrderCount} 张可生成订单缺少金币单价`:`概率加权 · 物品价值 × ${data.coinRewardCoverage.multiplier}${data.coinRewardCoverage.estimatedProbability?' · 含估算单价':''}`]
     ];
-    $('metrics').innerHTML=values.map(([name,value,unit,sub])=>`<div><small>${name}</small><strong>${value}<em>${unit}</em></strong><span class="sub">${sub}</span></div>`).join('');
+    $('metrics').innerHTML=values.map(([name,value,unit,sub])=>`<div><small>${name===metrics[3]?`<a class="coin-analysis-link" href="#ordinaryCoinAnalysis">${name} ↓</a>`:name}</small><strong>${value}<em>${unit}</em></strong><span class="sub">${sub}</span></div>`).join('');
     $('complexityStats').innerHTML=[['平均',c.mean],['中位数',c.p50],['90%不超过',c.p90],['最小',c.min],['最大',c.max]].map(([label,v])=>`<span>${label}<b>${num(v)}</b></span>`).join('');
     const max=Math.max(...data.complexityDistribution.map(v=>v.probability),.001);
     $('complexityBars').innerHTML=data.complexityDistribution.map(v=>`<button type="button" data-complexity="${v.complexity}" title="复杂度 ${v.complexity} · ${pct(v.probability)} · 点击查看订单" aria-label="复杂度 ${v.complexity}，生成概率 ${pct(v.probability)}，查看订单"><span class="complexity-value">${num(v.probability*100,v.probability<.001?2:1)}%</span><i style="height:${Math.max(2,v.probability/max*105)}px"></i><b>${v.complexity}</b></button>`).join('');
