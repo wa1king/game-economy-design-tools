@@ -17,7 +17,7 @@ self.onmessage=async({data})=>{
           post({type:'quantityResult',id:group.id,fit,index:i+1,total:data.groups.length});
         }else{const result=await schedules.solve(model,group,data.level,data.capacities,{timeLimitMs:data.timeLimitMs,nodeLimit:10000});post({type:'result',id:group.id,result,index:i+1,total:data.groups.length});}
       }
-      catch(error){post({type:'groupError',id:group.id,message:error.message,index:i+1,total:data.groups.length});}
+      catch(error){post({type:'groupError',id:group.id,message:error.message,diagnostic:error.diagnostic,index:i+1,total:data.groups.length});}
       // This runs off the UI thread; pausing terminates the worker directly.
       // Per-group timers add browser timer throttling without making it safer.
     }

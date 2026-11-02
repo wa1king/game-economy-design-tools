@@ -159,3 +159,12 @@ test('old successful recommendations with unequal copies cannot bypass the new q
   assert.equal(ranchFitIsCurrent({within:true,options,recommendations:[{group:g},{group:bad}]},g,options),false);
   assert.equal(ranchFitIsCurrent({within:true,options,recommendations:[{group:g,result:{orderWorkBalanced:true,orderWorkShares:[.25,.25,.25,.25]}}]},g,options),true);
 });
+
+test('constraint diagnostics survive the worker and cache, separately from runtime failures',async()=>{
+  const h=harness({automatic:false}),ws=await h.load(),run=calculateRanchWorkspace(ws,{mode:'quantity'});await flush();
+  const worker=h.workers[0],id=worker.data.groups[0].id,diagnostic={code:'RANCH_QUANTITY_INFEASIBLE',kind:'constraint',message:'本预设组合受工时占比限制'};
+  worker.emit({type:'groupError',id,message:diagnostic.message,diagnostic,index:1,total:1});worker.emit({type:'done'});await flush();
+  if(h.messages.length>1){const next=worker.data.groups[0].id;worker.emit({type:'groupError',id:next,message:'排产器加载失败',index:1,total:1});worker.emit({type:'done'});}
+  const report=await run;assert.equal(report.excluded,1);assert.equal(report.failed,1);assert.equal(ws.plans[0].quantityFits.get(id).diagnostic.code,diagnostic.code);
+  const loaded=await h.load();assert.equal(loaded.plans[0].quantityFits.get(id).diagnostic.code,diagnostic.code);
+});

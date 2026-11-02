@@ -20,7 +20,7 @@ function render(){
   const coinsMode=ranchObjective(workspace.settings)==='coins';$('distributionGoalHeading').textContent=coinsMode?'金币目标范围':'优化时间目标范围 · 分钟';$('optimizedTargetTag').textContent=coinsMode?'金币达标后的排产耗时':'各级目标带';
   $('distributionSummary').innerHTML=`<article><span>达标实际订单组</span><strong>${count(summary.accepted)}<small>${plans.length} 级</small></strong><small>所有图表仅统计达标实际订单 · 每组等权</small></article><article><span>平均联合优化时间</span><strong>${formatMinutes(summary.optimized.mean)}<small>分钟</small></strong><small>仅统计已证明最优且符合本级目标的订单</small></article><article><span>平均四单金币总值</span><strong>${summary.missingCoins?'—':formatMinutes(summary.coins.mean)}<small>金币 / 组</small></strong><small>${summary.missingCoins?`${count(summary.missingCoins)} 个实际订单组缺少单价`:'实际交付数量 × 商品单价'}</small></article>`;
   $('presetSummary').textContent=`预设 ${count(summary.total)} 组 · 实际入库 ${count(summary.accepted)} 组 · 未入库 ${count(summary.excluded)} 组`;
-  $('presetProgress').innerHTML=`<span>已证明排程 ${count(summary.proven)}</span><span>待计算 ${count(summary.pending)}</span><span>待证明 ${count(summary.bounded)}</span><span>排产失败 ${count(summary.failed)}</span><p>预设组合中，只有排程已证明最优、优化时间达标、数量与单单工时占比符合当前规则的组合才进入实际订单。其余可到单等级分析的“预设组合”中查看。</p>`;
+  $('presetProgress').innerHTML=`<span>已证明排程 ${count(summary.proven)}</span><span>待计算 ${count(summary.pending)}</span><span>待证明 ${count(summary.bounded)}</span><span>排产失败 ${count(summary.failed)}</span><p>预设组合中，只有排程已证明最优、当前${coinsMode?'金币':'优化时间'}目标达标、数量与单单工时占比符合当前规则的组合才进入实际订单。其余可到单等级分析的“预设组合”中查看。</p>`;
   $('optimizedPlot').innerHTML=renderRanchBoxPlot(rows,'optimized');$('workPlot').innerHTML=renderRanchBoxPlot(rows,'work');
   $('complexityPlot').innerHTML=renderRanchMetricTrend(rows,'complexity');$('coinPlot').innerHTML=renderRanchMetricTrend(rows,'coins');
   const targeted=plans.filter(p=>rows.find(r=>r.level===p.level)?.target.work!=null).length;
@@ -62,7 +62,7 @@ async function calculate(){
   try{
     pendingRun=calculateRanchWorkspace(workspace,{mode:'quantity',signal:own.signal,onProgress:progress=>{$('distributionProgress').textContent=progress.message||`计算 Lv ${progress.level} · ${progress.index??0} / ${progress.total??0}`;},onChange:schedulePaint});
     const report=await pendingRun;
-    $('distributionProgress').textContent=own.signal.aborted?'已暂停 · 已完成结果保留':report?.failed?`本轮完成 · ${report.failed} 项需处理，请查看各级状态`:'本轮计算完成 · 待证明组合可继续计算';
+    $('distributionProgress').textContent=own.signal.aborted?'已暂停 · 已完成结果保留':report?.failed?`本轮完成 · ${report.failed} 项需处理，请查看各级状态`:report?.excluded?`本轮完成 · ${report.excluded} 组预设受限，其他达标订单正常统计`:'本轮计算完成 · 待证明组合可继续计算';
   }catch(error){if(!own.signal.aborted)showError(error.message||'计算中断，可继续计算。');else $('distributionProgress').textContent='已暂停 · 已完成结果保留';}
   finally{
     clearTimeout(paintTimer);paintTimer=null;running=false;controller=null;pendingRun=null;plans=workspace.plans;render();controls();

@@ -1,3 +1,4 @@
+import {isQuantityConstraintIssue,uniqueQuantityIssueText} from '../orders/ranch-quantity-issues.js';
 import {ranchObjective} from '../orders/ranch-objective.js';
 import {saveRanchObjective} from '../orders/ranch-workspace.js';
 import assert from 'node:assert/strict';
@@ -6,7 +7,7 @@ import vm from 'node:vm';
 import {createConfigClipboard} from '../orders/config-clipboard.js';
 
 const html=fs.readFileSync(new URL('../orders/ranch-config.html',import.meta.url),'utf8'),source=fs.readFileSync(new URL('../orders/ranch-config-app.js',import.meta.url),'utf8');
-const context=vm.createContext({ranchObjective,saveRanchObjective,console,AbortController,createConfigClipboard});
+const context=vm.createContext({isQuantityConstraintIssue,uniqueQuantityIssueText,ranchObjective,saveRanchObjective,console,AbortController,createConfigClipboard});
 vm.runInContext(source.replace(/^import .*;\r?\n/gm,'').replace(/^export /gm,''),context);
 const evaluate=(expression,args={})=>{Object.assign(context,args);return vm.runInContext(expression,context);};
 const columns=evaluate('RANCH_CONFIG_COLUMNS'),defaults={targetCoins:'300',coinTolerance:'30',targetHours:'6',targetTolerance:'30',targetWork:'',fitCropMax:'42',fitProductMax:'12',quantityBudget:'2500'};
@@ -24,7 +25,11 @@ await test('a numeric downward fill includes current level only through the fina
 });
 await test('target and quantity errors stay visible even when a prior schedule was proven',()=>{
   const p=plan(2);for(const group of p.groups)p.results.set(group.key,{proven:true,optimalMinutes:50});p.targetError='缺少自动累计工时基线';let state=evaluate('ranchConfigRowState(p)',{p});assert.equal(state.text,'目标待调整');assert.equal(state.detail,p.targetError);assert.equal(state.proven,2);
-  delete p.targetError;p.quantityErrors=new Map([['G0','数量上限无法覆盖目标'],['G1','搜索预算不足']]);state=evaluate('ranchConfigRowState(p)');assert.equal(state.text,'2 组配量失败');assert(state.detail.includes('数量上限无法覆盖目标'));p.quantityErrors.clear();assert.equal(evaluate('ranchConfigRowState(p)').kind,'good');
+  delete p.targetError;p.quantityErrors=new Map([['G0','数量上限无法覆盖目标'],['G1','搜索预算不足']]);state=evaluate('ranchConfigRowState(p)');assert.equal(state.text,'2 组需处理');assert(state.detail.includes('数量上限无法覆盖目标'));p.quantityErrors.clear();assert.equal(evaluate('ranchConfigRowState(p)').kind,'good');
+});
+
+await test('infeasible presets are warnings and repeated reasons do not become a level failure',()=>{
+  const p=plan(15,3);p.quantityErrors=new Map([['G0','每单累计工时须占整组20%～30%，请重新配量。'],['G1','每单累计工时须占整组20%～30%，请重新配量。']]);p.quantityFits=new Map();const state=evaluate('ranchConfigRowState(p)',{p});assert.equal(state.kind,'warn');assert.equal(state.constrained,2);assert.equal(state.text,'2 组预设受限');assert.equal(state.detail.split('请重新配量').length,2);const summary=evaluate('ranchConfigProblemSummary([p])');assert(summary.includes('其他达标实际订单仍正常统计'));assert(summary.includes('Lv 15：2 / 3 组受限'));assert(!summary.includes('配量失败'));
 });
 
 // This DOM and all stored values are synthetic. No browser or user storage access.
@@ -108,7 +113,7 @@ await test('continue and all calculation entries always use target-driven quanti
 });
 await test('runner failures appear in row status and the completion summary with actionable reasons',async()=>{
   const running=s.page.run('quantity');await flush();s.workspace.plans[1].targetError='自动累计工时暂无最优基线，请填写累计工时目标';s.workspace.plans[2].quantityErrors=new Map([['G0','本组数量上限无法达到目标']]);s.pending.options.onChange();s.pending.resolve({failed:2});await running;
-  assert.equal(body.rows.get(2).querySelector('[data-row-state]').textContent,'目标待调整');assert.equal(body.rows.get(3).querySelector('[data-row-state]').textContent,'1 组配量失败');assert.equal(s.get('ranchConfigProgressText').textContent,'本轮完成 · 2 项需处理');assert(s.get('ranchConfigError').textContent.includes('Lv 2'));assert(s.get('ranchConfigError').textContent.includes('填写累计工时目标'));assert(s.get('ranchConfigError').textContent.includes('数量上限'));
+  assert.equal(body.rows.get(2).querySelector('[data-row-state]').textContent,'目标待调整');assert.equal(body.rows.get(3).querySelector('[data-row-state]').textContent,'1 组需处理');assert.equal(s.get('ranchConfigProgressText').textContent,'本轮完成 · 2 项需处理');assert(s.get('ranchConfigError').textContent.includes('Lv 2'));assert(s.get('ranchConfigError').textContent.includes('填写累计工时目标'));assert(s.get('ranchConfigError').textContent.includes('数量上限'));
   delete s.workspace.plans[1].targetError;s.workspace.plans[2].quantityErrors.clear();
 });
 await test('external updates reload automatically except during editing and calculation',async()=>{

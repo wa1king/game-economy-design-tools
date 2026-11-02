@@ -1,3 +1,5 @@
+import {coinConstraintConflict,isQuantityConstraintIssue} from './ranch-quantity-issues.js';
+import {ranchQuantityProfile} from './ranch-quantity.js';
 import {ranchWorkRules,ranchWorkRangeText,validRanchWorkShares} from './ranch-work-rules.js';
 import {readRanchSettings,RANCH_QUANTITY_RULES_KEY} from './order-quantity-rules.js';
 import {readSharedChainSource,SHARED_CHAIN_KEY} from './shared-chain-source.js';
@@ -39,9 +41,12 @@ export async function loadRanchWorkspace(deps={}){
     plan.quantityFits=new Map();plan.quantityErrors=new Map();
     const cache=await services.loadCache(plan.cacheKey);
     if(cache?.version===1||cache?.version===2){plan.results=new Map(cache.results??[]);plan.failures=new Map(cache.failures??[]);plan.quantityFits=new Map(cache.quantityFits??[]);for(const [id,fit] of plan.quantityFits)if(fit.error)plan.quantityErrors.set(id,fit.error);}
+    // Upgrade only the explanation of legacy errors using a cheap necessary-bound
+    // proof. Never change saved quantities, targets, schedules, or trigger fitting.
+    for(const group of plan.groups){const fit=plan.quantityFits.get(group.id);if(fit?.error?.startsWith('当前数量上限与单单工时占比下')){try{const target=readRanchTarget(settings,plan.level),options=quantityOptions({...ranchWorkRules(settings),...ranchGoalOptions(target,1)}),diagnostic=coinConstraintConflict(model,group,ranchQuantityProfile(model,group,plan.capacities),options);const explanation=diagnostic??{code:'RANCH_LEGACY_QUANTITY_REVIEW',kind:'review',message:'旧记录只说明该预设未能配量，尚未区分整数数量约束与内部生产任务上限。可到单等级预设组合复核；不能据此判断本级金币目标无解。'};fit.error=explanation.message;fit.diagnostic=explanation;plan.quantityErrors.set(group.id,fit.error);}catch{}}}
     // Retain historical inputs, but do not count an allocation violating the
     // current rule as a completed design. Refit it on the next explicit run.
-    for(const group of plan.groups)if((plan.results.has(group.key)||plan.quantityFits.has(group.id))&&!orderWorkBalance(model,group).valid)plan.quantityErrors.set(group.id,`每单累计工时须占整组${ranchWorkRangeText(settings)}，请重新配量。`);
+    for(const group of plan.groups)if(!plan.quantityErrors.has(group.id)&&(plan.results.has(group.key)||plan.quantityFits.has(group.id))&&!orderWorkBalance(model,group).valid)plan.quantityErrors.set(group.id,`每单累计工时须占整组${ranchWorkRangeText(settings)}，请重新配量。`);
     for(const group of plan.groups)if(!hasEqualProductQuantities(group)){plan.results.delete(group.key);plan.quantityFits.delete(group.id);plan.failures.set(group.key,'相同商品数量不一致，请按目标重新配量。');}
   }
   return {base,filename:source.filename??base.filename??'加工链路',storageKey,settings,model,plans,services};
@@ -115,7 +120,7 @@ export async function calculateRanchWorkspace(ws,{mode='quantity',signal,onProgr
     if(pendingRatios.size)settings.workRatios={...settings.workRatios,...Object.fromEntries(pendingRatios)};
     ws.services.storage.setItem(ws.storageKey,JSON.stringify(settings));ws.settings=settings;pendingEdits.clear();pendingRatios.clear();
   };
-  const changedFits=new Map(),reuse=new Map(),fitReuse=new Map(),report={stopped:false,scheduled:0,fitted:0,failed:0,skipped:0,reused:0};
+  const changedFits=new Map(),reuse=new Map(),fitReuse=new Map(),report={stopped:false,scheduled:0,fitted:0,failed:0,excluded:0,skipped:0,reused:0};
   const persistPlan=async plan=>{
     flushQuantities();
     await ws.services.mergeCache(plan.cacheKey,{version:2,results:[...plan.results],failures:[...plan.failures],quantityFits:[...(changedFits.get(plan.level)??new Map())]});
@@ -159,8 +164,8 @@ export async function calculateRanchWorkspace(ws,{mode='quantity',signal,onProgr
         }else if(data.type==='quantityResult'){
           applyQuantityFit(plan,data.id,data.fit,options);
         }else if(data.type==='groupError'){
-          report.failed++;
-          if(phase==='quantity'){plan.quantityErrors.set(data.id,data.message);const fit={error:data.message};plan.quantityFits.set(data.id,fit);if(!changedFits.has(plan.level))changedFits.set(plan.level,new Map());changedFits.get(plan.level).set(data.id,fit);}
+          if(phase==='quantity'&&isQuantityConstraintIssue(data.message,data.diagnostic))report.excluded++;else report.failed++;
+          if(phase==='quantity'){plan.quantityErrors.set(data.id,data.message);const fit={error:data.message,...(data.diagnostic?{diagnostic:data.diagnostic}:{})};plan.quantityFits.set(data.id,fit);if(!changedFits.has(plan.level))changedFits.set(plan.level,new Map());changedFits.get(plan.level).set(data.id,fit);}
           else plan.failures.set(data.id,data.message);
           changed(plan);
         }else if(data.type==='error'){finish(Error(`Lv ${plan.level}：${data.message}`));return;}

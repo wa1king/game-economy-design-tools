@@ -1,3 +1,4 @@
+import {isQuantityConstraintIssue,uniqueQuantityIssueText} from './ranch-quantity-issues.js';
 import {ranchObjective} from './ranch-objective.js';
 import {createConfigClipboard} from './config-clipboard.js';
 import {readRanchTarget,loadRanchWorkspace,saveRanchTargets,saveRanchObjective,calculateRanchWorkspace,watchRanchWorkspace} from './ranch-workspace.js';
@@ -16,12 +17,19 @@ export function ranchConfigRowState(plan,currentLevel=null){
   if(!total)return {done,proven,total,text:'暂无组合',kind:'empty',detail:''};
   if(plan.capacityError)return {done,proven,total,text:'产能待补全',kind:'error',detail:plan.capacityError};
   if(plan.targetError)return {done,proven,total,text:'目标待调整',kind:'error',detail:plan.targetError};
-  if(plan.quantityErrors?.size)return {done,proven,total,text:`${number(plan.quantityErrors.size)} 组配量失败`,kind:'error',detail:[...plan.quantityErrors.values()].slice(0,2).join('；')};
+  if(plan.quantityErrors?.size){const issues=[...plan.quantityErrors],constrained=issues.filter(([id,message])=>isQuantityConstraintIssue(message,plan.quantityFits?.get?.(id)?.diagnostic)).length,review=issues.filter(([id])=>plan.quantityFits?.get?.(id)?.diagnostic?.code==='RANCH_LEGACY_QUANTITY_REVIEW').length,failed=issues.length-constrained-review;const parts=[failed?`${number(failed)} 组需处理`:'',constrained?`${number(constrained)} 组预设受限`:'',review?`${number(review)} 组旧记录待复核`:''].filter(Boolean);return {done,proven,total,constrained,review,text:parts.join(' · '),kind:failed?'error':'warn',errorDetail:uniqueQuantityIssueText(issues.filter(([id,message])=>!isQuantityConstraintIssue(message,plan.quantityFits?.get?.(id)?.diagnostic)&&plan.quantityFits?.get?.(id)?.diagnostic?.code!=='RANCH_LEGACY_QUANTITY_REVIEW').map(v=>v[1])),detail:uniqueQuantityIssueText(issues.map(v=>v[1]))};}
   if(currentLevel===plan.level)return {done,proven,total,text:'计算中',kind:'running',detail:''};
   if(proven===total)return {done,proven,total,text:'最优已确认',kind:'good',detail:''};
   if(done===total)return {done,proven,total,text:'部分待确认最优',kind:'warn',detail:`${total-proven} 组已有可行排产，最短时间仍待确认`};
-  if(failed)return {done,proven,total,text:'部分计算失败',kind:'error',detail:[...plan.failures.values()].slice(0,2).join('；')};
+  if(failed)return {done,proven,total,text:'部分计算失败',kind:'error',detail:uniqueQuantityIssueText([...plan.failures.values()])};
   return {done,proven,total,text:done?'待继续计算':'待计算',kind:'pending',detail:''};
+}
+
+export function ranchConfigProblemSummary(plans){
+  const states=plans.map(p=>({level:p.level,...ranchConfigRowState(p)})),constraints=states.filter(v=>v.constrained>0),errors=states.filter(v=>v.kind==='error');
+  const sections=[];if(constraints.length)sections.push('部分预设组合受配量约束，暂不入库；其他达标实际订单仍正常统计。'+constraints.map(v=>`Lv ${v.level}：${v.constrained} / ${v.total} 组受限`).join('；')+'。各级“查看原因”可见冲突商品与数量。');
+  const reviews=states.filter(v=>v.review>0);if(reviews.length)sections.push('旧配量记录需复核：'+reviews.map(v=>`Lv ${v.level}：${v.review} 组`).join('；')+'。旧提示没有区分整数约束与内部任务上限，可在单等级预设组合中复核。');
+  if(errors.length)sections.push(errors.slice(0,3).map(v=>`Lv ${v.level}：${v.errorDetail||v.detail||v.text}`).join('；')+(errors.length>3?`；另有 ${errors.length-3} 级需处理。`:''));return sections.join('\n');
 }
 
 export function ranchConfigColumnFill(key,value,fromLevel,maxLevel){
@@ -31,7 +39,7 @@ export function ranchConfigColumnFill(key,value,fromLevel,maxLevel){
 
 export function renderRanchConfigRow(plan,target){
   const fields=ranchConfigColumns(target).map(key=>`<td><input type="number" data-level="${plan.level}" data-key="${key}" value="${esc(target[key])}" min="${['targetTolerance','coinTolerance'].includes(key)?0:0.000001}" step="${key.startsWith('fit')?1:'any'}" ${key==='targetWork'?'placeholder="自动"':''} aria-label="Lv ${plan.level} ${LABELS[key]}" aria-keyshortcuts="Control+Enter" title="Ctrl+Enter：填充本列当前等级及后续等级"></td>`).join('');
-  return `<tr data-level="${plan.level}"><th class="frozen-level" data-select-row="${plan.level}" title="选中本级整行数值；Shift 连选"><button type="button" class="matrix-select-trigger" aria-label="选中 Lv ${plan.level} 整行数值">Lv ${plan.level}</button></th>${fields}<td class="ranch-config-count"><span data-done-count></span><small data-proven-count></small></td><td class="frozen-state"><span data-row-state class="ranch-config-state"></span><a href="ranch.html?level=${plan.level}">查看单级</a></td></tr>`;
+  return `<tr data-level="${plan.level}"><th class="frozen-level" data-select-row="${plan.level}" title="选中本级整行数值；Shift 连选"><button type="button" class="matrix-select-trigger" aria-label="选中 Lv ${plan.level} 整行数值">Lv ${plan.level}</button></th>${fields}<td class="ranch-config-count"><span data-done-count></span><small data-proven-count></small></td><td class="frozen-state"><span data-row-state class="ranch-config-state"></span><details class="ranch-row-issue" data-row-issue hidden><summary>查看原因</summary><p data-row-detail></p></details><a href="ranch.html?level=${plan.level}">查看单级</a></td></tr>`;
 }
 
 export function createRanchConfigPage(api={}){
@@ -62,7 +70,7 @@ export function createRanchConfigPage(api={}){
   const clipboard=makeClipboard({root:body,getColumns:()=>currentColumns(),getRowCount:maxLevel,isBusy:()=>busy,onApply:apply,onRefresh:refresh,onMessage:message,onSelectionChange:highlight});
   function refresh(){
     if(!ws)return;objectiveUI();
-    for(const plan of ws.plans){const row=body.querySelector(`tr[data-level="${plan.level}"]`);if(!row)continue;const state=ranchConfigRowState(plan,currentLevel);row.querySelector('[data-done-count]').textContent=`${number(state.done)} / ${number(state.total)}`;row.querySelector('[data-proven-count]').textContent=state.total?`最优已确认 ${number(state.proven)} 组`:'';const label=row.querySelector('[data-row-state]');label.textContent=state.text;label.className='ranch-config-state '+state.kind;label.title=state.detail;}
+    for(const plan of ws.plans){const row=body.querySelector(`tr[data-level="${plan.level}"]`);if(!row)continue;const state=ranchConfigRowState(plan,currentLevel);row.querySelector('[data-done-count]').textContent=`${number(state.done)} / ${number(state.total)}`;row.querySelector('[data-proven-count]').textContent=state.total?`最优已确认 ${number(state.proven)} 组`:'';const label=row.querySelector('[data-row-state]');label.textContent=state.text;label.className='ranch-config-state '+state.kind;label.title=state.detail;const issue=row.querySelector('[data-row-issue]'),detail=row.querySelector('[data-row-detail]');if(issue&&detail){issue.hidden=!state.detail;detail.textContent=state.detail;}}
     body.querySelectorAll('input[data-key]').forEach(input=>{input.disabled=busy;});
     for(const id of ['fitRanchLevels'])$(id).disabled=busy||loading||!ws.plans.some(p=>p.groups.length);
     $('pauseRanchLevels').hidden=!busy;$('pauseRanchLevels').disabled=Boolean(controller?.signal.aborted);$('resumeRanchLevels').hidden=!paused||busy;$('resumeRanchLevels').disabled=loading;
@@ -90,14 +98,14 @@ export function createRanchConfigPage(api={}){
     try{const next=await loadWorkspace();ws=next;invalid.clear();externalChange=false;paused=false;headerAnchor=null;$('ranchConfigWorkspace').hidden=!ws;$('ranchConfigEmpty').hidden=Boolean(ws);if(!ws)return;
       body.innerHTML=ws.plans.map(plan=>renderRanchConfigRow(plan,readTarget(ws.settings,plan.level))).join('');$('ranchConfigSummary').textContent=`${ws.base.maxLevel} 级 · 同建筑与高级加工链共用目标`;message('');$('ranchConfigProgressWrap').hidden=true;clipboard.refresh();
     }catch(e){error(e.message);if(!ws){$('ranchConfigWorkspace').hidden=true;$('ranchConfigEmpty').hidden=false;}}
-    finally{loading=false;refresh();}
+    finally{loading=false;refresh();if(ws)error(ranchConfigProblemSummary(ws.plans));}
   }
   async function performRun(){
     const mode='quantity';
     let lastPaint=0;const paintProgress=()=>{if(Date.now()-lastPaint>=160){lastPaint=Date.now();refresh();}};
     if(busy||loading||!ws)return;if(!commit(doc.activeElement)||invalid.size){error([...invalid.values()][0]||'请先修正无效数值。');return;}
     busy=true;paused=false;lastRunError=null;controller=new AbortController();const signal=controller.signal;error('');message('');$('ranchConfigProgressWrap').hidden=false;$('ranchConfigProgress').value=0;$('ranchConfigProgressText').textContent='开始按目标配量…';refresh();
-    try{const report=await calculateWorkspace(ws,{mode,signal,onProgress:p=>{currentLevel=p.level??null;const value=p.total>0?Math.max(0,Math.min(1,p.index/p.total)):0;$('ranchConfigProgress').value=value;$('ranchConfigProgressText').textContent=p.message||(p.level?`Lv ${p.level} · ${p.index??0} / ${p.total??0}`:'计算中…');paintProgress();},onChange:paintProgress});if(!signal.aborted){$('ranchConfigProgress').value=1;$('ranchConfigProgressText').textContent=report?.failed?`本轮完成 · ${number(report.failed)} 项需处理`:'本轮计算完成';if(report?.failed){const problems=ws.plans.map(plan=>({level:plan.level,...ranchConfigRowState(plan)})).filter(state=>state.kind==='error');error(problems.length?problems.slice(0,3).map(state=>`Lv ${state.level}：${state.detail||state.text}`).join('；'):`本轮有 ${number(report.failed)} 项未完成，请查看各级状态。`);}}}
+    try{const report=await calculateWorkspace(ws,{mode,signal,onProgress:p=>{currentLevel=p.level??null;const value=p.total>0?Math.max(0,Math.min(1,p.index/p.total)):0;$('ranchConfigProgress').value=value;$('ranchConfigProgressText').textContent=p.message||(p.level?`Lv ${p.level} · ${p.index??0} / ${p.total??0}`:'计算中…');paintProgress();},onChange:paintProgress});if(!signal.aborted){$('ranchConfigProgress').value=1;$('ranchConfigProgressText').textContent=report?.failed?`本轮完成 · ${number(report.failed)} 项需处理`:report?.excluded?`本轮完成 · ${number(report.excluded)} 组预设受限，其他结果已保存`:'本轮计算完成';if(report?.failed||report?.excluded){error(ranchConfigProblemSummary(ws.plans)||`本轮有 ${number(report.failed)} 项未完成，请查看各级状态。`);}}}
     catch(e){lastRunError=e;error(e.message);}
     finally{paused=signal.aborted;busy=false;currentLevel=null;controller=null;if(paused)$('ranchConfigProgressText').textContent=lastRunError?'已停止，部分结果未保存':'已暂停，已完成结果已保留';refresh();if(!paused)maybeReload();}
   }
