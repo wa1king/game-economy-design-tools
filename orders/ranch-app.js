@@ -1,3 +1,4 @@
+import {ranchUnlockLevel,ranchLevelUnlocked} from './ranch-unlock.js';
 import {ranchFuelReward,fuelReward} from './fuel-rewards.js';
 import {summarizeCoins,renderCoinAnalysis,renderCoinBreakdown,coinBreakdown} from './coin-analysis.js';
 import {ranchObjective,ranchGoal,ranchGoalOptions,ranchGoalWithin} from './ranch-objective.js';
@@ -57,10 +58,11 @@ function install(newBase,name,rules){
   persistedSettings=structuredClone(savedSettings);model.orderCoinRules=ranchCoinRules(savedSettings);
   type=savedSettings.browser?.type==='chain'?'chain':'building';browserBuildingId=savedSettings.browser?.buildingId??null;graphSignature='';slotSignature='';schemeSignature='';level=Math.min(base.maxLevel||20,Math.max(1,savedSettings.level??level));restoreQuantityTargets();$('cropQuantity').value=savedSettings.cropQuantity??rules?.cropQuantity??DEFAULT_CROP_QUANTITY;$('productQuantity').value=savedSettings.productQuantity??rules?.productQuantity??1;$('allowRepeated').checked=savedSettings.allowRepeated??false;$('searchLimit').value=savedSettings.searchLimit??'2000';
   if(!navigationApplied&&navigationRequest){const requested=Number(navigationRequest.get('level'));if(requested>=1&&requested<=base.maxLevel){level=requested;restoreQuantityTargets();}if(['building','chain'].includes(navigationRequest.get('type')))type=navigationRequest.get('type');navigationApplied=true;}
-  $('projectName').textContent=filename;$('sourceMeta').textContent=`${base.products.length} 商品 · ${base.products.filter(v=>v.coinValue!=null).length} 个已定价`;$('level').innerHTML=Array.from({length:base.maxLevel||20},(_,i)=>`<option value="${i+1}">Lv ${i+1}</option>`).join('');$('level').value=level;
+  $('projectName').textContent=filename;$('sourceMeta').textContent=`${base.products.length} 商品 · ${base.products.filter(v=>v.coinValue!=null).length} 个已定价`;refreshUnlockedLevels();restoreQuantityTargets();
   $('empty').hidden=true;$('workspace').hidden=false;capacities={...ranchCapacities(model,level),...(savedSettings.capacities?.[level]||{})};renderCapacities();rebuild(false);
 }
 
+function refreshUnlockedLevels(){const start=ranchUnlockLevel(savedSettings);level=Math.min(base.maxLevel,Math.max(start,level));$('level').innerHTML=Array.from({length:Math.max(0,base.maxLevel-start+1)},(_,i)=>`<option value="${start+i}">Lv ${start+i}</option>`).join('');$('level').value=level;$('level').disabled=start>base.maxLevel;}
 function renderCapacities(){$('capacities').innerHTML=base.sources.filter(s=>s.level<=level).map(s=>`<label>${esc(s.name)} <input data-cap="${s.id}" aria-label="${esc(s.name)}并行容量" type="number" min="1" max="1000" value="${capacities[s.id]??''}" placeholder="待填"></label>`).join('');}
 function updateFilters(){
   for(const [id,t] of [['buildingType','building'],['chainType','chain']]){$(id).classList.toggle('active',type===t);$(id).setAttribute('aria-pressed',String(type===t));}
@@ -83,6 +85,7 @@ function selectScheme(id){
 }
 async function rebuild(autoRun=false,readOnly=false){
   if(!readOnly)saveCache();stop();const token=++buildToken;results=new Map();failures=new Map();quantityFits=new Map();fitCacheSnapshot=new Map();quantityEdits=structuredClone(savedSettings.quantityEdits?.[level]||{});expandedChainId=null;metricCache=new Map();cacheKey=null;current=null;groups=[];viewRows=[];viewRevision++;page=0;graphSignature='';slotSignature='';schemeSignature='';message();
+  if(!ranchLevelUnlocked(level,savedSettings)){families=[];updateView();message(`牧场从 Lv ${ranchUnlockLevel(savedSettings)} 解锁`);return;}
   try{const catalog=generateRanchLevelGroups(model,level,{cropQuantity:Number($('cropQuantity').value),productQuantity:Number($('productQuantity').value),allowRepeated:$('allowRepeated').checked});groups=catalog.groups.map(g=>{const initialQuantities=g.slots.map(v=>v.quantity),q=quantityEdits[g.id];return {...(Array.isArray(q)&&q.length===4&&q.every(n=>Number.isSafeInteger(n)&&n>=1&&n<=1000)?quantityGroup(g,q):g),initialQuantities};});families=catalog.families;
     $('combinationCount').textContent=fmt(groups.length,0);$('permutationCount').textContent=fmt(groups.reduce((total,g)=>total+ranchPermutations(g).length,0),0);
   }catch(error){families=[];$('combinationCount').textContent='0';$('permutationCount').textContent='0';message(error.message);}
@@ -295,7 +298,7 @@ async function syncRanchView(){
     await cacheQueue;const source=ranchSource();if(!source?.base)return;
     if(!model||ranchSettingsKey(source.base)!==storageKey){install(source.base,source.filename,source.rules);return;}
     const latest=readRanchSettings(localStorage,storageKey);
-    savedSettings=latest;model.orderCoinRules=ranchCoinRules(latest);persistedSettings=structuredClone(latest);restoreQuantityTargets();
+    savedSettings=latest;refreshUnlockedLevels();model.orderCoinRules=ranchCoinRules(latest);persistedSettings=structuredClone(latest);restoreQuantityTargets();
     $('cropQuantity').value=latest.cropQuantity??DEFAULT_CROP_QUANTITY;$('productQuantity').value=latest.productQuantity??1;$('allowRepeated').checked=latest.allowRepeated??false;$('searchLimit').value=latest.searchLimit??'2000';
     capacities={...ranchCapacities(model,level),...(latest.capacities?.[level]??{})};renderCapacities();await rebuild(false,true);
   }catch(error){message(error.message);}finally{syncing=false;}

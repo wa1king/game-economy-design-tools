@@ -10,6 +10,7 @@ import {loadRanchCache,mergeRanchCache,mergeRanchCacheValue} from './ranch-cache
 import {quantityGroup,quantityOptions,QUANTITY_SEARCH_VERSION,estimateRanchWorkRatio,ranchQuantityFitKey,reuseRanchQuantityFit,hasEqualProductQuantities,orderCoinBalance} from './ranch-quantity.js';
 import {estimateRanchCoinWork} from './ranch-quantity.js';
 import {ranchObjective,ranchGoal,ranchGoalOptions,ranchGoalWithin} from './ranch-objective.js';
+import {ranchUnlockLevel,ranchUnlockedPlans} from './ranch-unlock.js';
 
 export const RANCH_TARGET_DEFAULTS={targetHours:'6',targetTolerance:'30',targetCoins:'300',coinTolerance:'30',targetWork:'',fitCropMax:'42',fitProductMax:'12',quantityBudget:'2500'};
 const targetKeys=Object.keys(RANCH_TARGET_DEFAULTS);
@@ -64,8 +65,16 @@ export function saveRanchTargets(ws,cells){
 export function saveRanchObjective(ws,objective){
   if(!['time','coins'].includes(objective))throw Error('请选择优化时间或金币总值。');
   const next=readRanchSettings(ws.services.storage,ws.storageKey);next.objective=objective;
-  for(const plan of ws.plans)validateRanchTarget(readRanchTarget(next,plan.level));
+  for(const plan of ranchUnlockedPlans(ws.plans,next))validateRanchTarget(readRanchTarget(next,plan.level));
   ws.services.storage.setItem(ws.storageKey,JSON.stringify(next));ws.settings=next;notifyRanchChange(ws.storageKey,'targets',ws.services.storage);
+}
+export function saveRanchUnlockLevel(ws,value){
+  if(ws.running)throw Error('请先暂停计算，再修改解锁等级。');
+  const unlockLevel=ranchUnlockLevel({unlockLevel:value});
+  if(unlockLevel>ws.base.maxLevel)throw Error(`解锁等级不能超过当前数据的 Lv ${ws.base.maxLevel}。`);
+  const next=readRanchSettings(ws.services.storage,ws.storageKey);next.unlockLevel=unlockLevel;
+  ws.services.storage.setItem(ws.storageKey,JSON.stringify(next));ws.settings=next;
+  notifyRanchChange(ws.storageKey,'unlock',ws.services.storage);
 }
 // Only local edits override the latest stored settings. An idle detail tab must
 // not restore an old copy of another view's targets or quantities on navigation.
@@ -108,6 +117,7 @@ export function ranchFitIsCurrent(fit,group,options,model=null){
 export async function calculateRanchWorkspace(ws,{mode='quantity',signal,onProgress=()=>{},onChange=()=>{}}={}){
   if(!['schedule','quantity'].includes(mode))throw Error('未知计算方式。');
   if(ws.running)throw Error('当前项目正在计算。');
+  const plans=ranchUnlockedPlans(ws.plans,ws.settings);
   ws.running=true;let owned=null,active=null,saveQueue=Promise.resolve(),lastSave=0,saveError=null,requestSequence=0;
   const pendingEdits=new Map(),pendingRatios=new Map();
   const flushQuantities=()=>{
@@ -125,7 +135,7 @@ export async function calculateRanchWorkspace(ws,{mode='quantity',signal,onProgr
   };
   const queueSave=plan=>{saveQueue=saveQueue.then(()=>persistPlan(plan)).catch(error=>{saveError=error;});return saveQueue;};
   const changed=plan=>{onChange();if(Date.now()-lastSave>1500){lastSave=Date.now();queueSave(plan);}};
-  const progress=(plan,phase,index,total,message)=>onProgress({level:plan.level,index,total,phase,message,totalLevels:ws.plans.length});
+  const progress=(plan,phase,index,total,message)=>onProgress({level:plan.level,index,total,phase,message,totalLevels:plans.length});
   const persistQuantity=(plan,group,fit,options)=>{
     if(!pendingEdits.has(plan.level))pendingEdits.set(plan.level,new Map());pendingEdits.get(plan.level).set(group.id,group.slots.map(v=>v.quantity));
     const target=readRanchTarget(ws.settings,plan.level);
@@ -174,10 +184,10 @@ export async function calculateRanchWorkspace(ws,{mode='quantity',signal,onProgr
     try{worker.postMessage(phase==='quantity'?{requestId,mode:'quantity',base:ws.base,groups:items,level:plan.level,capacities:plan.capacities,options,baselines:Object.fromEntries(items.map(g=>[g.id,plan.results.get(g.key)]))}:{requestId,base:ws.base,groups:items.map(g=>({...g,id:g.key})),level:plan.level,capacities:plan.capacities,timeLimitMs:Number(ws.settings.searchLimit??2000)});}catch(error){finish(error);}
   });
   try{
-    if(mode==='quantity')for(const p of ws.plans)if(p.groups.length)validateRanchTarget(readRanchTarget(ws.settings,p.level));
-    for(const p of ws.plans)for(const g of p.groups){const r=p.results.get(g.key);if(proven(r))reuse.set(JSON.stringify([p.capacities,g.key]),{group:g,result:r});}
-    for(const p of ws.plans)for(const g of p.groups){const fit=p.quantityFits.get(g.id);if(fit?.options&&ranchFitIsCurrent(fit,g,fit.options,ws.model))fitReuse.set(ranchQuantityFitKey(ws.model,g,p.capacities,fit.options),fit);}
-    for(const plan of ws.plans){
+    if(mode==='quantity')for(const p of plans)if(p.groups.length)validateRanchTarget(readRanchTarget(ws.settings,p.level));
+    for(const p of plans)for(const g of p.groups){const r=p.results.get(g.key);if(proven(r))reuse.set(JSON.stringify([p.capacities,g.key]),{group:g,result:r});}
+    for(const p of plans)for(const g of p.groups){const fit=p.quantityFits.get(g.id);if(fit?.options&&ranchFitIsCurrent(fit,g,fit.options,ws.model))fitReuse.set(ranchQuantityFitKey(ws.model,g,p.capacities,fit.options),fit);}
+    for(const plan of plans){
       if(signal?.aborted)break;active=plan;plan.targetError=null;
       if(!plan.groups.length)continue;
       if(plan.capacityError){report.failed++;progress(plan,'error',0,plan.groups.length,`Lv ${plan.level}：${plan.capacityError}`);continue;}

@@ -1,3 +1,5 @@
+import {ranchUnlockLevel,ranchLevelUnlocked,ranchUnlockedPlans} from './ranch-unlock.js';
+import {saveRanchUnlockLevel} from './ranch-workspace.js';
 import {isQuantityConstraintIssue,uniqueQuantityIssueText} from './ranch-quantity-issues.js';
 import {ranchObjective} from './ranch-objective.js';
 import {createConfigClipboard} from './config-clipboard.js';
@@ -51,7 +53,8 @@ export function createRanchConfigPage(api={}){
   const doc=api.document??document,$=id=>doc.getElementById(id),loadWorkspace=api.loadRanchWorkspace??loadRanchWorkspace,readTarget=api.readRanchTarget??readRanchTarget,saveTargets=api.saveRanchTargets??saveRanchTargets,calculateWorkspace=api.calculateRanchWorkspace??calculateRanchWorkspace,watchWorkspace=api.watchRanchWorkspace??watchRanchWorkspace,makeClipboard=api.createConfigClipboard??createConfigClipboard;
   const body=$('ranchConfigRows'),head=$('ranchConfigHead');
   let ws=null,busy=false,loading=false,writing=false,controller=null,currentLevel=null,paused=false,headerAnchor=null,externalChange=false,disposed=false,activeRun=null,lastRunError=null,navigating=false;
-  const currentColumns=()=>ranchConfigColumns(ws?.settings),saveObjective=api.saveRanchObjective??saveRanchObjective;
+  const currentColumns=()=>ranchConfigColumns(ws?.settings),saveObjective=api.saveRanchObjective??saveRanchObjective,saveUnlock=api.saveRanchUnlockLevel??saveRanchUnlockLevel;
+  const activePlans=()=>ranchUnlockedPlans(ws?.plans??[],ws?.settings);
   function objectiveUI(){
     const coins=ranchObjective(ws?.settings)==='coins';$('ranchObjective').value=coins?'coins':'time';$('ranchObjective').disabled=busy||loading;
     $('primaryColumn').dataset.selectColumn=coins?'targetCoins':'targetHours';$('primaryColumn').innerHTML=`<button type="button" class="matrix-select-trigger">${coins?'四单金币总值 · 金币':'联合优化时间 · 小时'}</button>`;
@@ -74,10 +77,10 @@ export function createRanchConfigPage(api={}){
   }
   const clipboard=makeClipboard({root:body,getColumns:()=>currentColumns(),getRowCount:maxLevel,isBusy:()=>busy,onApply:apply,onRefresh:refresh,onMessage:message,onSelectionChange:highlight});
   function refresh(){
-    if(!ws)return;objectiveUI();const selection=$('ranchConfigSelection');if(selection){selection.textContent=ranchConfigSelectionSummary(ws.plans);selection.hidden=!selection.textContent;}
-    for(const plan of ws.plans){const row=body.querySelector(`tr[data-level="${plan.level}"]`);if(!row)continue;const state=ranchConfigRowState(plan,currentLevel);row.querySelector('[data-done-count]').textContent=`${number(state.done)} / ${number(state.total)}`;row.querySelector('[data-proven-count]').textContent=state.total?`最优已确认 ${number(state.proven)} 组`:'';const label=row.querySelector('[data-row-state]');label.textContent=state.text;label.className='ranch-config-state '+state.kind;label.title=state.detail;const issue=row.querySelector('[data-row-issue]'),detail=row.querySelector('[data-row-detail]');if(issue&&detail){issue.hidden=!state.detail;issue.dataset.kind=state.kind;detail.textContent=state.detail;}}
-    body.querySelectorAll('input[data-key]').forEach(input=>{input.disabled=busy;});
-    for(const id of ['fitRanchLevels'])$(id).disabled=busy||loading||!ws.plans.some(p=>p.groups.length);
+    if(!ws)return;objectiveUI();const unlock=$('ranchUnlockLevel');unlock.disabled=busy||loading;unlock.max=ws.base.maxLevel;if(doc.activeElement!==unlock)unlock.value=String(ranchUnlockLevel(ws.settings));$('ranchConfigSummary').textContent=`Lv ${ranchUnlockLevel(ws.settings)} 起解锁 · ${activePlans().length} 级参与总览、计算和导出`;const selection=$('ranchConfigSelection');if(selection){selection.textContent=ranchConfigSelectionSummary(activePlans());selection.hidden=!selection.textContent;}
+    for(const plan of ws.plans){const row=body.querySelector(`tr[data-level="${plan.level}"]`);if(!row)continue;const unlocked=ranchLevelUnlocked(plan.level,ws.settings),state=unlocked?ranchConfigRowState(plan,currentLevel):{done:0,proven:0,total:0,text:'未解锁',kind:'locked',detail:''};row.dataset.locked=String(!unlocked);const link=row.querySelector('a');if(link)link.hidden=!unlocked;row.querySelector('[data-done-count]').textContent=unlocked?`${number(state.done)} / ${number(state.total)}`:'—';row.querySelector('[data-proven-count]').textContent=state.total?`最优已确认 ${number(state.proven)} 组`:'';const label=row.querySelector('[data-row-state]');label.textContent=state.text;label.className='ranch-config-state '+state.kind;label.title=state.detail;const issue=row.querySelector('[data-row-issue]'),detail=row.querySelector('[data-row-detail]');if(issue&&detail){issue.hidden=!state.detail;issue.dataset.kind=state.kind;detail.textContent=state.detail;}}
+    body.querySelectorAll('input[data-key]').forEach(input=>{input.disabled=busy||!ranchLevelUnlocked(Number(input.dataset.level),ws.settings);});
+    for(const id of ['fitRanchLevels'])$(id).disabled=busy||loading||!activePlans().some(p=>p.groups.length);
     $('pauseRanchLevels').hidden=!busy;$('pauseRanchLevels').disabled=Boolean(controller?.signal.aborted);$('resumeRanchLevels').hidden=!paused||busy;$('resumeRanchLevels').disabled=loading;
     $('reloadRanchConfig').disabled=busy||loading;$('ranchConfigChanged').hidden=!externalChange;
   }
@@ -103,14 +106,14 @@ export function createRanchConfigPage(api={}){
     try{const next=await loadWorkspace();ws=next;invalid.clear();externalChange=false;paused=false;headerAnchor=null;$('ranchConfigWorkspace').hidden=!ws;$('ranchConfigEmpty').hidden=Boolean(ws);if(!ws)return;
       body.innerHTML=ws.plans.map(plan=>renderRanchConfigRow(plan,readTarget(ws.settings,plan.level))).join('');$('ranchConfigSummary').textContent=`${ws.base.maxLevel} 级 · 同建筑与高级加工链共用目标`;message('');$('ranchConfigProgressWrap').hidden=true;clipboard.refresh();
     }catch(e){error(e.message);if(!ws){$('ranchConfigWorkspace').hidden=true;$('ranchConfigEmpty').hidden=false;}}
-    finally{loading=false;refresh();if(ws)error(ranchConfigProblemSummary(ws.plans));}
+    finally{loading=false;refresh();if(ws)error(ranchConfigProblemSummary(activePlans()));}
   }
   async function performRun(){
     const mode='quantity';
     let lastPaint=0;const paintProgress=()=>{if(Date.now()-lastPaint>=160){lastPaint=Date.now();refresh();}};
     if(busy||loading||!ws)return;if(!commit(doc.activeElement)||invalid.size){error([...invalid.values()][0]||'请先修正无效数值。');return;}
     busy=true;paused=false;lastRunError=null;controller=new AbortController();const signal=controller.signal;error('');message('');$('ranchConfigProgressWrap').hidden=false;$('ranchConfigProgress').value=0;$('ranchConfigProgressText').textContent='开始按目标配量…';refresh();
-    try{const report=await calculateWorkspace(ws,{mode,signal,onProgress:p=>{currentLevel=p.level??null;const value=p.total>0?Math.max(0,Math.min(1,p.index/p.total)):0;$('ranchConfigProgress').value=value;$('ranchConfigProgressText').textContent=p.message||(p.level?`Lv ${p.level} · ${p.index??0} / ${p.total??0}`:'计算中…');paintProgress();},onChange:paintProgress});if(!signal.aborted){$('ranchConfigProgress').value=1;$('ranchConfigProgressText').textContent=report?.failed?`本轮完成 · ${number(report.failed)} 项需处理`:report?.excluded?'本轮计算完成 · 筛选结果已保存':'本轮计算完成';error(ranchConfigProblemSummary(ws.plans)||(report?.failed?`本轮有 ${number(report.failed)} 项未完成，请查看各级状态。`:''));}}
+    try{const report=await calculateWorkspace(ws,{mode,signal,onProgress:p=>{currentLevel=p.level??null;const value=p.total>0?Math.max(0,Math.min(1,p.index/p.total)):0;$('ranchConfigProgress').value=value;$('ranchConfigProgressText').textContent=p.message||(p.level?`Lv ${p.level} · ${p.index??0} / ${p.total??0}`:'计算中…');paintProgress();},onChange:paintProgress});if(!signal.aborted){$('ranchConfigProgress').value=1;$('ranchConfigProgressText').textContent=report?.failed?`本轮完成 · ${number(report.failed)} 项需处理`:report?.excluded?'本轮计算完成 · 筛选结果已保存':'本轮计算完成';error(ranchConfigProblemSummary(activePlans())||(report?.failed?`本轮有 ${number(report.failed)} 项未完成，请查看各级状态。`:''));}}
     catch(e){lastRunError=e;error(e.message);}
     finally{paused=signal.aborted;busy=false;currentLevel=null;controller=null;if(paused)$('ranchConfigProgressText').textContent=lastRunError?'已停止，部分结果未保存':'已暂停，已完成结果已保留';refresh();if(!paused)maybeReload();}
   }
@@ -134,6 +137,7 @@ export function createRanchConfigPage(api={}){
   });
   head.addEventListener('click',event=>{const cell=event.target.closest?.('[data-select-column],[data-select-group],[data-select-all]');if(cell){event.preventDefault();selectHeader(cell,event.shiftKey);}});
   body.addEventListener('click',event=>{const cell=event.target.closest?.('[data-select-row]');if(cell){event.preventDefault();selectHeader(cell,event.shiftKey);}});
+  $('ranchUnlockLevel').onchange=()=>{if(!ws||busy||loading)return;try{if(!commit(doc.activeElement)||invalid.size)throw Error('请先修正无效输入。');if($('ranchUnlockLevel').validity?.badInput)throw Error('请输入有效的解锁等级。');writing=true;saveUnlock(ws,$('ranchUnlockLevel').value);clipboard.refresh();refresh();error(ranchConfigProblemSummary(activePlans()));message(`已保存：牧场从 Lv ${ranchUnlockLevel(ws.settings)} 解锁`);}catch(e){$('ranchUnlockLevel').value=String(ranchUnlockLevel(ws.settings));error(e.message);}finally{writing=false;}};
   $('ranchObjective').onchange=()=>{if(!ws||busy||loading)return;try{if(!commit(doc.activeElement)||invalid.size)throw Error('请先修正无效输入。');writing=true;saveObjective(ws,$('ranchObjective').value);invalid.clear();headerAnchor=null;body.innerHTML=ws.plans.map(p=>renderRanchConfigRow(p,readTarget(ws.settings,p.level))).join('');clipboard.refresh();refresh();message('已切换配量目标；原有另一套目标值已保留。');}catch(e){error(e.message);objectiveUI();}finally{writing=false;}};
   $('reloadRanchConfig').onclick=load;$('fitRanchLevels').onclick=()=>run();$('pauseRanchLevels').onclick=()=>{controller?.abort();refresh();};$('resumeRanchLevels').onclick=()=>run();
   const unwatch=watchWorkspace(()=>{if(writing)return;externalChange=true;refresh();maybeReload();});

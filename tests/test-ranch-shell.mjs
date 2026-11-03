@@ -21,7 +21,7 @@ function harness({existing=false,view='dashboard',filename='测试项目.xlsx'}=
   elements.set('ranchShell',header);elements.set('message',message);
   const window={location:{href:'http://example.test/orders/ranch.html',origin:'http://example.test'},addEventListener:(type,fn)=>events.set(type,fn)};
   const document={body:{dataset:{ranchView:view}},getElementById:id=>elements.get(id)??null,querySelector:selector=>selector==='main'?main:null,addEventListener:(type,fn)=>documentEvents.set(type,fn)};
-  vm.runInNewContext(source,{document,window,URL,URLSearchParams,setupRanchRulesDialog:()=>({open(){}}),ranchSource:()=>({filename})});
+  vm.runInNewContext(source,{document,window,URL,URLSearchParams,setupFuelRules:()=>{},setupRanchRulesDialog:()=>({open(){}}),ranchSource:()=>({filename})});
   const nav=elements.get('ranchNavigation');
   const linkFor=(href,attributes='',label='')=>({href,attributes,label,getAttribute:name=>name==='href'?href:null,hasAttribute:name=>attributes.includes(name),target:''});
   const links=[...nav.html.matchAll(/<a href="([^"]+)"([^>]*)>([^<]+)<\/a>/g)].map(([,href,attributes,label])=>linkFor(href,attributes,label));

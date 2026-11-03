@@ -1,4 +1,5 @@
 import {readFuelRules} from './fuel-rewards.js';
+import {ranchUnlockLevel,ranchUnlockedPlans} from './ranch-unlock.js';
 import {ranchObjective} from './ranch-objective.js';
 import {ranchDashboardRows,ranchDashboardSummary,renderRanchBoxPlot,renderRanchMetricTrend,renderRanchHistogram,renderRanchDistributionEmpty,ranchDistributionCSV,ranchLevelLink,formatMinutes} from './ranch-distribution.js';
 import {loadRanchWorkspace,readRanchTarget,calculateRanchWorkspace,watchRanchWorkspace} from './ranch-workspace.js';
@@ -46,13 +47,13 @@ async function load(){
   const generation=++loadToken,selected=$('distributionLevel').value;loading=true;showError('');controls();
   try{
     const loaded=await loadRanchWorkspace();if(generation!==loadToken)return;
-    workspace=loaded;plans=loaded?.plans??[];
+    workspace=loaded;plans=loaded?ranchUnlockedPlans(loaded.plans,loaded.settings):[];
     $('distributionEmpty').hidden=!!loaded;$('distributionWorkspace').hidden=!loaded;
     if(!loaded)return;
-    $('distributionSource').textContent=`${loaded.filename||'当前牧场项目'} · ${loaded.base.products.length} 商品`;
+    $('distributionSource').textContent=`${loaded.filename||'当前牧场项目'} · ${loaded.base.products.length} 商品 · Lv ${ranchUnlockLevel(loaded.settings)} 起解锁`;
     window.dispatchEvent(new CustomEvent('ranch:source',{detail:{filename:loaded.filename,meta:`${loaded.base.products.length} 商品`}}));
     $('distributionLevel').innerHTML=plans.map(p=>`<option value="${p.level}">Lv ${p.level}</option>`).join('');
-    $('distributionLevel').value=String(plans.some(p=>p.level===Number(selected))?selected:Math.min(loaded.base.maxLevel,Math.max(1,Number(loaded.settings.level)||1)));
+    $('distributionLevel').value=String(plans.some(p=>p.level===Number(selected))?selected:plans.find(p=>p.level===Number(loaded.settings.level))?.level??plans[0]?.level??'');
     $('distributionProgress').textContent='已读取保存的配量与排产结果';render();
   }catch(error){if(generation===loadToken)showError(error.message||'读取失败，请重新加载。');}
   finally{if(generation===loadToken){loading=false;controls();}}
@@ -67,7 +68,7 @@ async function calculate(){
     $('distributionProgress').textContent=own.signal.aborted?'已暂停 · 已完成结果保留':report?.failed?`本轮完成 · ${report.failed} 项需处理，请查看各级状态`:report?.excluded?`本轮计算完成 · ${report.excluded} 组未纳入实际订单`:'本轮计算完成 · 待证明组合可继续计算';
   }catch(error){if(!own.signal.aborted)showError(error.message||'计算中断，可继续计算。');else $('distributionProgress').textContent='已暂停 · 已完成结果保留';}
   finally{
-    clearTimeout(paintTimer);paintTimer=null;running=false;controller=null;pendingRun=null;plans=workspace.plans;render();controls();
+    clearTimeout(paintTimer);paintTimer=null;running=false;controller=null;pendingRun=null;plans=ranchUnlockedPlans(workspace.plans,workspace.settings);render();controls();
     if(reloadQueued){reloadQueued=false;await load();}
   }
 }

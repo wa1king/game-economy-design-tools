@@ -1,3 +1,4 @@
+import {ranchUnlockLevel,ranchLevelUnlocked,ranchUnlockedPlans} from '../orders/ranch-unlock.js';
 import {ranchObjective} from '../orders/ranch-objective.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -41,7 +42,7 @@ for(const match of app.matchAll(/\$\('([^']+)'\)/g))assert(elements.has(match[1]
 assert(html.includes('data-ranch-view="dashboard"'));assert(html.includes('ranch-config.html'));assert(!app.includes('new Worker'));assert(!app.includes('saveRanchCache'));
 let loadCount=0,watchCallback,watchDisposed=false,activeCall=null,lastCSV='',loadValue={filename:'mock.xlsx',base:{maxLevel:2,products:[{}]},settings:{level:2},plans:structuredClone(plans)},failNext=false;
 const typeButtons=['all','building','chain'].map(type=>{const e=new Element();e.dataset.type=type;return e;}),events=[],windowHandlers={},calls=[];
-const context=vm.createContext({readFuelRules:()=>({coinsPerFuel:10}),ranchObjective,console,structuredClone,AbortController,CustomEvent:class{constructor(type,options){this.type=type;this.detail=options.detail;}},setTimeout,clearTimeout,
+const context=vm.createContext({ranchUnlockLevel,ranchLevelUnlocked,ranchUnlockedPlans,readFuelRules:()=>({coinsPerFuel:10}),ranchObjective,console,structuredClone,AbortController,CustomEvent:class{constructor(type,options){this.type=type;this.detail=options.detail;}},setTimeout,clearTimeout,
   ranchDashboardRows,ranchDashboardSummary,renderRanchBoxPlot,renderRanchMetricTrend,renderRanchHistogram,renderRanchDistributionEmpty,ranchDistributionCSV,ranchLevelLink,formatMinutes,
   loadRanchWorkspace:async()=>{loadCount++;return loadValue;},readRanchTarget:(settings,level)=>targets[level],watchRanchWorkspace:callback=>{watchCallback=callback;return()=>{watchDisposed=true;};},
   calculateRanchWorkspace:async(workspace,options)=>{calls.push({workspace,options});if(failNext){failNext=false;throw Error('模拟计算失败');}return new Promise(resolve=>{activeCall={workspace,options,resolve};options.signal.addEventListener('abort',resolve,{once:true});});},
@@ -77,6 +78,12 @@ test('external updates wait until active calculation finishes and pause is re-en
 });
 failNext=true;await elements.get('calculateDistribution').onclick();await flush();
 test('runner errors are visible and leave a retryable page',()=>{assert.equal(elements.get('distributionError').hidden,false);assert.equal(elements.get('distributionError').textContent,'模拟计算失败');assert.equal(elements.get('calculateDistribution').disabled,false);});
+loadValue={filename:'mock.xlsx',base:{maxLevel:2,products:[{}]},settings:{level:1,unlockLevel:2},plans:structuredClone(plans)};
+await elements.get('reloadDistribution').onclick();
+test('overview excludes locked grades from tables, charts, counts and level choices without computing',()=>{
+  assert(!elements.get('distributionLevel').innerHTML.includes('Lv 1'));assert.equal(elements.get('distributionLevel').value,'2');
+  assert(!elements.get('distributionRows').innerHTML.includes('Lv 1'));assert(!elements.get('optimizedPlot').innerHTML.includes('level=1'));assert(elements.get('distributionSource').textContent.includes('Lv 2 起解锁'));
+});
 loadValue=null;await elements.get('reloadDistribution').onclick();
 test('missing project has an import entry, no stale results and no calculation',()=>{assert.equal(elements.get('distributionEmpty').hidden,false);assert.equal(elements.get('distributionWorkspace').hidden,true);assert.equal(elements.get('calculateDistribution').disabled,true);assert(html.includes('导入 Excel →'));windowHandlers.pagehide();assert.equal(watchDisposed,true);});
 console.log(checks+' ranch dashboard checks passed');

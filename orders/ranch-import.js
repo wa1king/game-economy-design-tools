@@ -1,5 +1,6 @@
 import {DEFAULT_CROP_QUANTITY} from './order-quantity-rules.js';
 import {prepareRanch,ranchCapacities,solveRanchGroup} from './ranch-engine.js';
+import {ranchUnlockLevel} from './ranch-unlock.js';
 import {generateRanchLevelGroups} from './ranch-catalog.js';
 import {quantityGroup,hasEqualProductQuantities} from './ranch-quantity.js';
 
@@ -33,7 +34,7 @@ export async function calculateRanchImport(payload,{settings={},onProgress=()=>{
   const rules={cropQuantity:Number(chosen.cropQuantity??DEFAULT_CROP_QUANTITY),productQuantity:Number(chosen.productQuantity??1),allowRepeated:chosen.allowRepeated??false,sameBuildingRepeated:true,sameBuildingNoCrops:true};
   if(typeof rules.allowRepeated!=='boolean')throw Error('重复商品规则必须为勾选状态。');
   const migrated=structuredClone(settings),plans=[];
-  for(let level=1;level<=(base.maxLevel??20);level++){
+  for(let level=ranchUnlockLevel(settings);level<=(base.maxLevel??20);level++){
     const capacities={...ranchCapacities(model,level),...(settings.capacities?.[level]??{})};
     for(const source of base.sources)if(!Number.isSafeInteger(Number(capacities[source.id]))||Number(capacities[source.id])<1)throw Error(`Lv ${level} 的 ${source.name} 缺少有效产能。`);
     const {groups}=generateRanchLevelGroups(model,level,rules),edits=settings.quantityEdits?.[level]??{};

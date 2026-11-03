@@ -1,13 +1,14 @@
+import {ranchUnlockLevel,ranchLevelUnlocked,ranchUnlockedPlans} from '../orders/ranch-unlock.js';
 import {isQuantityConstraintIssue,uniqueQuantityIssueText} from '../orders/ranch-quantity-issues.js';
 import {ranchObjective} from '../orders/ranch-objective.js';
-import {saveRanchObjective} from '../orders/ranch-workspace.js';
+import {saveRanchObjective,saveRanchUnlockLevel} from '../orders/ranch-workspace.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
 import {createConfigClipboard} from '../orders/config-clipboard.js';
 
 const html=fs.readFileSync(new URL('../orders/ranch-config.html',import.meta.url),'utf8'),source=fs.readFileSync(new URL('../orders/ranch-config-app.js',import.meta.url),'utf8');
-const context=vm.createContext({isQuantityConstraintIssue,uniqueQuantityIssueText,ranchObjective,saveRanchObjective,console,AbortController,createConfigClipboard});
+const context=vm.createContext({ranchUnlockLevel,ranchLevelUnlocked,ranchUnlockedPlans,saveRanchUnlockLevel,isQuantityConstraintIssue,uniqueQuantityIssueText,ranchObjective,saveRanchObjective,console,AbortController,createConfigClipboard});
 vm.runInContext(source.replace(/^import .*;\r?\n/gm,'').replace(/^export /gm,''),context);
 const evaluate=(expression,args={})=>{Object.assign(context,args);return vm.runInContext(expression,context);};
 const columns=evaluate('RANCH_CONFIG_COLUMNS'),defaults={targetCoins:'300',coinTolerance:'30',targetHours:'6',targetTolerance:'30',targetWork:'',fitCropMax:'42',fitProductMax:'12',quantityBudget:'2500'};
@@ -68,14 +69,14 @@ function createDocument(){
   head.cells=columns.map(key=>new Element(doc,{selectColumn:key}));head.all=new Element(doc,{selectAll:''});head.querySelectorAll=selector=>selector==='[data-select-column]'?head.cells:[];head.querySelector=selector=>selector==='[data-select-all]'?head.all:null;
   return doc;
 }
-function setup({empty=false,failLoad=false,holdAfterAbort=false}={}){
-  const doc=createDocument(),workspace={base:{maxLevel:3},filename:'synthetic.xlsx',settings:{quantityTargetsByLevel:{1:{targetHours:'6.50'}}},plans:[plan(1,0),plan(2),plan(3)]};let writes=0,loads=0,watch=null,unwatched=false,pending=null;const runs=[];
+function setup({empty=false,failLoad=false,holdAfterAbort=false,unlockLevel}={}){
+  const doc=createDocument(),workspace={base:{maxLevel:3},filename:'synthetic.xlsx',settings:{...(unlockLevel!=null?{unlockLevel}:{}),quantityTargetsByLevel:{1:{targetHours:'6.50'}}},plans:[plan(1,0),plan(2),plan(3)]};let writes=0,loads=0,watch=null,unwatched=false,pending=null;const runs=[];
   function read(settings,level){return {...defaults,objective:ranchObjective(settings),...settings.quantityTargetsByLevel?.[level]};}
   function save(ws,cells){
     const draft=structuredClone(ws.settings);for(const {level,key,value} of cells){const n=Number(value);if(![...columns,'targetCoins','coinTolerance'].includes(key)||!Number.isInteger(level)||level<1||level>3)throw Error('无效单元格');if(!(key==='targetWork'&&value==='')&&(!Number.isFinite(n)||(['targetTolerance','coinTolerance'].includes(key)?n<0:n<=0)))throw Error('需要正数；允许偏差可为 0');if(key.startsWith('fit')&&!Number.isInteger(n))throw Error('数量上限需要整数');((draft.quantityTargetsByLevel??={})[level]??={})[key]=String(value);}
     ws.settings=draft;writes++;watch?.();
   }
-  const api={document:doc,createConfigClipboard,readRanchTarget:read,loadRanchWorkspace:async()=>{loads++;if(failLoad)throw Error('导入配方不完整');return empty?null:workspace;},saveRanchTargets:save,saveRanchObjective:(ws,objective)=>{ws.settings={...ws.settings,objective};writes++;watch?.();},watchRanchWorkspace:callback=>{watch=callback;return ()=>{unwatched=true;};},calculateRanchWorkspace:(ws,options)=>{runs.push(options);return new Promise((resolve,reject)=>{pending={resolve,reject,options};options.signal.addEventListener('abort',()=>{if(!holdAfterAbort)resolve();});});}};
+  const api={document:doc,createConfigClipboard,readRanchTarget:read,loadRanchWorkspace:async()=>{loads++;if(failLoad)throw Error('导入配方不完整');return empty?null:workspace;},saveRanchTargets:save,saveRanchUnlockLevel:(ws,value)=>{const level=ranchUnlockLevel({unlockLevel:value});if(level>ws.base.maxLevel)throw Error('超出当前等级');ws.settings={...ws.settings,unlockLevel:level};writes++;watch?.();},saveRanchObjective:(ws,objective)=>{ws.settings={...ws.settings,objective};writes++;watch?.();},watchRanchWorkspace:callback=>{watch=callback;return ()=>{unwatched=true;};},calculateRanchWorkspace:(ws,options)=>{runs.push(options);return new Promise((resolve,reject)=>{pending={resolve,reject,options};options.signal.addEventListener('abort',()=>{if(!holdAfterAbort)resolve();});});}};
   const page=evaluate('createRanchConfigPage(api)',{api});
   return {doc,workspace,page,runs,get writes(){return writes;},get loads(){return loads;},get pending(){return pending;},get unwatched(){return unwatched;},notify:()=>watch(),input:(level,key)=>doc.getElementById('ranchConfigRows').inputs.get(level+':'+key),get:id=>doc.getElementById(id)};
 }
@@ -149,5 +150,12 @@ await test('coin target columns support downward fill and switching back preserv
   const input=c.input(2,'targetCoins');input.value='330';c.get('ranchConfigRows').emit('keydown',{target:input,key:'Enter',ctrlKey:true});
   assert.equal(c.workspace.settings.quantityTargetsByLevel[2].targetCoins,'330');assert.equal(c.workspace.settings.quantityTargetsByLevel[3].targetCoins,'330');assert.equal(c.input(1,'targetCoins').value,'300');
   c.get('ranchObjective').value='time';c.get('ranchObjective').onchange();assert.equal(c.input(1,'targetHours').value,'6.50');assert.equal(c.workspace.settings.quantityTargetsByLevel[2].targetCoins,'330');c.page.dispose();
+});
+await test('unlock control persists once, disables only locked rows and can re-enable preserved targets without calculating',async()=>{
+  const u=setup({unlockLevel:2});await u.page.ready;
+  assert.equal(u.get('ranchUnlockLevel').value,'2');assert(u.input(1,'targetHours').disabled);assert(!u.input(2,'targetHours').disabled);assert.equal(u.get('ranchConfigRows').rows.get(1).querySelector('[data-row-state]').textContent,'未解锁');assert.equal(u.runs.length,0);assert.equal(u.writes,0);
+  const input=u.get('ranchUnlockLevel');input.value='3';input.onchange();assert.equal(u.workspace.settings.unlockLevel,3);assert(u.input(2,'targetHours').disabled);assert.equal(u.writes,1);assert.equal(u.input(1,'targetHours').value,'6.50');
+  input.value='0';input.onchange();assert.equal(u.workspace.settings.unlockLevel,3);assert.equal(u.writes,1);
+  input.value='1';input.onchange();assert(!u.input(1,'targetHours').disabled);assert.equal(u.input(1,'targetHours').value,'6.50');assert.equal(u.runs.length,0);u.page.dispose();
 });
 console.log(checks+' ranch config checks passed');

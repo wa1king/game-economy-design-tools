@@ -19,7 +19,7 @@
         <div><h1>全部等级配置</h1><p id="ranchConfigSummary">读取项目中…</p><p id="ranchConfigSelection" class="ranch-config-selection" hidden></p></div>
         <div class="ranch-config-actions"><button id="fitRanchLevels" class="primary" type="button">按目标配量并计算</button><button id="pauseRanchLevels" type="button" hidden>暂停</button><button id="resumeRanchLevels" class="primary" type="button" hidden>继续计算</button></div>
       </div>
-      <div class="ranch-config-toolbar"><label>配量目标 <select id="ranchObjective" aria-label="牧场配量目标"><option value="time">联合优化时间</option><option value="coins">四单金币总值</option></select></label><span>点列头选列 · 点等级选行 · Ctrl+C / V · Ctrl+Enter 向下填充</span><span id="ranchConfigMessage" role="status" aria-live="polite"></span></div>
+      <div class="ranch-config-toolbar"><div class="ranch-config-options"><label>牧场解锁等级 <input id="ranchUnlockLevel" aria-label="牧场解锁等级" type="number" min="1" step="1"></label><label>配量目标 <select id="ranchObjective" aria-label="牧场配量目标"><option value="time">联合优化时间</option><option value="coins">四单金币总值</option></select></label></div><span>点列头选列 · 点等级选行 · Ctrl+C / V · Ctrl+Enter 向下填充</span><span id="ranchConfigMessage" role="status" aria-live="polite"></span></div>
       <div id="ranchConfigProgressWrap" class="ranch-config-progress" hidden><progress id="ranchConfigProgress" max="1" value="0" aria-label="全部等级计算进度"></progress><span id="ranchConfigProgressText" role="status" aria-live="polite"></span></div>
       <div class="ranch-config-scroll">
         <table id="ranchConfigTable" aria-label="牧场全部等级目标配置">
