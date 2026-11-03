@@ -32,7 +32,7 @@ export function createOutcomeAnalysis(onFilter){
       [metrics[0],num(t.p50,0),'分钟',`中位数 · 中间 80%：${num(t.p10,0)}–${num(t.p90,0)} 分钟`],
       [metrics[1],num(c.mean),'',`中位数 ${num(c.p50,0)} · 90% 订单不超过 ${num(c.p90,0)}`],
       [metrics[2],num(data.directCropOrderProbability*100,1),'%',`直接索要作物 · 纯作物 ${pct(data.pureCropOrderProbability)}`],
-      [metrics[3],num(data.stats.coinReward.mean,0),'金币/单',data.coinRewardCoverage.missingOrderCount?`${data.coinRewardCoverage.missingOrderCount} 张可生成订单缺少金币单价`:`概率加权 · 物品价值 × ${data.coinRewardCoverage.multiplier}${data.coinRewardCoverage.estimatedProbability?' · 含估算单价':''}`]
+      [metrics[3],num(data.stats.coinReward.mean,0),'金币/单',data.coinRewardCoverage.missingOrderCount?`${data.coinRewardCoverage.missingOrderCount} 张可生成订单缺少金币单价`:`平均燃料 ${num(data.stats.fuelReward.mean,2)} / 单 · 概率加权 · 物品价值 × ${data.coinRewardCoverage.multiplier}${data.coinRewardCoverage.estimatedProbability?' · 含估算单价':''}`]
     ];
     $('metrics').innerHTML=values.map(([name,value,unit,sub])=>`<div><small>${name===metrics[3]?`<a class="coin-analysis-link" href="#ordinaryCoinAnalysis">${name} ↓</a>`:name}</small><strong>${value}<em>${unit}</em></strong><span class="sub">${sub}</span></div>`).join('');
     $('complexityStats').innerHTML=[['平均',c.mean],['中位数',c.p50],['90%不超过',c.p90],['最小',c.min],['最大',c.max]].map(([label,v])=>`<span>${label}<b>${num(v)}</b></span>`).join('');

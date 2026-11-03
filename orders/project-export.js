@@ -1,15 +1,16 @@
+import {readFuelRules,ordinaryFuelReward} from './fuel-rewards.js';
 import {customOrdersAt,normalizeCustomOrders} from './custom-orders.js';
 import {ordinaryOrderReward} from './coin-values.js';
 const n=value=>Number.isFinite(value)?value:null;
 export function dashboardExportSheets(levels){
-  const summary=[['等级','状态','平均累计工时分钟','中位累计工时分钟','平均累计复杂度','中位累计复杂度','平均金币奖励','金币奖励统计状态','含作物订单概率','候选订单数','非零订单数','目标累计工时分钟','实际累计工时分钟','目标工时波动%','实际工时波动%','种类最大偏差百分点','来源最大偏差百分点','来源约束','工时形态','问题说明']];
+  const summary=[['等级','状态','平均累计工时分钟','中位累计工时分钟','平均累计复杂度','中位累计复杂度','平均金币奖励','金币奖励统计状态','含作物订单概率','候选订单数','非零订单数','目标累计工时分钟','实际累计工时分钟','目标工时波动%','实际工时波动%','种类最大偏差百分点','来源最大偏差百分点','来源约束','工时形态','问题说明','平均燃料奖励','兑换1燃料所需金币']];
   const sources=[['等级','状态','来源ID','来源名称','来源可用','来源约束','实际工时占比','目标工时占比','目标偏差百分点']];
   const custom=[['等级','状态','定制订单内容','定制订单数','不可用定制订单数','定制平均累计工时分钟','非定制平均累计工时分钟','差值分钟（定制−非定制）','非定制剩余概率','非定制非零订单数','对照状态']];
   const labels={matched:'目标达标',approximate:'近似解',blocked:'需调整',not_fitted:'未拟合 / 结果待更新'};
   for(const row of levels){
     const d=row.dashboard,o=d?.outcome,v=d?.comparison,status=labels[row.status]??row.status;
     const missing=o?.coinRewardCoverage.missingOrderCount;
-    summary.push([row.level,status,n(o?.stats.time.mean),n(o?.stats.time.p50),n(o?.stats.complexity.mean),n(o?.stats.complexity.p50),n(o?.stats.coinReward.mean),!o?'待拟合':o.empty?'无非零概率订单':missing?'缺少单价':o.coinRewardCoverage.estimatedProbability>0?'含估算单价':'完整',o&&!o.empty?o.directCropOrderProbability:null,d?.candidateOrders??null,d?.nonZeroOrders??null,n(d?.targetMean),n(d?.actualMean),n(d?.targetSpreadPercent),n(d?.actualSpreadPercent),n(d?.mixMaxDeviationPoints),n(d?.sourceMaxDeviationPoints),row.rawSettings?.sourceEnabled?'启用':'未约束',d?.timeShape??null,row.error??(d?.problems?.join('\n')||null)]);
+    summary.push([row.level,status,n(o?.stats.time.mean),n(o?.stats.time.p50),n(o?.stats.complexity.mean),n(o?.stats.complexity.p50),n(o?.stats.coinReward.mean),!o?'待拟合':o.empty?'无非零概率订单':missing?'缺少单价':o.coinRewardCoverage.estimatedProbability>0?'含估算单价':'完整',o&&!o.empty?o.directCropOrderProbability:null,d?.candidateOrders??null,d?.nonZeroOrders??null,n(d?.targetMean),n(d?.actualMean),n(d?.targetSpreadPercent),n(d?.actualSpreadPercent),n(d?.mixMaxDeviationPoints),n(d?.sourceMaxDeviationPoints),row.rawSettings?.sourceEnabled?'启用':'未约束',d?.timeShape??null,row.error??(d?.problems?.join('\n')||null),n(o?.stats.fuelReward?.mean),readFuelRules().coinsPerFuel]);
     for(const s of d?.sources??[])sources.push([row.level,status,s.id,s.name,s.active?'是':'否',s.constrained?'启用':'未约束',n(s.actualShare),n(s.targetShare),n(s.deviationPoints)]);
     custom.push([row.level,status,v?.entries.map(e=>`${e.sequence}. ${e.order?.description??e.id+'（不可用）'}`).join('\n')??'',v?.entries.length??0,v?.invalid??0,n(v?.customMean),n(v?.normalMean),n(v?.delta),o?n(v?.normalMass):null,o?v?.normalCount??null:null,v?.invalid?'含不可用订单':!v?.entries.length?'未配置定制订单':!o?'待拟合':v.normalMean==null?'无非定制概率':'可对照']);
   }
@@ -20,7 +21,7 @@ export function dashboardExportSheets(levels){
   ];
 }
 export function projectExportSheets(catalog,project,levels,getTiming=()=>null){
-  const products=new Map(catalog.products.map(p=>[p.id,p])),selection=normalizeCustomOrders(project.customOrders,catalog.maxLevel);
+  const products=new Map(catalog.products.map(p=>[p.id,p])),ordersById=new Map(catalog.orders.map(o=>[o.id,o])),fuelConfig=readFuelRules(),selection=normalizeCustomOrders(project.customOrders,catalog.maxLevel);
   if(levels.reduce((sum,row)=>sum+(row.fit?.orders.length??0),1)>1048576||Object.values(selection.levels).reduce((sum,ids)=>sum+ids.length,1)>1048576)throw Error('订单数量超过 Excel 单表行数上限，请减少导出等级或候选订单。');
   const common=['订单ID','商品内容','商品种类数','最低等级','累计工时分钟','累计复杂度','商品金币总值','订单金币奖励',...Array.from({length:3},(_,i)=>[`商品${i+1}ID`,`商品${i+1}名称`,`商品${i+1}数量`]).flat()];
   const commonRow=o=>[o.id,o.description,o.itemTypes,o.minimumLevel,o.cumulativeMinutes,o.cumulativeComplexity,n(o.coinValue),ordinaryOrderReward(o,products),...Array.from({length:3},(_,i)=>{const item=o.items[i];return item?[item.id,products.get(item.id)?.name??'',item.quantity]:[null,null,null];}).flat()];
@@ -40,7 +41,7 @@ export function projectExportSheets(catalog,project,levels,getTiming=()=>null){
     {name:'定制订单',rows:custom,widths:[8,12,24,48]},
     {name:'等级配置',rows:summary,widths:[8,26,18,18,18,20,23,21,16,20]},
     ...dashboardExportSheets(levels)
-  ];
+  ].map(sheet=>{if(['概率订单','定制订单'].includes(sheet.name)){const offset=sheet.name==='概率订单'?1:2;sheet.rows[0].push('燃料奖励','兑换1燃料所需金币');for(let i=1;i<sheet.rows.length;i++){const row=sheet.rows[i],order=ordersById.get(row[offset]);row.push(order?ordinaryFuelReward(order,products,fuelConfig):null,fuelConfig.coinsPerFuel);}}if(sheet.name==='等级配置'){sheet.rows[0].push('兑换1燃料所需金币');for(const row of sheet.rows.slice(1))row.push(fuelConfig.coinsPerFuel);}return sheet;});
 }
 const xml=value=>String(value).replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g,'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&apos;'}[c]));
 const col=index=>{let text='';for(let i=index+1;i;i=Math.floor((i-1)/26))text=String.fromCharCode(65+(i-1)%26)+text;return text;};

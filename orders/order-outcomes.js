@@ -1,3 +1,4 @@
+import {readFuelRules,fuelReward} from './fuel-rewards.js';
 import {availableAt, productionCalculator, validateProducts} from './order-engine.js';
 import {ordinaryOrderReward,ORDINARY_ORDER_REWARD_MULTIPLIER} from './coin-values.js';
 
@@ -108,8 +109,9 @@ function weightedStats(entries) {
  */
 export function summarizeOrderOutcomes(catalog, result, level = result?.config?.level ?? catalog.maxLevel) {
   if (!Number.isInteger(level) || level < 1) throw Error('结果分析需要有效等级。');
+  const fuelConfig=readFuelRules();
   const cached = result && resultCache.get(result)?.get(catalog)?.get(level);
-  if (cached && cached.probabilities === result.probabilities) return cached.summary;
+  if (cached && cached.probabilities === result.probabilities && cached.coinsPerFuel===fuelConfig.coinsPerFuel) return cached.summary;
   const prepared = prepare(catalog);
   const products = prepared.products.filter(product => product.level <= level).map(product => ({
     ...product, directOrderProbability: 0, directQuantityPer100Orders: 0
@@ -119,7 +121,7 @@ export function summarizeOrderOutcomes(catalog, result, level = result?.config?.
   }));
   const summary = {
     empty: true, level, orderCount: 0, probabilityMass: 0, excludedProbabilityMass: 0,
-    stats: {time: emptyStats(), complexity: emptyStats(),coinReward:emptyStats()}, complexityDistribution: [],
+    stats: {time: emptyStats(), complexity: emptyStats(),coinReward:emptyStats(),fuelReward:emptyStats()}, complexityDistribution: [],
     coinRewardCoverage:{multiplier:ORDINARY_ORDER_REWARD_MULTIPLIER,pricedProbability:0,missingProbability:0,estimatedProbability:0,missingOrderCount:0},
     directCropOrderProbability: 0, pureCropOrderProbability: 0,
     mixedCropOrderProbability: 0, noCropOrderProbability: 0, cropChainOrderProbability: 0,
@@ -142,13 +144,13 @@ export function summarizeOrderOutcomes(catalog, result, level = result?.config?.
   summary.orderCount = rows.length;
   const productRows = new Map(products.map(product => [product.id, product]));
   const cropRows = new Map(crops.map(product => [product.id, product]));
-  const times = [], complexities = [], rewards=[],distribution = new Map();
+  const times = [], complexities = [], fuels=[], rewards=[],distribution = new Map();
   for (const row of rows) {
     const probability = row.probability / summary.probabilityMass, detail = prepared.describe(row.order);
     times.push({value: row.order.cumulativeMinutes, probability});
     complexities.push({value: detail.complexity, probability});
     if(detail.reward===null){summary.coinRewardCoverage.missingProbability+=probability;summary.coinRewardCoverage.missingOrderCount++;}
-    else{rewards.push({value:detail.reward,probability});summary.coinRewardCoverage.pricedProbability+=probability;if(detail.estimatedReward)summary.coinRewardCoverage.estimatedProbability+=probability;}
+    else{rewards.push({value:detail.reward,probability});fuels.push({value:fuelReward(detail.reward,fuelConfig),probability});summary.coinRewardCoverage.pricedProbability+=probability;if(detail.estimatedReward)summary.coinRewardCoverage.estimatedProbability+=probability;}
     if (!distribution.has(detail.complexity)) distribution.set(detail.complexity, {complexity: detail.complexity, probability: 0, orderCount: 0});
     const bucket = distribution.get(detail.complexity);
     bucket.probability += probability;
@@ -181,11 +183,11 @@ export function summarizeOrderOutcomes(catalog, result, level = result?.config?.
       crop.productionMinutesPer100Orders += probability * requirement.productionMinutes * 100;
     }
   }
-  summary.stats = {time: weightedStats(times), complexity: weightedStats(complexities),coinReward:summary.coinRewardCoverage.missingOrderCount?emptyStats():weightedStats(rewards)};
+  summary.stats = {time: weightedStats(times), complexity: weightedStats(complexities),coinReward:summary.coinRewardCoverage.missingOrderCount?emptyStats():weightedStats(rewards),fuelReward:summary.coinRewardCoverage.missingOrderCount||fuels.some(v=>v.value===null)?emptyStats():weightedStats(fuels)};
   summary.complexityDistribution = [...distribution.values()].sort((a, b) => a.complexity - b.complexity);
   for (const crop of crops) for (const key of Object.keys(summary.cropTotals)) summary.cropTotals[key] += crop[key];
   if (!resultCache.has(result)) resultCache.set(result, new WeakMap());
   if (!resultCache.get(result).has(catalog)) resultCache.get(result).set(catalog, new Map());
-  resultCache.get(result).get(catalog).set(level, {probabilities: result.probabilities, summary});
+  resultCache.get(result).get(catalog).set(level, {probabilities: result.probabilities, coinsPerFuel:fuelConfig.coinsPerFuel, summary});
   return summary;
 }

@@ -1,3 +1,5 @@
+import {setupFuelRules} from './fuel-rules-view.js';
+import {ordinaryFuelReward,readFuelRules} from './fuel-rewards.js';
 import {writeSharedChainSource,readSharedChainSource,matchingChainIds,SHARED_CHAIN_KEY} from './shared-chain-source.js';
 import {prepareConfigCellEdits} from './config-clipboard.js';
 import {resultFeedback} from './fit-feedback.js';
@@ -40,6 +42,8 @@ let nameSuggestion,nameRequest=0;
 let orderTimingService;
 const fitCache=createFitCache({onError:()=>{ $('projectStorageNotice').textContent='拟合结果未能保存到浏览器，请检查存储空间；当前页面结果仍可使用。';$('projectStorageNotice').hidden=false;}});
 function orderTimings(){return orderTimingService??=createOrderTimingService({onChange:()=>{if(!$('customPanel').hidden)customOrdersView?.refreshTimings();}});}
+setupFuelRules();
+window.addEventListener('orders:fuel-changed',()=>{if(!catalog||!project)return;if(result)renderResult();else if(itemInfo)renderTable();renderDashboard();customOrdersView?.refreshRewards();});
 const results=new Map(),errors=new Map(),infos=new Map(),jobs=new Map(),colors=['#75a28b','#3f8268','#244f40'];
 const info=level=>{if(!infos.has(level))infos.set(level,levelInfo(catalog,level));return infos.get(level);};
 const settings=()=>project.configs[activeLevel];
@@ -288,7 +292,7 @@ function renderTable(){
   const reward=o=>ordinaryOrderReward(o,itemInfo.products),coinRate=o=>o.cumulativeMinutes>0&&reward(o)!==null?reward(o)/o.cumulativeMinutes*60:null;
   const sort=$('sort').value,direction=$('sortDirection').value==='asc'?1:-1;list.sort((a,b)=>{if(sort==='coins'||sort==='coinRate'){const av=sort==='coins'?reward(a.o):coinRate(a.o),bv=sort==='coins'?reward(b.o):coinRate(b.o);return av===null||bv===null?av===bv?0:av===null?1:-1:direction*(av-bv);}return direction*(sort==='time'?a.o.cumulativeMinutes-b.o.cumulativeMinutes:sort==='complexity'?a.o.cumulativeComplexity-b.o.cumulativeComplexity:sort==='id'?a.o.id.localeCompare(b.o.id):(a.p||0)-(b.p||0));});
   const size=30,pages=Math.max(1,Math.ceil(list.length/size));page=Math.max(0,Math.min(page,pages-1));itemInfo.hide();
-  $('orderRows').innerHTML=list.slice(page*size,(page+1)*size).map(({o,p,weight})=>`<tr><td>${escape(o.id)}</td><td>${renderOrderItems(o,itemInfo.products)}</td><td>${o.itemTypes}</td><td>${fmt(o.cumulativeMinutes,0)} 分钟</td><td>${o.cumulativeComplexity}</td><td><details class="coin-order-detail"><summary>${reward(o)===null?'缺少单价':fmt(reward(o),0)}</summary>${renderCoinBreakdown(o.items,itemInfo.products,{multiplier:ORDINARY_ORDER_REWARD_MULTIPLIER})}</details></td><td>${coinRate(o)===null?'—':fmt(coinRate(o),0)}</td><td>${orderProbabilityText(p)}</td><td>${weight==null?(p==null?'—':fmt(p*1e6,4)):fmt(weight,0)}</td></tr>`).join('')||'<tr><td colspan="9" class="empty">没有符合条件的订单</td></tr>';
+  $('orderRows').innerHTML=list.slice(page*size,(page+1)*size).map(({o,p,weight})=>`<tr><td>${escape(o.id)}</td><td>${renderOrderItems(o,itemInfo.products)}</td><td>${o.itemTypes}</td><td>${fmt(o.cumulativeMinutes,0)} 分钟</td><td>${o.cumulativeComplexity}</td><td><details class="coin-order-detail"><summary>${reward(o)===null?'缺少单价':fmt(reward(o),0)}</summary>${renderCoinBreakdown(o.items,itemInfo.products,{multiplier:ORDINARY_ORDER_REWARD_MULTIPLIER})}</details></td><td>${ordinaryFuelReward(o,itemInfo.products)??'—'}</td><td>${coinRate(o)===null?'—':fmt(coinRate(o),0)}</td><td>${orderProbabilityText(p)}</td><td>${weight==null?(p==null?'—':fmt(p*1e6,4)):fmt(weight,0)}</td></tr>`).join('')||'<tr><td colspan="10" class="empty">没有符合条件的订单</td></tr>';
   $('pageLabel').textContent=`${list.length.toLocaleString()} 单 · ${page+1} / ${pages}`;$('prev').disabled=page===0;$('next').disabled=page>=pages-1;$('tableHint').textContent=`Lv ${activeLevel}`;
   $('timeFilter').hidden=!selectedTimeRange;$('timeFilterLabel').textContent=selectedTimeRange?`${selectedTimeRange.start}～${selectedTimeRange.end} 分钟`:'';
 }
@@ -437,8 +441,9 @@ $('exportProject').onclick=()=>{
 };
 $('closeProjectExport').onclick=()=>$('projectExportDialog').close();
 $('exportProjectJSON').onclick=()=>{
-  const levels=exportLevels().map(row=>({...row,customTasks:customOrdersAt(catalog,project.customOrders,row.level)}));
-  download(JSON.stringify({schemaVersion:'order-project-export-v3',probabilityScale:project.probabilityScale,filename:project.filename,source:catalog.source,rules:project.rules,coinValues:coinValueCoverage(catalog.products),products:catalog.products,sources:catalog.sources,customOrders:project.customOrders,levels},null,2),'逐级订单配置.json','application/json');
+  const products=new Map(catalog.products.map(p=>[p.id,p])),fuelConfig=readFuelRules();
+  const levels=exportLevels().map(row=>({...row,fit:row.fit?{...row.fit,orders:row.fit.orders.map(o=>({...o,fuelReward:ordinaryFuelReward(o,products,fuelConfig)}))}:row.fit,customTasks:customOrdersAt(catalog,project.customOrders,row.level).map(task=>({...task,fuelReward:task.order?ordinaryFuelReward(task.order,products,fuelConfig):null}))}));
+  download(JSON.stringify({schemaVersion:'order-project-export-v3',probabilityScale:project.probabilityScale,fuelRules:readFuelRules(),filename:project.filename,source:catalog.source,rules:project.rules,coinValues:coinValueCoverage(catalog.products),products:catalog.products,sources:catalog.sources,customOrders:project.customOrders,levels},null,2),'逐级订单配置.json','application/json');
 };
 $('exportWorkbook').onclick=async()=>{
   $('exportWorkbook').disabled=$('exportProjectJSON').disabled=true;$('projectExportError').hidden=true;

@@ -1,3 +1,4 @@
+import {readFuelRules,fuelReward} from './fuel-rewards.js';
 import {DEFAULT_CROP_QUANTITY} from './order-quantity-rules.js';
 import {prepareRanch,ranchCapacities,groupMetrics} from './ranch-engine.js';
 import {generateRanchLevelGroups,remapRanchResult} from './ranch-catalog.js';
@@ -66,29 +67,31 @@ export function ranchDashboardTarget(raw={}){
   return {minutes:valid?minutes:null,tolerance:valid?tolerance:null,lower:valid?Math.max(0,minutes-tolerance):null,upper:valid?minutes+tolerance:null,work:Number.isFinite(work)&&work>0?work:null};
 }
 
-export function ranchDashboardRows(plans,targets={},type='all'){
+export function ranchDashboardRows(plans,targets={},type='all',rules=readFuelRules()){
   const byLevel=new Map(plans.map(p=>[p.level,p]));
   return ranchDistributionRows(plans,type).map(row=>{
-    const plan=byLevel.get(row.level),candidates=plan.groups.filter(g=>g.types.includes(row.type)),groups=ranchActualGroups(plan,targets[row.level]).filter(g=>g.types.includes(row.type)),complexity=[],coins=[];
+    const plan=byLevel.get(row.level),candidates=plan.groups.filter(g=>g.types.includes(row.type)),groups=ranchActualGroups(plan,targets[row.level]).filter(g=>g.types.includes(row.type)),complexity=[],coins=[],fuels=[];
     for(const group of groups){
       const m=plan.metrics?.get(group.key);
+      const fuel=planFuelReward(plan,group,rules);if(fuel!==null)fuels.push(fuel);
       if(Number.isFinite(m?.complexity)&&m.complexity>=0)complexity.push(m.complexity);
       if(Number.isFinite(m?.coinValue)&&m.coinValue>=0)coins.push(m.coinValue);
     }
+    const fuelStats=summarizeMinutes(fuels);if(fuels.length!==groups.length)fuelStats.mean=null;
     const target=ranchDashboardTarget(targets[row.level]),within=groups.length;
     const statusGroups=candidates.map(g=>{if(!hasEqualProductQuantities(g))return {key:`${plan.level}:${g.key}`,state:'pending'};const r=plan.results.get(g.key);return {key:`${plan.level}:${g.key}`,state:r?.proven&&Number.isFinite(r.optimalMinutes)&&r.optimalMinutes>=0?'proven':r&&!r.proven?'bounded':plan.failures.has(g.key)?'failed':'pending'};});
     const work=groups.map(g=>plan.work.get(g.key)),optimized=groups.map(g=>plan.results.get(g.key).optimalMinutes),coinStats=summarizeMinutes(coins);
     if(coins.length!==groups.length)coinStats.mean=null;
     const admissions=candidates.map(g=>({key:`${plan.level}:${g.key}`,...ranchPlanAdmission(plan,g,targets[row.level])}));
-    return {...row,target,accepted:groups.length,within,withinShare:row.proven?within/row.proven:null,work:summarizeMinutes(work),optimized:summarizeMinutes(optimized),workValues:work,optimizedValues:optimized,complexity:summarizeMinutes(complexity),coins:coinStats,missingCoins:groups.length-coins.length,statusGroups,admissions};
+    return {...row,target,accepted:groups.length,within,withinShare:row.proven?within/row.proven:null,work:summarizeMinutes(work),optimized:summarizeMinutes(optimized),workValues:work,optimizedValues:optimized,complexity:summarizeMinutes(complexity),coins:coinStats,fuel:fuelStats,coinsPerFuel:rules.coinsPerFuel,missingCoins:groups.length-coins.length,statusGroups,admissions};
   });
 }
 
 // Totals visit each level's actual groups once, even when a group belongs to
 // both categories. Missing/bounded schedules never enter exact-time statistics.
-export function ranchDashboardSummary(plans,targets={},type='all'){
+export function ranchDashboardSummary(plans,targets={},type='all',rules=readFuelRules()){
   const result={levels:plans.length,total:0,accepted:0,proven:0,bounded:0,pending:0,failed:0,within:0,targetedProven:0,missingCoins:0,capacityLevels:0,excluded:0};
-  const times=[],work=[],coins=[];
+  const times=[],work=[],coins=[],fuels=[];
   for(const plan of plans){
     const target=ranchDashboardTarget(targets[plan.level]),groups=plan.groups.filter(g=>type==='all'||g.types.includes(type));
     if(groups.length&&plan.capacityError)result.capacityLevels++;
@@ -97,6 +100,7 @@ export function ranchDashboardSummary(plans,targets={},type='all'){
       if(seen.has(g.key))continue;seen.add(g.key);result.total++;
       const r=plan.results.get(g.key),m=plan.metrics?.get(g.key);
       if(ranchPlanAdmission(plan,g,targets[plan.level]).accepted){
+        const fuel=planFuelReward(plan,g,rules);if(fuel!==null)fuels.push(fuel);
         result.accepted++;times.push(r.optimalMinutes);work.push(plan.work.get(g.key));
         if(Number.isFinite(m?.coinValue)&&m.coinValue>=0)coins.push(m.coinValue);else result.missingCoins++;
       }
@@ -111,6 +115,7 @@ export function ranchDashboardSummary(plans,targets={},type='all'){
   }
   result.withinShare=result.targetedProven?result.within/result.targetedProven:null;
   result.excluded=result.total-result.accepted;result.optimized=summarizeMinutes(times);result.work=summarizeMinutes(work);result.coins=summarizeMinutes(coins);
+  result.fuel=summarizeMinutes(fuels);if(fuels.length!==result.accepted)result.fuel.mean=null;result.coinsPerFuel=rules.coinsPerFuel;
   if(result.missingCoins)result.coins.mean=null;
   return result;
 }
@@ -127,7 +132,7 @@ export function renderRanchDistributionEmpty(rows,metric='optimized'){
 
 export function renderRanchMetricTrend(rows,metric){
   const hasValue=row=>row?.[metric]?.n&&Number.isFinite(row[metric].mean);
-  const label=metric==='complexity'?'平均累计复杂度':'平均金币总值',unit=metric==='complexity'?'种 / 组':'金币 / 组';
+  const label=metric==='complexity'?'平均累计复杂度':metric==='fuel'?'平均燃料总数':'平均金币总值',unit=metric==='complexity'?'种 / 组':metric==='fuel'?'燃料 / 组':'金币 / 组';
   if(!rows.some(hasValue))return `<div class="distribution-chart-empty auxiliary-empty"><strong>${metric==='coins'&&rows.some(r=>r.missingCoins)?'实际订单缺少完整金币单价':'暂无达标实际订单'}</strong></div>`;
   const levels=[...new Set(rows.map(r=>r.level))],width=Math.max(640,levels.length*34+75),height=218,left=48,right=width-20,top=30,bottom=177,step=(right-left)/Math.max(1,levels.length-1),max=ceiling(Math.max(...rows.map(r=>r[metric]?.mean??0),...rows.map(r=>metric==='coins'?r.target?.coinUpper??0:0))),x=level=>levels.length===1?(left+right)/2:left+levels.indexOf(level)*step,y=value=>bottom-value/max*(bottom-top),parts=[];
   for(let i=0;i<=4;i++){const value=max*i/4;parts.push(`<line x1="${left}" x2="${right}" y1="${y(value)}" y2="${y(value)}" stroke="#e7ede8"/><text x="${left-8}" y="${y(value)+4}" text-anchor="end">${formatMinutes(value)}</text>`);}
@@ -188,7 +193,13 @@ export function renderRanchHistogram(rows,metric){
 }
 
 export function ranchDistributionCSV(rows){
-  const header=['等级','类型','组合数','已证明最优','待证明','待计算','失败','优化最小(分)','优化P25(分)','优化中位(分)','优化均值(分)','优化P75(分)','优化最大(分)','累计最小(分)','累计P25(分)','累计中位(分)','累计均值(分)','累计P75(分)','累计最大(分)','优化目标(分)','允许偏差(分)','累计工时目标(分)','目标内已证明组数','目标内占已证明比例','平均累计复杂度','平均金币总值','缺少单价组数'];
+  const header=['等级','类型','组合数','已证明最优','待证明','待计算','失败','优化最小(分)','优化P25(分)','优化中位(分)','优化均值(分)','优化P75(分)','优化最大(分)','累计最小(分)','累计P25(分)','累计中位(分)','累计均值(分)','累计P75(分)','累计最大(分)','优化目标(分)','允许偏差(分)','累计工时目标(分)','目标内已证明组数','目标内占已证明比例','平均累计复杂度','平均金币总值','缺少单价组数','平均燃料总数','兑换1燃料所需金币'];
   const keys=['min','q1','median','mean','q3','max'];
-  return '\uFEFF'+[header,...rows.map(r=>[r.level,r.name,r.total,r.proven,r.bounded,r.pending,r.failed,...keys.map(k=>r.optimized[k]),...keys.map(k=>r.work[k]),r.target?.minutes,r.target?.tolerance,r.target?.work,r.within,r.withinShare,r.complexity?.mean,r.coins?.mean,r.missingCoins])].map(r=>r.map(v=>'"'+String(v??'').replaceAll('"','""')+'"').join(',')).join('\r\n');
+  return '\uFEFF'+[header,...rows.map(r=>[r.level,r.name,r.total,r.proven,r.bounded,r.pending,r.failed,...keys.map(k=>r.optimized[k]),...keys.map(k=>r.work[k]),r.target?.minutes,r.target?.tolerance,r.target?.work,r.within,r.withinShare,r.complexity?.mean,r.coins?.mean,r.missingCoins,r.fuel?.mean,r.coinsPerFuel])].map(r=>r.map(v=>'"'+String(v??'').replaceAll('"','""')+'"').join(',')).join('\r\n');
+}
+
+export function planFuelReward(plan,group,rules=readFuelRules()){
+  const values=plan.orderCoinBalance?.get(group.key)?.values??(plan.model?orderCoinBalance(plan.model,group).values:[]);
+  if(values.length!==4)return null;
+  const fuel=values.map(v=>fuelReward(v,rules));return fuel.some(v=>v===null)?null:fuel.reduce((a,b)=>a+b,0);
 }

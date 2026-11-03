@@ -56,7 +56,7 @@ try{
   assert.equal(opened,null,'Trend navigation is disabled while fitting');
   busy=false;
   current=null;dashboard.render();
-  assert.equal((root.innerHTML.match(/拟合后显示趋势/g)||[]).length,3,'Empty levels must display three safe empty charts');
+  assert.equal((root.innerHTML.match(/拟合后显示趋势/g)||[]).length,4,'Empty levels must display safe empty charts including fuel');
 }finally{
   if(previousDocument===undefined)delete globalThis.document;else globalThis.document=previousDocument;
 }
