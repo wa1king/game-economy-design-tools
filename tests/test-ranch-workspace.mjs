@@ -43,7 +43,7 @@ test('coin mode runner persists goal-based quantities and reuses them without tr
   assert.equal(readRanchTarget(loaded.settings,1).targetHours,target.targetHours);
   const rows=ranchDashboardRows(loaded.plans,Object.fromEntries(loaded.plans.map(p=>[p.level,readRanchTarget(loaded.settings,p.level)])));
   for(const row of rows.filter(r=>r.type==='building')){assert.equal(row.accepted,1);assert.equal(row.coins.mean,300);assert.equal(row.optimized.mean,1800);assert.equal(row.target.minutes,null);}
-  const sheets=ranchExportSheets(loaded),actual=sheets.find(s=>s.name==='实际同建筑订单');assert.equal(actual.rows.length,3);
+  const sheets=ranchExportSheets(loaded),actual=sheets.find(s=>s.name==='全部实际订单');assert.equal(actual.rows.length,3);
   const summary=sheets[0];assert.equal(summary.rows[1][summary.rows[0].indexOf('金币目标')],300);assert.equal(summary.rows[1][9],null);
 });
 

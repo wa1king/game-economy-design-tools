@@ -82,7 +82,7 @@ test('ranch details and statistics use per-slot flooring and only actual admitte
   plan.results.set(group.key,{proven:true,optimalMinutes:20,feasibleMinutes:20,lowerMinutes:20});
   const targets={2:{objective:'coins',targetCoins:76,coinTolerance:0}},row=ranchDashboardRows(ws.plans,targets).find(r=>r.level===2&&r.type==='building');
   assert.equal(row.accepted,1);assert.equal(row.fuel.mean,4);assert.equal(ranchDashboardSummary(ws.plans,targets).fuel.mean,4);
-  const before=JSON.stringify(group),sheets=ranchExportSheets(ws),actual=sheets.find(s=>s.name==='实际同建筑订单');
+  const before=JSON.stringify(group),sheets=ranchExportSheets(ws),actual=sheets.find(s=>s.name==='全部实际订单');
   assert.equal(actual.rows.length,2);
   for(const letter of 'ABCD')assert.equal(actual.rows[1][actual.rows[0].indexOf(letter+'燃料奖励')],1);
   assert.equal(actual.rows[1][actual.rows[0].indexOf('四单燃料奖励合计')],4);

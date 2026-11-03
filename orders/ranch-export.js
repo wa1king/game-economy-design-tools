@@ -1,14 +1,12 @@
 import {readFuelRules,ranchFuelReward} from './fuel-rewards.js';
 import {ranchGoal} from './ranch-objective.js';
-import {ranchCoinRangeText,ranchCoinRules} from './ranch-coin-rules.js';
-import {ranchTypes,ranchDashboardRows} from './ranch-distribution.js';
+import {ranchCoinRules} from './ranch-coin-rules.js';
+import {ranchDashboardRows} from './ranch-distribution.js';
 import {ranchPlanAdmission} from './ranch-actual-orders.js';
 import {readRanchTarget,loadRanchWorkspace} from './ranch-workspace.js';
 import {exportProjectWorkbook} from './project-export.js';
-import {hasEqualProductQuantities,orderCoinBalance} from './ranch-quantity.js';
 import {prepareRanch} from './ranch-engine.js';
 
-const valid=value=>Number.isFinite(value)&&value>=0?value:null;
 export function ranchExportSheets(ws){
   if(!ws?.plans)throw Error('请先导入加工链路 Excel。');
   const model=ws.model??prepareRanch(ws.base,ws.settings),fuelConfig=readFuelRules();
@@ -18,25 +16,20 @@ export function ranchExportSheets(ws){
     const target=readRanchTarget(ws.settings,row.level);
     summary.push([row.level,row.name,row.total,row.proven,row.bounded,row.pending,row.failed,row.optimized.mean,row.work.mean,target.objective==='coins'?null:Number(target.targetHours)*60,target.objective==='coins'?null:Number(target.targetTolerance),String(target.targetWork).trim()===''?null:Number(target.targetWork),ws.filename,row.accepted,row.missingCoins?null:row.coins.mean,ranchGoal(target).label,target.objective==='coins'?Number(target.targetCoins):null,target.objective==='coins'?Number(target.coinTolerance):null,ranchCoinRules(ws.settings).orderCoinMinPercent,ranchCoinRules(ws.settings).orderCoinMaxPercent,row.fuel.mean,fuelConfig.coinsPerFuel]);
   }
-  const sources=ws.base.sources??[],header=['等级','组合编号','订单内容',...['A','B','C','D'].flatMap(label=>[label+'商品 ID',label+'商品',label+'数量']),'联合优化时间（分钟，已证明）','可行排程时间（分钟）','时间下界（分钟）','排产状态','累计工时（分钟）','累计复杂度','金币总值',...sources.map(s=>s.name+'工时（分钟）'),...['A','B','C','D'].map(v=>v+'金币'),...['A','B','C','D'].map(v=>v+'金币占比（%）'),...['A','B','C','D'].map(v=>v+'燃料奖励'),'四单燃料奖励合计','兑换1燃料所需金币'];
-  const sheets=[{name:'等级汇总',rows:summary,widths:[10,18,12,14,12,12,12,27,24,24,22,24,42],integerColumns:[9]}];
-  for(const type of ranchTypes){
-    const rows=[header];
-    for(const plan of ws.plans)for(const group of plan.groups.filter(g=>g.types.includes(type.id))){
-      const balanceValid=plan.orderCoinBalance?.get(group.key)?.valid!==false,quantitiesValid=hasEqualProductQuantities(group),metric=plan.metrics.get(group.key),result=quantitiesValid?plan.results.get(group.key):null,failure=quantitiesValid?plan.failures.get(group.key):null;
-      const optimal=result?.proven?valid(result.optimalMinutes):null;
-      const status=!quantitiesValid?'相同商品数量不一致，待重新配量':optimal!=null?'已证明最优':valid(result?.feasibleMinutes)!=null?'待证明最优':failure?'排产失败':'未计算';
-      rows.push([plan.level,group.id,metric.slots.map(v=>`${v.name} × ${v.quantity}`).join(' + '),...metric.slots.flatMap(v=>[v.id,v.name,v.quantity]),optimal,valid(result?.feasibleMinutes),valid(result?.lowerMinutes),failure?status+'：'+String(failure.message??failure):!balanceValid&&quantitiesValid?status+`；单个订单金币占比不在${ranchCoinRangeText(ws.settings)}，待重新配量`:status,metric.totalMinutes,metric.complexity,metric.coinValue,...sources.map(s=>metric.sourceMinutes[s.id]??0),...orderCoinBalance(plan.model??model,group).values,...group.slots.map((_,i)=>{const v=orderCoinBalance(plan.model??model,group).shares[i];return Number.isFinite(v)?v*100:null;}),...ranchFuelReward(group,model.by,fuelConfig).values,ranchFuelReward(group,model.by,fuelConfig).total,fuelConfig.coinsPerFuel]);
+  const sources=ws.base.sources??[],header=['等级','订单内容',...['A','B','C','D'].flatMap(label=>[label+'商品 ID',label+'商品',label+'数量',label+'燃料奖励']),'四单燃料奖励合计','联合优化时间（分钟）','累计工时（分钟）','累计复杂度',...sources.map(s=>s.name+'工时（分钟）')],actualRows=[header];
+  for(const plan of [...ws.plans].sort((a,b)=>a.level-b.level)){
+    const seen=new Set();
+    for(const group of plan.groups){
+      if(seen.has(group.key)||!ranchPlanAdmission(plan,group,targets[plan.level]).accepted)continue;
+      seen.add(group.key);
+      const metric=plan.metrics.get(group.key),result=plan.results.get(group.key),fuel=ranchFuelReward(group,model.by,fuelConfig);
+      actualRows.push([plan.level,metric.slots.map(v=>`${v.name} × ${v.quantity}`).join(' + '),...metric.slots.flatMap((v,i)=>[v.id,v.name,v.quantity,fuel.values[i]]),fuel.total,result.optimalMinutes,metric.totalMinutes,metric.complexity,...sources.map(s=>metric.sourceMinutes[s.id]??0)]);
     }
-    const actualRows=[header],presets=[header.concat('实际订单入库状态')];let index=1;
-    for(const plan of ws.plans)for(const group of plan.groups.filter(g=>g.types.includes(type.id))){
-      const admission=ranchPlanAdmission(plan,group,targets[plan.level]),row=rows[index++];
-      presets.push([...row,admission.reason]);if(admission.accepted)actualRows.push(row);
-    }
-    sheets.push({name:'预设'+type.name+'组合',rows:presets,widths:header.map((_,i)=>i===2?68:i===18?32:18),integerColumns:[20,22]});
-    sheets.push({name:'实际'+type.name+'订单',rows:actualRows,widths:header.map((_,i)=>i===2?68:i===18?32:18),integerColumns:[20,22]});
   }
-  return sheets;
+  return [
+    {name:'等级汇总',rows:summary,widths:[10,18,12,14,12,12,12,27,24,24,22,24,42],integerColumns:[9]},
+    {name:'全部实际订单',rows:actualRows,widths:[8,68,...Array.from({length:4},()=>[14,20,10,14]).flat(),22,24,20,16,...sources.map(()=>20)],headerHeight:48,wrapColumns:[2],integerColumns:[5,6,9,10,13,14,17,18,19,21,22],decimalColumns:[20]}
+  ];
 }
 export async function downloadRanchWorkbook({beforeExport,load=loadRanchWorkspace,download}={}){
   await beforeExport?.();
