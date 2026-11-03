@@ -62,7 +62,7 @@ async function calculate(){
   try{
     pendingRun=calculateRanchWorkspace(workspace,{mode:'quantity',signal:own.signal,onProgress:progress=>{$('distributionProgress').textContent=progress.message||`计算 Lv ${progress.level} · ${progress.index??0} / ${progress.total??0}`;},onChange:schedulePaint});
     const report=await pendingRun;
-    $('distributionProgress').textContent=own.signal.aborted?'已暂停 · 已完成结果保留':report?.failed?`本轮完成 · ${report.failed} 项需处理，请查看各级状态`:report?.excluded?`本轮完成 · ${report.excluded} 组预设受限，其他达标订单正常统计`:'本轮计算完成 · 待证明组合可继续计算';
+    $('distributionProgress').textContent=own.signal.aborted?'已暂停 · 已完成结果保留':report?.failed?`本轮完成 · ${report.failed} 项需处理，请查看各级状态`:report?.excluded?`本轮计算完成 · ${report.excluded} 组未纳入实际订单`:'本轮计算完成 · 待证明组合可继续计算';
   }catch(error){if(!own.signal.aborted)showError(error.message||'计算中断，可继续计算。');else $('distributionProgress').textContent='已暂停 · 已完成结果保留';}
   finally{
     clearTimeout(paintTimer);paintTimer=null;running=false;controller=null;pendingRun=null;plans=workspace.plans;render();controls();
