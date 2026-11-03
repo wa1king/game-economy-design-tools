@@ -52,7 +52,7 @@ export function renderRanchConfigRow(plan,target){
 export function createRanchConfigPage(api={}){
   const doc=api.document??document,$=id=>doc.getElementById(id),loadWorkspace=api.loadRanchWorkspace??loadRanchWorkspace,readTarget=api.readRanchTarget??readRanchTarget,saveTargets=api.saveRanchTargets??saveRanchTargets,calculateWorkspace=api.calculateRanchWorkspace??calculateRanchWorkspace,watchWorkspace=api.watchRanchWorkspace??watchRanchWorkspace,makeClipboard=api.createConfigClipboard??createConfigClipboard;
   const body=$('ranchConfigRows'),head=$('ranchConfigHead');
-  let ws=null,busy=false,loading=false,writing=false,controller=null,currentLevel=null,paused=false,headerAnchor=null,externalChange=false,disposed=false,activeRun=null,lastRunError=null,navigating=false;
+  let ws=null,busy=false,loading=false,writing=false,controller=null,currentLevel=null,paused=false,headerAnchor=null,externalChange=false,disposed=false,activeRun=null,lastRunError=null,navigating=false,unlockError='';
   const currentColumns=()=>ranchConfigColumns(ws?.settings),saveObjective=api.saveRanchObjective??saveRanchObjective,saveUnlock=api.saveRanchUnlockLevel??saveRanchUnlockLevel;
   const activePlans=()=>ranchUnlockedPlans(ws?.plans??[],ws?.settings);
   function objectiveUI(){
@@ -65,7 +65,7 @@ export function createRanchConfigPage(api={}){
   function message(text){$('ranchConfigMessage').textContent=text??'';}
   function error(text){$('ranchConfigError').hidden=!text;$('ranchConfigError').textContent=text??'';}
   function highlight(range){
-    const allRows=range?.top===1&&range?.bottom===maxLevel(),allColumns=range?.left===0&&range?.right===currentColumns().length-1;
+    const allRows=range?.top===ranchUnlockLevel(ws?.settings)&&range?.bottom===maxLevel(),allColumns=range?.left===0&&range?.right===currentColumns().length-1;
     head.querySelectorAll('[data-select-column]').forEach(cell=>{const col=currentColumns().indexOf(cell.dataset.selectColumn);cell.classList.toggle('matrix-header-selected',Boolean(allRows&&col>=range.left&&col<=range.right));});
     body.querySelectorAll('[data-select-row]').forEach(cell=>cell.classList.toggle('matrix-header-selected',Boolean(allColumns&&Number(cell.dataset.selectRow)>=range.top&&Number(cell.dataset.selectRow)<=range.bottom)));
     head.querySelector('[data-select-all]')?.classList.toggle('matrix-header-selected',Boolean(allRows&&allColumns));
@@ -86,7 +86,7 @@ export function createRanchConfigPage(api={}){
   }
   function sync(cells){for(const cell of cells){const input=body.querySelector(`input[data-level="${cell.level}"][data-key="${cell.key}"]`);if(input)input.value=String(readTarget(ws.settings,cell.level)[cell.key]??'');}refresh();}
   function maybeReload(){
-    if(disposed||navigating||!externalChange||busy||loading||invalid.size||body.contains(doc.activeElement))return;
+    if(disposed||navigating||!externalChange||busy||loading||invalid.size||unlockError||body.contains(doc.activeElement)||doc.activeElement===$('ranchUnlockLevel'))return;
     void load();
   }
   function commit(input){
@@ -95,23 +95,23 @@ export function createRanchConfigPage(api={}){
     try{if(input.validity?.badInput)throw Error('请输入有效数字。');apply([cell]);refresh();message(`已保存 Lv ${cell.level} · ${LABELS[cell.key]}`);return true;}catch(e){const text=`Lv ${cell.level} ${LABELS[cell.key]}：${e.message}`;invalid.set(cell.level+':'+cell.key,text);input.setAttribute('aria-invalid','true');error(text);return false;}
   }
   function selectHeader(cell,shift){
-    if(!ws)return;const columns=currentColumns(),max=maxLevel();
-    if(cell.dataset.selectColumn!=null){const col=columns.indexOf(cell.dataset.selectColumn),start=shift&&headerAnchor?.type==='column'?headerAnchor.index:col;if(col<0)return;if(!shift||headerAnchor?.type!=='column')headerAnchor={type:'column',index:col};clipboard.selectRange({top:1,bottom:max,left:Math.min(start,col),right:Math.max(start,col)});}
+    if(!ws)return;const columns=currentColumns(),max=maxLevel(),first=ranchUnlockLevel(ws.settings);
+    if(cell.dataset.selectColumn!=null){const col=columns.indexOf(cell.dataset.selectColumn),start=shift&&headerAnchor?.type==='column'?headerAnchor.index:col;if(col<0)return;if(!shift||headerAnchor?.type!=='column')headerAnchor={type:'column',index:col};clipboard.selectRange({top:first,bottom:max,left:Math.min(start,col),right:Math.max(start,col)});}
     else if(cell.dataset.selectRow!=null){const level=Number(cell.dataset.selectRow),start=shift&&headerAnchor?.type==='row'?headerAnchor.index:level;if(!shift||headerAnchor?.type!=='row')headerAnchor={type:'row',index:level};clipboard.selectRange({top:Math.min(start,level),bottom:Math.max(start,level),left:0,right:columns.length-1});}
-    else if(cell.dataset.selectGroup!=null){const indices=cell.dataset.selectGroup.split(' ').map(key=>columns.indexOf(key)).filter(i=>i>=0);if(indices.length){headerAnchor=null;clipboard.selectRange({top:1,bottom:max,left:Math.min(...indices),right:Math.max(...indices)});}}
-    else{headerAnchor=null;clipboard.selectRange({top:1,bottom:max,left:0,right:columns.length-1});}
+    else if(cell.dataset.selectGroup!=null){const indices=cell.dataset.selectGroup.split(' ').map(key=>columns.indexOf(key)).filter(i=>i>=0);if(indices.length){headerAnchor=null;clipboard.selectRange({top:first,bottom:max,left:Math.min(...indices),right:Math.max(...indices)});}}
+    else{headerAnchor=null;clipboard.selectRange({top:first,bottom:max,left:0,right:columns.length-1});}
   }
   async function load(){
     if(busy||loading)return;loading=true;error('');refresh();
     try{const next=await loadWorkspace();ws=next;invalid.clear();externalChange=false;paused=false;headerAnchor=null;$('ranchConfigWorkspace').hidden=!ws;$('ranchConfigEmpty').hidden=Boolean(ws);if(!ws)return;
-      body.innerHTML=ws.plans.map(plan=>renderRanchConfigRow(plan,readTarget(ws.settings,plan.level))).join('');$('ranchConfigSummary').textContent=`${ws.base.maxLevel} 级 · 同建筑与高级加工链共用目标`;message('');$('ranchConfigProgressWrap').hidden=true;clipboard.refresh();
+      body.innerHTML=activePlans().map(plan=>renderRanchConfigRow(plan,readTarget(ws.settings,plan.level))).join('');$('ranchConfigSummary').textContent=`${ws.base.maxLevel} 级 · 同建筑与高级加工链共用目标`;message('');$('ranchConfigProgressWrap').hidden=true;clipboard.refresh();
     }catch(e){error(e.message);if(!ws){$('ranchConfigWorkspace').hidden=true;$('ranchConfigEmpty').hidden=false;}}
     finally{loading=false;refresh();if(ws)error(ranchConfigProblemSummary(activePlans()));}
   }
   async function performRun(){
     const mode='quantity';
     let lastPaint=0;const paintProgress=()=>{if(Date.now()-lastPaint>=160){lastPaint=Date.now();refresh();}};
-    if(busy||loading||!ws)return;if(!commit(doc.activeElement)||invalid.size){error([...invalid.values()][0]||'请先修正无效数值。');return;}
+    if(busy||loading||!ws)return;if(!commitUnlock()||!commit(doc.activeElement)||invalid.size){error(unlockError||[...invalid.values()][0]||'请先修正无效数值。');return;}
     busy=true;paused=false;lastRunError=null;controller=new AbortController();const signal=controller.signal;error('');message('');$('ranchConfigProgressWrap').hidden=false;$('ranchConfigProgress').value=0;$('ranchConfigProgressText').textContent='开始按目标配量…';refresh();
     try{const report=await calculateWorkspace(ws,{mode,signal,onProgress:p=>{currentLevel=p.level??null;const value=p.total>0?Math.max(0,Math.min(1,p.index/p.total)):0;$('ranchConfigProgress').value=value;$('ranchConfigProgressText').textContent=p.message||(p.level?`Lv ${p.level} · ${p.index??0} / ${p.total??0}`:'计算中…');paintProgress();},onChange:paintProgress});if(!signal.aborted){$('ranchConfigProgress').value=1;$('ranchConfigProgressText').textContent=report?.failed?`本轮完成 · ${number(report.failed)} 项需处理`:report?.excluded?'本轮计算完成 · 筛选结果已保存':'本轮计算完成';error(ranchConfigProblemSummary(activePlans())||(report?.failed?`本轮有 ${number(report.failed)} 项未完成，请查看各级状态。`:''));}}
     catch(e){lastRunError=e;error(e.message);}
@@ -123,7 +123,7 @@ export function createRanchConfigPage(api={}){
     const clear=()=>{if(activeRun===task)activeRun=null;};task.then(clear,clear);return task;
   }
   async function beforeNavigate({leaving=true}={}){
-    if(!commit(doc.activeElement)||invalid.size){const text=[...invalid.values()][0]||'请先修正无效数值。';error(text);throw Error(text);}
+    if(!commitUnlock()||!commit(doc.activeElement)||invalid.size){const text=unlockError||[...invalid.values()][0]||'请先修正无效数值。';error(text);throw Error(text);}
     navigating=leaving;const pending=activeRun;
     try{if(pending){controller?.abort();refresh();await pending;if(lastRunError)throw lastRunError;}}
     catch(e){navigating=false;error(e.message);throw e;}
@@ -137,8 +137,26 @@ export function createRanchConfigPage(api={}){
   });
   head.addEventListener('click',event=>{const cell=event.target.closest?.('[data-select-column],[data-select-group],[data-select-all]');if(cell){event.preventDefault();selectHeader(cell,event.shiftKey);}});
   body.addEventListener('click',event=>{const cell=event.target.closest?.('[data-select-row]');if(cell){event.preventDefault();selectHeader(cell,event.shiftKey);}});
-  $('ranchUnlockLevel').onchange=()=>{if(!ws||busy||loading)return;try{if(!commit(doc.activeElement)||invalid.size)throw Error('请先修正无效输入。');if($('ranchUnlockLevel').validity?.badInput)throw Error('请输入有效的解锁等级。');writing=true;saveUnlock(ws,$('ranchUnlockLevel').value);clipboard.refresh();refresh();error(ranchConfigProblemSummary(activePlans()));message(`已保存：牧场从 Lv ${ranchUnlockLevel(ws.settings)} 解锁`);}catch(e){$('ranchUnlockLevel').value=String(ranchUnlockLevel(ws.settings));error(e.message);}finally{writing=false;}};
-  $('ranchObjective').onchange=()=>{if(!ws||busy||loading)return;try{if(!commit(doc.activeElement)||invalid.size)throw Error('请先修正无效输入。');writing=true;saveObjective(ws,$('ranchObjective').value);invalid.clear();headerAnchor=null;body.innerHTML=ws.plans.map(p=>renderRanchConfigRow(p,readTarget(ws.settings,p.level))).join('');clipboard.refresh();refresh();message('已切换配量目标；原有另一套目标值已保留。');}catch(e){error(e.message);objectiveUI();}finally{writing=false;}};
+  function commitUnlock({strict=true}={}){
+    if(!ws)return true;
+    const input=$('ranchUnlockLevel');
+    try{
+      if(input.validity?.badInput)throw Error('请输入有效的解锁等级。');
+      const next=ranchUnlockLevel({unlockLevel:input.value});
+      if(next>maxLevel())throw Error(`解锁等级不能超过当前数据的 Lv ${maxLevel()}。`);
+      if(next===ranchUnlockLevel(ws.settings)){const hadError=Boolean(unlockError);unlockError='';input.removeAttribute('aria-invalid');if(hadError)error(invalid.size?[...invalid.values()][0]:ranchConfigProblemSummary(activePlans()));return true;}
+      if(busy||loading)throw Error('请先暂停计算，再修改解锁等级。');
+      writing=true;saveUnlock(ws,next);unlockError='';input.removeAttribute('aria-invalid');
+      for(const key of invalid.keys())if(Number(key.split(':')[0])<next)invalid.delete(key);
+      headerAnchor=null;paused=false;$('ranchConfigProgressWrap').hidden=true;body.innerHTML=activePlans().map(plan=>renderRanchConfigRow(plan,readTarget(ws.settings,plan.level))).join('');
+      clipboard.refresh();refresh();error(invalid.size?[...invalid.values()][0]:ranchConfigProblemSummary(activePlans()));message(`已保存：仅显示并导出 Lv ${next} 起的牧场订单`);return true;
+    }catch(e){unlockError=e.message;if(strict){input.setAttribute('aria-invalid','true');error(e.message);}return false;}
+    finally{writing=false;}
+  }
+  $('ranchUnlockLevel').oninput=()=>commitUnlock({strict:false});
+  $('ranchUnlockLevel').onchange=()=>commitUnlock();
+  $('ranchUnlockLevel').addEventListener('keydown',event=>{if(event.key==='Enter'){event.preventDefault();commitUnlock();}});
+  $('ranchObjective').onchange=()=>{if(!ws||busy||loading)return;try{if(!commit(doc.activeElement)||invalid.size)throw Error('请先修正无效输入。');writing=true;saveObjective(ws,$('ranchObjective').value);invalid.clear();headerAnchor=null;body.innerHTML=activePlans().map(p=>renderRanchConfigRow(p,readTarget(ws.settings,p.level))).join('');clipboard.refresh();refresh();message('已切换配量目标；原有另一套目标值已保留。');}catch(e){error(e.message);objectiveUI();}finally{writing=false;}};
   $('reloadRanchConfig').onclick=load;$('fitRanchLevels').onclick=()=>run();$('pauseRanchLevels').onclick=()=>{controller?.abort();refresh();};$('resumeRanchLevels').onclick=()=>run();
   const unwatch=watchWorkspace(()=>{if(writing)return;externalChange=true;refresh();maybeReload();});
   const ready=load();

@@ -1,3 +1,4 @@
+import fs from 'node:fs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {ranchUnlockLevel,ranchLevelUnlocked,ranchUnlockedPlans} from '../orders/ranch-unlock.js';
@@ -6,15 +7,15 @@ import {writeSharedChainSource} from '../orders/shared-chain-source.js';
 import {ranchSettingsKey,calculateRanchImport} from '../orders/ranch-import.js';
 import {prepareRanch,solveRanchGroup} from '../orders/ranch-engine.js';
 import {fitRanchQuantities} from '../orders/ranch-quantity.js';
-import {ranchExportSheets} from '../orders/ranch-export.js';
+import {ranchExportSheets,downloadRanchWorkbook} from '../orders/ranch-export.js';
 import {ranchDashboardRows,ranchDashboardSummary} from '../orders/ranch-distribution.js';
 
 const base={maxLevel:3,sources:[{id:10,name:'工坊',level:1}],products:[{id:1,name:'测试商品',level:1,buildingId:10,buildingName:'工坊',stepMinutes:10,analysisBatchYield:1,inputs:[],coinValue:10}]};
 const target={targetHours:String(40/60),targetTolerance:'0',targetWork:'40',fitCropMax:'1',fitProductMax:'1',quantityBudget:'1000'};
-async function setup(settings={}){
-  const map=new Map(),calls=[],saves=[];
-  const storage={getItem:k=>map.get(k)??null,setItem:(k,v)=>map.set(k,v)};writeSharedChainSource(base,'synthetic.xlsx',storage);storage.setItem(ranchSettingsKey(base),JSON.stringify(settings));
-  const ws=await loadRanchWorkspace({storage,loadCache:async()=>null,mergeCache:async(key,value)=>{saves.push(key);return value;},workerFactory:()=>({terminate(){},postMessage(data){calls.push(data);queueMicrotask(()=>{
+async function setup(settings={},fixture=base){
+  const map=new Map(),cache=new Map(),calls=[],saves=[];
+  const storage={getItem:k=>map.get(k)??null,setItem:(k,v)=>map.set(k,v)};writeSharedChainSource(fixture,'synthetic.xlsx',storage);storage.setItem(ranchSettingsKey(fixture),JSON.stringify(settings));
+  const ws=await loadRanchWorkspace({storage,loadCache:async key=>cache.get(key),mergeCache:async(key,value)=>{saves.push(key);cache.set(key,value);return value;},workerFactory:()=>({terminate(){},postMessage(data){calls.push(data);queueMicrotask(()=>{
     const model=prepareRanch(data.base);
     for(const [i,g] of data.groups.entries()){
       const result=data.mode==='quantity'?{type:'quantityResult',id:g.id,fit:fitRanchQuantities(model,g,data.level,data.capacities,data.options)}:{type:'result',id:g.id,result:solveRanchGroup(model,g,data.level,data.capacities)};
@@ -55,4 +56,20 @@ test('both computation modes skip locked grades, their invalid targets and capac
 test('legacy result import only recomputes unlocked grades and retains the unlock preference',async()=>{
   const levels=[],result=await calculateRanchImport({schema:'ranch-precomputed-v1',base},{settings:{unlockLevel:2},solve:(model,g,level,capacities)=>{levels.push(level);return solveRanchGroup(model,g,level,capacities);}});
   assert(levels.length);assert(levels.every(level=>level>=2));assert.equal(result.settings.unlockLevel,2);
+});
+
+test('the downloaded workbook reloads a just-committed Lv 12 gate and neither sheet contains grades 1 through 11',async()=>{
+  const fixture={...structuredClone(base),maxLevel:20},quantityTargetsByLevel=Object.fromEntries(Array.from({length:20},(_,i)=>[i+1,target]));
+  const {ws,calls}=await setup({quantityTargetsByLevel},fixture);
+  for(const p of ws.plans){const g=p.groups[0];p.results.set(g.key,solveRanchGroup(ws.model,g,p.level,p.capacities));await ws.services.mergeCache(p.cacheKey,{version:2,results:[...p.results],failures:[],quantityFits:[]});}
+  const module={exports:{}};new Function('module','exports',fs.readFileSync(new URL('../orders/vendor/jszip.min.js',import.meta.url),'utf8'))(module,module.exports);const Zip=module.exports,previous=globalThis.JSZip;globalThis.JSZip=Zip;
+  let bytes;
+  try{await downloadRanchWorkbook({beforeExport:()=>saveRanchUnlockLevel(ws,12),load:()=>loadRanchWorkspace(ws.services),download:data=>bytes=data});}
+  finally{if(previous===undefined)delete globalThis.JSZip;else globalThis.JSZip=previous;}
+  const zip=await Zip.loadAsync(bytes);
+  for(const [sheet,count] of [[1,18],[2,9]]){
+    const xml=await zip.file(`xl/worksheets/sheet${sheet}.xml`).async('string'),levels=[...xml.matchAll(/<c r="A\d+"[^>]*><v>([\d.]+)<\/v>/g)].map(m=>Number(m[1]));
+    assert.equal(levels.length,count);assert.equal(Math.min(...levels),12);assert.equal(Math.max(...levels),20);assert(levels.every(level=>level>=12));
+  }
+  assert.equal(calls.length,0,'export never triggers scheduling');
 });
