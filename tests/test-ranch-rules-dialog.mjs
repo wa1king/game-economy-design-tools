@@ -14,11 +14,11 @@ test('invalid quantities, levels and capacities are rejected without partial wri
 });
 
 test('work share rules default to 20 to 30, persist custom values and reject infeasible bounds atomically',()=>{
- const next=applyRanchRuleDraft(base,previous,draft);assert.equal(next.orderWorkMinPercent,20);assert.equal(next.orderWorkMaxPercent,30);
- const configured=applyRanchRuleDraft(base,previous,{...draft,orderWorkMinPercent:'22.5',orderWorkMaxPercent:'27.5'}),data=new Map(),storage={getItem:k=>data.get(k)??null,setItem:(k,v)=>data.set(k,v)};
- storage.setItem('project',JSON.stringify({...previous,orderWorkMinPercent:15,orderWorkMaxPercent:35}));saveRanchQuantityRules(configured,storage);
- const before=JSON.stringify([...data]);assert.equal(readRanchSettings(storage,'project').orderWorkMinPercent,22.5);assert.equal(readRanchSettings(storage,'newProject').orderWorkMaxPercent,27.5);assert.equal(JSON.stringify([...data]),before);
- for(const patch of [{orderWorkMinPercent:26},{orderWorkMaxPercent:24},{orderWorkMinPercent:''},{orderWorkMaxPercent:0}]){assert.throws(()=>applyRanchRuleDraft(base,configured,{...draft,...patch}));assert.throws(()=>saveRanchQuantityRules({...configured,...patch},storage));assert.equal(JSON.stringify([...data]),before);}
+ const next=applyRanchRuleDraft(base,previous,draft);assert.equal(next.orderCoinMinPercent,20);assert.equal(next.orderCoinMaxPercent,30);
+ const configured=applyRanchRuleDraft(base,previous,{...draft,orderCoinMinPercent:'22.5',orderCoinMaxPercent:'27.5'}),data=new Map(),storage={getItem:k=>data.get(k)??null,setItem:(k,v)=>data.set(k,v)};
+ storage.setItem('project',JSON.stringify({...previous,orderCoinMinPercent:15,orderCoinMaxPercent:35}));saveRanchQuantityRules(configured,storage);
+ const before=JSON.stringify([...data]);assert.equal(readRanchSettings(storage,'project').orderCoinMinPercent,22.5);assert.equal(readRanchSettings(storage,'newProject').orderCoinMaxPercent,27.5);assert.equal(JSON.stringify([...data]),before);
+ for(const patch of [{orderCoinMinPercent:26},{orderCoinMaxPercent:24},{orderCoinMinPercent:''},{orderCoinMaxPercent:0}]){assert.throws(()=>applyRanchRuleDraft(base,configured,{...draft,...patch}));assert.throws(()=>saveRanchQuantityRules({...configured,...patch},storage));assert.equal(JSON.stringify([...data]),before);}
 });
 test('analysis loads shared modal first and puts import/export in the global header',()=>{
  const html=fs.readFileSync(new URL('../orders/ranch.html',import.meta.url),'utf8'),actions=html.match(/<section class="workspace-actionbar"[\s\S]*?<\/section>/)[0];const header=html.match(/<header\b[\s\S]*?<\/header>/)[0];assert(!html.includes('使用普通订单数据'));assert(header.includes('id="importButton"'));assert(header.includes('id="exportRanchExcel"'));assert(actions.includes('id="openSettings"'));assert(!actions.includes('exportButton'));assert(!html.includes('<section id="settings"'));assert(html.indexOf('src="ranch-shell.js"')<html.indexOf('src="ranch-app.js"'));

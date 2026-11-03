@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {prepareRanch,solveRanchGroup,expandRanchTasks,validateRanchSchedule} from '../orders/ranch-engine.js';
 import {fitRanchQuantities,quantityCandidates,quantityOptions,ranchQuantityFitKey,reuseRanchQuantityFit,quantityGroup} from '../orders/ranch-quantity.js';
-const product=(id,buildingId,time,inputs=[])=>({id,name:'商品'+id,buildingId,buildingName:'来源'+buildingId,level:1,isCrop:buildingId===0,stepMinutes:time,analysisBatchYield:1,inputs:inputs.map(([id,quantity])=>({id,quantity}))});
+const product=(id,buildingId,time,inputs=[])=>({id,name:'商品'+id,buildingId,buildingName:'来源'+buildingId,level:1,isCrop:buildingId===0,coinValue:time,stepMinutes:time,analysisBatchYield:1,inputs:inputs.map(([id,quantity])=>({id,quantity}))});
 const base={maxLevel:1,sources:[{id:0,name:'农田',level:1},{id:1,name:'工坊',level:1}],products:[product(1,0,2),product(2,1,5,[[1,2]])]};
 const group={id:'four',slots:Array.from({length:4},()=>({id:2,quantity:15}))};
 test('cached resource calendars retain a provable optimum for a dense shared production chain',()=>{
@@ -23,7 +23,7 @@ test('fit reuse depends on recipes, active capacity and targets, independent of 
   assert.notEqual(ranchQuantityFitKey(model,group,{...caps,1:2},options),key);
   assert.notEqual(ranchQuantityFitKey(model,group,caps,{...options,targetMinutes:400}),key);
   const changed=structuredClone(base);changed.products[1].inputs[0].quantity=3;assert.notEqual(ranchQuantityFitKey(prepareRanch(changed),group,caps,options),key);
-  const result={...solveRanchGroup(model,group,1,caps),orderWorkBalanced:true},fit={options,recommendations:[{group,result}]},target={...group,id:'other-level'};
+  const result={...solveRanchGroup(model,group,1,caps),orderCoinBalanced:true,orderCoinShares:[.25,.25,.25,.25]},fit={options,recommendations:[{group,result}]},target={...group,id:'other-level'};
   const reused=reuseRanchQuantityFit(fit,target,{...caps,99:8});assert.equal(reused.recommendations[0].group.id,'other-level');assert.equal(reused.recommendations[0].result.optimalMinutes,result.optimalMinutes);assert.equal(reused.recommendations[0].result.assumptions.capacities[99],8);
   assert.equal(fit.recommendations[0].group.id,'four');
 });
@@ -33,7 +33,7 @@ test('ranch UI offers goal-driven calculation without a current-quantity mode',(
   }
 });
 
-test('the closest time hit is rejected when its doubled order would take 40 percent of work',()=>{
-  const b={...base,products:[product(1,0,35),...[2,3,4,5].map(id=>product(id,1,60,[[1,1]]))]},m=prepareRanch(b),g={id:'distinct',slots:[2,3,4,5].map(id=>({id,quantity:1}))},fit=fitRanchQuantities(m,g,1,{0:30,1:1},{targetMinutes:360,toleranceMinutes:30,targetWorkMinutes:1000,timeLimitMs:2000});
+test('the closest time hit is rejected when its doubled order would take 40 percent of gold',()=>{
+  const b={...base,products:[product(1,0,35),...[2,3,4,5].map(id=>product(id,1,60,[[1,1]]))]},m=prepareRanch(b),g={id:'distinct',slots:[2,3,4,5].map(id=>({id,quantity:1}))},fit=fitRanchQuantities(m,g,1,{0:30,1:1},{orderCoinMinPercent:15,orderCoinMaxPercent:35,targetMinutes:360,toleranceMinutes:30,targetWorkMinutes:1000,timeLimitMs:2000});
   assert.equal(fit.within,false);assert.equal(fit.recommendations[0].result.optimalMinutes,395);assert.equal(fit.recommendations[0].group.slots.reduce((n,v)=>n+v.quantity,0),6);
 });

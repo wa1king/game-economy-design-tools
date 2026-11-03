@@ -17,6 +17,7 @@ test('exports all grade combinations in separate type sheets, including quantiti
   for(const [i,type] of ['building','chain'].entries())assert.equal(sheets[i*2+1].rows.length-1,ws.plans.reduce((n,p)=>n+p.groups.filter(g=>g.types.includes(type)).length,0));
   assert.equal(sheets[2].rows.length,1);assert.equal(sheets[4].rows.length,1);
   assert(sheets[1].rows.slice(1).every(r=>r[18]==='未计算'&&r[15]===null));assert.equal(sheets[0].rows.length,7);
+  const h=sheets[1].rows[0],v=sheets[1].rows[1];assert.equal(v[h.indexOf('A金币')],8);assert.equal(v[h.indexOf('A金币占比（%）')],25);
   const row=sheets[1].rows[1];assert.equal(row[2],'面粉 × 1 + 面粉 × 1 + 面粉 × 1 + 面粉 × 1');assert.equal(row[19],28);assert.equal(row[21],32);assert.equal(JSON.stringify(ws.plans.map(p=>p.groups)),before);
 });
 test('exports proven times, bounded results, errors, missing prices and edited quantities without fabricated optima',async()=>{

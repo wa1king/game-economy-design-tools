@@ -29,7 +29,7 @@ await test('target and quantity errors stay visible even when a prior schedule w
 });
 
 await test('expected preset exclusions use neutral row status and never populate the alert',()=>{
-  const p=plan(15,3);p.quantityErrors=new Map([['G0','每单累计工时须占整组20%～30%，请重新配量。'],['G1','每单累计工时须占整组20%～30%，请重新配量。']]);p.quantityFits=new Map();const state=evaluate('ranchConfigRowState(p)',{p});assert.equal(state.kind,'neutral');assert.equal(state.constrained,2);assert.equal(state.text,'未纳入 2 组');assert.equal(state.detail.split('请重新配量').length,2);const summary=evaluate('ranchConfigProblemSummary([p])');assert.equal(summary,'');assert(evaluate('ranchConfigSelectionSummary([p])').includes('2 组未纳入实际订单'));p.capacityError='真实产能错误';assert(evaluate('ranchConfigProblemSummary([p])').includes('真实产能错误'));
+  const p=plan(15,3);p.quantityErrors=new Map([['G0','每单金币须占整组20%～30%，请重新配量。'],['G1','每单金币须占整组20%～30%，请重新配量。']]);p.quantityFits=new Map();const state=evaluate('ranchConfigRowState(p)',{p});assert.equal(state.kind,'neutral');assert.equal(state.constrained,2);assert.equal(state.text,'未纳入 2 组');assert.equal(state.detail.split('请重新配量').length,2);const summary=evaluate('ranchConfigProblemSummary([p])');assert.equal(summary,'');assert(evaluate('ranchConfigSelectionSummary([p])').includes('2 组未纳入实际订单'));p.capacityError='真实产能错误';assert(evaluate('ranchConfigProblemSummary([p])').includes('真实产能错误'));
 });
 
 // This DOM and all stored values are synthetic. No browser or user storage access.

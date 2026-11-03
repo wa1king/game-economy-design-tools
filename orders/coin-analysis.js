@@ -48,7 +48,7 @@ export function summarizeCoins(rows,products,{multiplier=1,equalWeight=false}={}
 
 export function renderCoinBreakdown(items,products,{multiplier=1,slots=false}={}){
   const d=coinBreakdown(items,products,multiplier);
-  return `<div class="coin-breakdown">${d.lines.map((v,i)=>`<div><span>${slots?`<b>${'ABCD'[i]}</b> `:''}${esc(v.name)} ×${number(v.quantity)}</span><span>单价 ${number(v.price,2)}${v.estimated?'（估）':''} · <strong>${number(v.value)}</strong> 金币</span></div>`).join('')}<p>${multiplier===1?'交付数量 × 商品单价':`交付数量 × 商品单价 × ${multiplier}`} · 合计 <b>${number(d.total)}</b> 金币${d.total===null?'（缺少单价）':''}</p></div>`;
+  return `<div class="coin-breakdown">${d.lines.map((v,i)=>`<div><span>${slots?`<b>${'ABCD'[i]}</b> `:''}${esc(v.name)} ×${number(v.quantity)}</span><span>单价 ${number(v.price,2)}${v.estimated?'（估）':''} · <strong>${number(v.value)}</strong> 金币${slots&&d.total>0?` · 占组 ${percent(v.value/d.total)}`:''}</span></div>`).join('')}<p>${multiplier===1?'交付数量 × 商品单价':`交付数量 × 商品单价 × ${multiplier}`} · 合计 <b>${number(d.total)}</b> 金币${d.total===null?'（缺少单价）':''}</p></div>`;
 }
 
 export function renderCoinAnalysis(s,{scope='',multiplier=1,ranch=false}={}){

@@ -1,5 +1,5 @@
 import {DEFAULT_CROP_QUANTITY} from './order-quantity-rules.js';
-import {ranchWorkRules} from './ranch-work-rules.js';
+import {ranchCoinRules} from './ranch-coin-rules.js';
 // Ranch demand groups have four fixed slots. They do not use normal-order exclusions.
 import {validateProducts} from './order-engine.js';
 import {orderCoinValue} from './coin-values.js';
@@ -17,7 +17,7 @@ export function prepareRanch(base,rules={}){
   base.products.forEach(p=>chain(p.id));
   const fields=new Set(base.sources.filter(s=>s.id===0||s.category==='田地'||s.name==='农田'||s.name==='田地').map(s=>s.id));
   const cropIds=new Set(base.products.filter(p=>fields.has(p.buildingId)||p.isCrop||p.category==='田地作物'||p.category==='特殊作物'||p.sourceCategory==='田地').map(p=>p.id));
-  return {base,by,depths,chains,cropIds,orderWorkRules:ranchWorkRules(rules)};
+  return {base,by,depths,chains,cropIds,orderCoinRules:ranchCoinRules(rules)};
 }
 export function ranchCapacities(model,level){
   return Object.fromEntries(model.base.sources.map(s=>[s.id,(s.category==='田地'||s.id===0||s.name==='农田')?(model.base.landsByLevel?.[level]??null):1]));

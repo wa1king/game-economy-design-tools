@@ -1,13 +1,13 @@
 import {coinConstraintConflict,isQuantityConstraintIssue} from './ranch-quantity-issues.js';
 import {ranchQuantityProfile} from './ranch-quantity.js';
-import {ranchWorkRules,ranchWorkRangeText,validRanchWorkShares} from './ranch-work-rules.js';
+import {ranchCoinRules,ranchCoinRangeText,validRanchCoinShares,RANCH_SHARE_METRIC} from './ranch-coin-rules.js';
 import {readRanchSettings,RANCH_QUANTITY_RULES_KEY} from './order-quantity-rules.js';
 import {readSharedChainSource,SHARED_CHAIN_KEY} from './shared-chain-source.js';
 import {prepareRanch,groupMetrics} from './ranch-engine.js';
 import {ranchSettingsKey} from './ranch-import.js';
 import {buildRanchDistributionPlans,reuseRanchDistributionResult} from './ranch-distribution.js';
 import {loadRanchCache,mergeRanchCache,mergeRanchCacheValue} from './ranch-cache.js';
-import {quantityGroup,quantityOptions,QUANTITY_SEARCH_VERSION,estimateRanchWorkRatio,ranchQuantityFitKey,reuseRanchQuantityFit,hasEqualProductQuantities,orderWorkBalance} from './ranch-quantity.js';
+import {quantityGroup,quantityOptions,QUANTITY_SEARCH_VERSION,estimateRanchWorkRatio,ranchQuantityFitKey,reuseRanchQuantityFit,hasEqualProductQuantities,orderCoinBalance} from './ranch-quantity.js';
 import {estimateRanchCoinWork} from './ranch-quantity.js';
 import {ranchObjective,ranchGoal,ranchGoalOptions,ranchGoalWithin} from './ranch-objective.js';
 
@@ -40,13 +40,10 @@ export async function loadRanchWorkspace(deps={}){
     plan.metrics??=new Map(plan.groups.map(g=>[g.key,groupMetrics(model,g,plan.level)]));
     plan.quantityFits=new Map();plan.quantityErrors=new Map();
     const cache=await services.loadCache(plan.cacheKey);
-    if(cache?.version===1||cache?.version===2){plan.results=new Map(cache.results??[]);plan.failures=new Map(cache.failures??[]);plan.quantityFits=new Map(cache.quantityFits??[]);for(const [id,fit] of plan.quantityFits)if(fit.error)plan.quantityErrors.set(id,fit.error);}
-    // Upgrade only the explanation of legacy errors using a cheap necessary-bound
-    // proof. Never change saved quantities, targets, schedules, or trigger fitting.
-    for(const group of plan.groups){const fit=plan.quantityFits.get(group.id);if(fit?.error?.startsWith('当前数量上限与单单工时占比下')){try{const target=readRanchTarget(settings,plan.level),options=quantityOptions({...ranchWorkRules(settings),...ranchGoalOptions(target,1)}),diagnostic=coinConstraintConflict(model,group,ranchQuantityProfile(model,group,plan.capacities),options);const explanation=diagnostic??{code:'RANCH_LEGACY_QUANTITY_REVIEW',kind:'review',message:'旧记录只说明该预设未能配量，尚未区分整数数量约束与内部生产任务上限。可到单等级预设组合复核；不能据此判断本级金币目标无解。'};fit.error=explanation.message;fit.diagnostic=explanation;plan.quantityErrors.set(group.id,fit.error);}catch{}}}
+    if(cache?.version===1||cache?.version===2){plan.results=new Map(cache.results??[]);plan.failures=new Map(cache.failures??[]);plan.quantityFits=new Map((cache.quantityFits??[]).filter(([id,fit])=>{const group=plan.groups.find(g=>g.id===id);return group&&fit?.options?.orderShareMetric===RANCH_SHARE_METRIC&&JSON.stringify(fit.coinPrices)===JSON.stringify(group.slots.map(v=>model.by.get(v.id).coinValue))&&Object.keys(ranchCoinRules(settings)).every(k=>ranchCoinRules(fit.options)[k]===ranchCoinRules(settings)[k]);}));for(const [id,fit] of plan.quantityFits)if(fit.error)plan.quantityErrors.set(id,fit.error);}
     // Retain historical inputs, but do not count an allocation violating the
     // current rule as a completed design. Refit it on the next explicit run.
-    for(const group of plan.groups)if(!plan.quantityErrors.has(group.id)&&(plan.results.has(group.key)||plan.quantityFits.has(group.id))&&!orderWorkBalance(model,group).valid)plan.quantityErrors.set(group.id,`每单累计工时须占整组${ranchWorkRangeText(settings)}，请重新配量。`);
+    for(const group of plan.groups)if(!plan.quantityErrors.has(group.id)&&(plan.results.has(group.key)||plan.quantityFits.has(group.id))&&!orderCoinBalance(model,group).valid)plan.quantityErrors.set(group.id,`每单金币须占整组${ranchCoinRangeText(settings)}，请重新配量。`);
     for(const group of plan.groups)if(!hasEqualProductQuantities(group)){plan.results.delete(group.key);plan.quantityFits.delete(group.id);plan.failures.set(group.key,'相同商品数量不一致，请按目标重新配量。');}
   }
   return {base,filename:source.filename??base.filename??'加工链路',storageKey,settings,model,plans,services};
@@ -101,9 +98,9 @@ export function ranchAutoWorkTarget(ws,plan,target=readRanchTarget(ws.settings,p
 }
 export function ranchFitIsCurrent(fit,group,options,model=null){
   const best=fit?.recommendations?.[0];
-  if(ranchObjective(fit?.options)!==ranchObjective(options))return false;
+  if(fit?.options?.orderShareMetric!==RANCH_SHARE_METRIC||model&&JSON.stringify(fit.coinPrices)!==JSON.stringify(group.slots.map(v=>model.by.get(v.id).coinValue))||ranchObjective(fit?.options)!==ranchObjective(options))return false;
   if(ranchObjective(options)==='coins'&&(['targetCoins','coinTolerance'].some(k=>fit?.options?.[k]!==options[k])||model&&best?.result?.coinValue!==groupMetrics(model,group,model.base.maxLevel).coinValue))return false;
-  return Boolean(best&&fit.recommendations.every(v=>model?orderWorkBalance(model,v.group).valid:validRanchWorkShares(v.result?.orderWorkShares,options))&&hasEqualProductQuantities(group)&&fit.recommendations.every(v=>hasEqualProductQuantities(v.group))&&(fit.within===true||fit.searchVersion===QUANTITY_SEARCH_VERSION)&&best.group.key===group.key&&(ranchObjective(options)==='coins'?['targetCoins','coinTolerance','targetWorkMinutes','cropMax','productMax','timeLimitMs']:['targetMinutes','toleranceMinutes','targetWorkMinutes','cropMax','productMax','timeLimitMs']).every(k=>fit.options?.[k]===options[k])&&Object.keys(ranchWorkRules(options)).every(k=>ranchWorkRules(fit.options)[k]===ranchWorkRules(options)[k]));
+  return Boolean(best&&fit.recommendations.every(v=>model?orderCoinBalance(model,v.group).valid:validRanchCoinShares(v.result?.orderCoinShares,options))&&hasEqualProductQuantities(group)&&fit.recommendations.every(v=>hasEqualProductQuantities(v.group))&&(fit.within===true||fit.searchVersion===QUANTITY_SEARCH_VERSION)&&best.group.key===group.key&&(ranchObjective(options)==='coins'?['targetCoins','coinTolerance','targetWorkMinutes','cropMax','productMax','timeLimitMs']:['targetMinutes','toleranceMinutes','targetWorkMinutes','cropMax','productMax','timeLimitMs']).every(k=>fit.options?.[k]===options[k])&&Object.keys(ranchCoinRules(options)).every(k=>ranchCoinRules(fit.options)[k]===ranchCoinRules(options)[k]));
 }
 
 // The same worker and verified schedules power all three views. Quantity search
@@ -140,9 +137,9 @@ export async function calculateRanchWorkspace(ws,{mode='quantity',signal,onProgr
     if(i<0||!best)throw Error('配量结果缺少对应组合或数量建议。');
     const previous=plan.groups[i],updated=quantityGroup(previous,best.group.slots.map(v=>v.quantity));
     if(updated.slots.some((v,j)=>v.id!==best.group.slots[j].id)||updated.key!==best.group.key)throw Error('配量结果的商品与当前组合不一致。');
-    if(!fit.recommendations.every(v=>orderWorkBalance(ws.model,v.group).valid))throw Error(`每单累计工时必须占整组的${ranchWorkRangeText(ws.settings)}。`);
+    if(!fit.recommendations.every(v=>orderCoinBalance(ws.model,v.group).valid))throw Error(`每单金币必须占整组的${ranchCoinRangeText(ws.settings)}。`);
     if(!fit.recommendations.every(v=>hasEqualProductQuantities(v.group)))throw Error('同一组合内相同商品必须使用相同数量。');
-    plan.groups[i]=updated;plan.orderWorkBalance?.set(updated.key,orderWorkBalance(ws.model,updated));plan.results.set(updated.key,new Map(mergeRanchCacheValue({results:[[updated.key,plan.results.get(updated.key)]]},{results:[[updated.key,best.result]]}).results).get(updated.key));best.result=plan.results.get(updated.key);best.result.coinValue=groupMetrics(ws.model,updated,plan.level).coinValue;fit.within=ranchGoalWithin(best.result,options);plan.failures.delete(previous.key);plan.failures.delete(updated.key);plan.quantityErrors.delete(updated.id);plan.quantityFits.set(updated.id,fit);
+    plan.groups[i]=updated;plan.orderCoinBalance?.set(updated.key,orderCoinBalance(ws.model,updated));plan.results.set(updated.key,new Map(mergeRanchCacheValue({results:[[updated.key,plan.results.get(updated.key)]]},{results:[[updated.key,best.result]]}).results).get(updated.key));best.result=plan.results.get(updated.key);best.result.coinValue=groupMetrics(ws.model,updated,plan.level).coinValue;fit.within=ranchGoalWithin(best.result,options);plan.failures.delete(previous.key);plan.failures.delete(updated.key);plan.quantityErrors.delete(updated.id);plan.quantityFits.set(updated.id,fit);
     const metrics=groupMetrics(ws.model,updated,plan.level);plan.metrics.set(updated.key,metrics);plan.work.set(updated.key,metrics.totalMinutes);
     persistQuantity(plan,updated,fit,options);report.fitted++;if(reused)report.reused++;
     fitReuse.set(ranchQuantityFitKey(ws.model,updated,plan.capacities,options),fit);changed(plan);
@@ -165,7 +162,7 @@ export async function calculateRanchWorkspace(ws,{mode='quantity',signal,onProgr
           applyQuantityFit(plan,data.id,data.fit,options);
         }else if(data.type==='groupError'){
           if(phase==='quantity'&&isQuantityConstraintIssue(data.message,data.diagnostic))report.excluded++;else report.failed++;
-          if(phase==='quantity'){plan.quantityErrors.set(data.id,data.message);const fit={error:data.message,...(data.diagnostic?{diagnostic:data.diagnostic}:{})};plan.quantityFits.set(data.id,fit);if(!changedFits.has(plan.level))changedFits.set(plan.level,new Map());changedFits.get(plan.level).set(data.id,fit);}
+          if(phase==='quantity'){plan.quantityErrors.set(data.id,data.message);const fit={error:data.message,options,coinPrices:plan.groups.find(g=>g.id===data.id)?.slots.map(v=>ws.model.by.get(v.id).coinValue),...(data.diagnostic?{diagnostic:data.diagnostic}:{})};plan.quantityFits.set(data.id,fit);if(!changedFits.has(plan.level))changedFits.set(plan.level,new Map());changedFits.get(plan.level).set(data.id,fit);}
           else plan.failures.set(data.id,data.message);
           changed(plan);
         }else if(data.type==='error'){finish(Error(`Lv ${plan.level}：${data.message}`));return;}
@@ -195,7 +192,7 @@ export async function calculateRanchWorkspace(ws,{mode='quantity',signal,onProgr
         const work=ranchAutoWorkTarget(ws,plan,target);
         if(!(work>0)){report.failed++;plan.targetError=ranchObjective(target)==='coins'?'缺少有效金币单价，无法按金币估算配量目标，请补全导入价格。':'无法估算共同累计工时，请填写累计工时目标。';progress(plan,'error',0,plan.groups.length,`Lv ${plan.level}：${plan.targetError}`);}
         else{
-          const options=quantityOptions({...ranchWorkRules(ws.settings),...ranchGoalOptions(target,work)});
+          const options=quantityOptions({...ranchCoinRules(ws.settings),...ranchGoalOptions(target,work)});
           const pending=[];
           for(const g of [...plan.groups]){
             const own=plan.quantityFits.get(g.id),key=ranchQuantityFitKey(ws.model,g,plan.capacities,options);

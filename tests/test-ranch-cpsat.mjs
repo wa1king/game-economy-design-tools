@@ -4,7 +4,7 @@ import {prepareRanch,solveRanchGroup,expandRanchTasks,validateRanchSchedule} fro
 import {createRanchCpSatSolver} from '../orders/ranch-cpsat.js';
 import {fitRanchQuantitiesAsync} from '../orders/ranch-quantity.js';
 import {createRanchScheduleCache} from '../orders/ranch-schedule-cache.js';
-const base={maxLevel:1,sources:[{id:1,name:'工坊'}],products:[3,2,2].map((t,i)=>({id:i+1,name:'P'+i,buildingId:1,buildingName:'工坊',level:1,stepMinutes:t,analysisBatchYield:1,inputs:[]}))};
+const base={maxLevel:1,sources:[{id:1,name:'工坊'}],products:[3,2,2].map((t,i)=>({id:i+1,name:'P'+i,buildingId:1,buildingName:'工坊',level:1,coinValue:t,stepMinutes:t,analysisBatchYield:1,inputs:[]}))};
 const group={id:'g',slots:[{id:1,quantity:1},{id:1,quantity:1},{id:2,quantity:1},{id:3,quantity:2}]},caps={1:2};
 // The five jobs have lengths 3,3,2,2,2. Total work/2 is six;
 // putting 3+3 on one machine and 2+2+2 on the other attains six.

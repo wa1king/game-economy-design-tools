@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import {prepareRanch,solveRanchGroup,expandRanchTasks,validateRanchSchedule} from '../orders/ranch-engine.js';
 import {quantityGroup,quantityOptions,quantityRank,fitRanchQuantities,ranchQuantityProfile,workUpperAtTime} from '../orders/ranch-quantity.js';
 import {ranchChainData,renderRanchChain} from '../orders/ranch-chain.js';
-const product=(id,time,buildingId,inputs=[])=>({id,name:'商品'+id,buildingId,buildingName:'建筑'+buildingId,level:1,isCrop:buildingId===0,stepMinutes:time,analysisBatchYield:1,inputs:inputs.map(([id,quantity])=>({id,quantity})),coinValue:id,coproducts:[]});
+const product=(id,time,buildingId,inputs=[])=>({id,name:'商品'+id,buildingId,buildingName:'建筑'+buildingId,level:1,isCrop:buildingId===0,stepMinutes:time,analysisBatchYield:1,inputs:inputs.map(([id,quantity])=>({id,quantity})),coinValue:time/10,coproducts:[]});
 const base=products=>({products,sources:[...new Set(products.map(p=>p.buildingId))].map(id=>({id,name:'建筑'+id,level:1})),maxLevel:20});
 const group=(ids,qs=[1,1,1,1])=>({id:'combo',slots:ids.map((id,i)=>({id,quantity:qs[i]})),familyIds:[],types:['building']});
 let count=0;const test=(name,fn)=>{fn();console.log('PASS '+name);count++;};

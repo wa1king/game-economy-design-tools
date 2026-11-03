@@ -139,7 +139,7 @@ test('pausing target fitting flushes pending quantity edits and their verified s
 });
 
 test('successful cached fits survive algorithm upgrades, while old failed searches can be retried',()=>{
-  const group={key:'same',slots:Array.from({length:4},()=>({id:1,quantity:1}))},options={targetMinutes:360,toleranceMinutes:30,targetWorkMinutes:1000,cropMax:42,productMax:12,timeLimitMs:2500},fit={options,recommendations:[{group,result:{orderWorkBalanced:true,orderWorkShares:[.25,.25,.25,.25]}}]};
+  const group={key:'same',slots:Array.from({length:4},()=>({id:1,quantity:1}))},options={orderShareMetric:'coins-v1',targetMinutes:360,toleranceMinutes:30,targetWorkMinutes:1000,cropMax:42,productMax:12,timeLimitMs:2500},fit={options,recommendations:[{group,result:{orderCoinBalanced:true,orderCoinShares:[.25,.25,.25,.25]}}]};
   assert.equal(ranchFitIsCurrent({...fit,within:true},group,options),true);assert.equal(ranchFitIsCurrent({...fit,within:false},group,options),false);assert.equal(ranchFitIsCurrent({...fit,within:false,searchVersion:QUANTITY_SEARCH_VERSION},group,options),true);
 });
 
@@ -153,11 +153,11 @@ test('legacy unequal copies retain user inputs but cannot remain valid cached fi
 });
 
 test('old successful recommendations with unequal copies cannot bypass the new quantity rule',()=>{
-  const g=quantityGroup({id:'same',slots:Array.from({length:4},()=>({id:1,quantity:1}))},[1,1,1,1]),bad=quantityGroup(g,[2,1,1,1]),options={targetMinutes:360,toleranceMinutes:30,targetWorkMinutes:1000,cropMax:42,productMax:12,timeLimitMs:2500};
+  const g=quantityGroup({id:'same',slots:Array.from({length:4},()=>({id:1,quantity:1}))},[1,1,1,1]),bad=quantityGroup(g,[2,1,1,1]),options={orderShareMetric:'coins-v1',targetMinutes:360,toleranceMinutes:30,targetWorkMinutes:1000,cropMax:42,productMax:12,timeLimitMs:2500};
   assert(hasEqualProductQuantities(g));assert(!hasEqualProductQuantities(bad));
   assert.equal(ranchFitIsCurrent({within:true,options,recommendations:[{group:bad}]},bad,options),false);
   assert.equal(ranchFitIsCurrent({within:true,options,recommendations:[{group:g},{group:bad}]},g,options),false);
-  assert.equal(ranchFitIsCurrent({within:true,options,recommendations:[{group:g,result:{orderWorkBalanced:true,orderWorkShares:[.25,.25,.25,.25]}}]},g,options),true);
+  assert.equal(ranchFitIsCurrent({within:true,options,recommendations:[{group:g,result:{orderCoinBalanced:true,orderCoinShares:[.25,.25,.25,.25]}}]},g,options),true);
 });
 
 test('constraint diagnostics survive the worker and cache, separately from runtime failures',async()=>{

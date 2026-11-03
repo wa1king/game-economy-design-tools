@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {prepareRanch} from '../orders/ranch-engine.js';
 import {ranchCoinCandidates} from '../orders/ranch-coin-candidates.js';
-import {quantityOptions,ranchQuantityProfile,fitRanchQuantities,orderWorkBalance,ranchQuantityFitKey} from '../orders/ranch-quantity.js';
+import {quantityOptions,ranchQuantityProfile,fitRanchQuantities,orderCoinBalance,ranchQuantityFitKey} from '../orders/ranch-quantity.js';
 import {ranchOrderAdmission} from '../orders/ranch-actual-orders.js';
 import {ranchFitIsCurrent,loadRanchWorkspace,saveRanchObjective,readRanchTarget} from '../orders/ranch-workspace.js';
 import {writeSharedChainSource} from '../orders/shared-chain-source.js';
@@ -13,12 +13,13 @@ const group=ids=>({id:'G',key:'G',types:['building'],familyIds:['b1'],slots:ids.
 test('gold candidate search matches an independent full integer oracle including repeats and decimal prices',()=>{
   for(let seed=1;seed<=30;seed++){
     const m=prepareRanch(base([1,2,3,4].map(id=>product(id,((seed*id*7)%19+1)/2,(seed*id*3)%13+2)))),ids=seed%3===0?[1,1,2,3]:[1,2,3,4],g=group(ids),o=quantityOptions({objective:'coins',targetCoins:seed*4+7,coinTolerance:0,productMax:5,targetWorkMinutes:190}),p=ranchQuantityProfile(m,g,{1:1});
-    const pool=ranchCoinCandidates(m,g,p,o);let best=Infinity;
+    let best=Infinity;
     for(let a=1;a<=5;a++)for(let b=1;b<=5;b++)for(let c=1;c<=5;c++)for(let d=1;d<=5;d++){
       const q=[a,b,c,d];if(ids.some((id,i)=>ids.some((other,j)=>other===id&&q[i]!==q[j])))continue;
-      const candidate={...g,slots:g.slots.map((v,i)=>({...v,quantity:q[i]}))};if(!orderWorkBalance(m,candidate,o).valid)continue;
+      const candidate={...g,slots:g.slots.map((v,i)=>({...v,quantity:q[i]}))};if(!orderCoinBalance(m,candidate,o).valid)continue;
       const coins=q.reduce((s,n,i)=>s+n*m.by.get(ids[i]).coinValue,0);best=Math.min(best,Math.abs(coins-o.targetCoins));
     }
+    if(best===Infinity){assert.throws(()=>ranchCoinCandidates(m,g,p,o));continue;}const pool=ranchCoinCandidates(m,g,p,o);
     assert(Math.abs(pool.candidates[0].score[0]-best)<1e-8,`seed ${seed}`);
   }
 });

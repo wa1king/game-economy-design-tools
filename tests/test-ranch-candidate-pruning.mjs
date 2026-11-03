@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import {prepareRanch,groupMetrics} from '../orders/ranch-engine.js';
 import {quantityCandidateDominated,quantityEndpointDominated,quantityGroup,quantityOptions,quantityRank,fitRanchQuantities} from '../orders/ranch-quantity.js';
 const compare=(a,b)=>{for(let i=0;i<a.length;i++)if(a[i]!==b[i])return a[i]-b[i];return 0;};
-const product=(id,time,buildingId,inputs=[])=>({id,name:'P'+id,buildingId,buildingName:'B'+buildingId,level:1,isCrop:false,stepMinutes:time,analysisBatchYield:1,inputs:inputs.map(([id,quantity])=>({id,quantity}))});
+const product=(id,time,buildingId,inputs=[])=>({id,name:'P'+id,buildingId,buildingName:'B'+buildingId,level:1,isCrop:false,coinValue:time,stepMinutes:time,analysisBatchYield:1,inputs:inputs.map(([id,quantity])=>({id,quantity}))});
 const base=products=>({maxLevel:1,sources:[...new Set(products.map(p=>p.buildingId))].map(id=>({id,name:'B'+id})),products});
 const group=ids=>({id:'test',slots:ids.map(id=>({id,quantity:1}))});
 const definitions=[
@@ -35,7 +35,7 @@ assert(referenceSource.includes('if(dominated(candidate,q))'));
 referenceSource=referenceSource.replace('if(dominated(candidate,q))','if(false)').replace(/from '(\.\/[^']+)'/g,(_,relative)=>`from '${new URL(relative,sourceUrl).href}'`);
 const {fitRanchQuantities:unprunedFit}=await import('data:text/javascript;base64,'+Buffer.from(referenceSource).toString('base64'));
 for(const d of definitions)test('pruning retains the exact recommendations: '+d.name,()=>{
- const model=prepareRanch(base(d.products)),g=group(d.ids),caps=Object.fromEntries(model.base.sources.map(s=>[s.id,1])),o={orderWorkMinPercent:15,orderWorkMaxPercent:35,targetMinutes:d.target,toleranceMinutes:d.tolerance,targetWorkMinutes:d.work,productMax:4,cropMax:4,timeLimitMs:10000,maxEvaluations:100};
+ const model=prepareRanch(base(d.products)),g=group(d.ids),caps=Object.fromEntries(model.base.sources.map(s=>[s.id,1])),o={orderCoinMinPercent:15,orderCoinMaxPercent:35,targetMinutes:d.target,toleranceMinutes:d.tolerance,targetWorkMinutes:d.work,productMax:4,cropMax:4,timeLimitMs:10000,maxEvaluations:100};
  const before=unprunedFit(model,g,1,caps,o),after=fitRanchQuantities(model,g,1,caps,o);
  const summary=fit=>fit.recommendations.map(v=>({key:v.group.key,time:v.result.optimalMinutes,work:v.result.totalMinutes,label:v.label}));
  assert.deepEqual(summary(after),summary(before));assert.equal(after.within,before.within);assert.equal(after.reason,before.reason);assert(after.tried<=before.tried);
@@ -43,7 +43,7 @@ for(const d of definitions)test('pruning retains the exact recommendations: '+d.
 });
 
 test('minimum and maximum diagnostics remain evaluated even when dominated',()=>{
- const model=prepareRanch(base([product(1,10,1)])),g=group([1,1,1,1]),o={orderWorkMinPercent:15,orderWorkMaxPercent:35,targetMinutes:40,toleranceMinutes:5,targetWorkMinutes:40,productMax:4,cropMax:4,timeLimitMs:10000};
+ const model=prepareRanch(base([product(1,10,1)])),g=group([1,1,1,1]),o={orderCoinMinPercent:15,orderCoinMaxPercent:35,targetMinutes:40,toleranceMinutes:5,targetWorkMinutes:40,productMax:4,cropMax:4,timeLimitMs:10000};
  const fit=fitRanchQuantities(model,g,1,{1:1},o);assert(fit.tried>=2);assert(fit.prunedCount>0);assert.equal(fit.recommendations[0].result.optimalMinutes,40);
 });
 
@@ -72,6 +72,7 @@ const baselineRecordedSource=recordedSource.replace('quantityEndpointDominated(s
 const {fitRanchQuantities:recordedFit}=await import('data:text/javascript;base64,'+Buffer.from(recordedSource).toString('base64'));
 const {fitRanchQuantities:recordedBaselineFit}=await import('data:text/javascript;base64,'+Buffer.from(baselineRecordedSource).toString('base64'));
 test('endpoint diagnostics cannot become an unbalanced recommendation when the quantity limits exclude balanced orders',()=>{
- const b=base([product(1,2,0),product(2,1,3,[[1,1]]),product(3,3,2,[[2,1],[1,1]]),product(4,2,1,[[2,1]]),product(5,1,2,[[3,1],[4,1]])]),g=group([5,3,4,1]),caps={0:2,1:1,2:1,3:1},o={orderWorkMinPercent:15,orderWorkMaxPercent:35,targetMinutes:10,toleranceMinutes:0,targetWorkMinutes:29,productMax:2,cropMax:2,timeLimitMs:4000};
+ const b=base([product(1,2,0),product(2,1,3,[[1,1]]),product(3,3,2,[[2,1],[1,1]]),product(4,2,1,[[2,1]]),product(5,1,2,[[3,1],[4,1]])]),g=group([5,3,4,1]),caps={0:2,1:1,2:1,3:1},o={orderCoinMinPercent:15,orderCoinMaxPercent:35,targetMinutes:10,toleranceMinutes:0,targetWorkMinutes:29,productMax:2,cropMax:2,timeLimitMs:4000};
+ b.products.find(p=>p.id===5).coinValue=100;
  const prior=globalThis.__ranchEndpointProofTrace;try{globalThis.__ranchEndpointProofTrace=[];assert.throws(()=>recordedFit(prepareRanch(b),g,1,caps,o),/15%～35%/);}finally{if(prior===undefined)delete globalThis.__ranchEndpointProofTrace;else globalThis.__ranchEndpointProofTrace=prior;}
 });

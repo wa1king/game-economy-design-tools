@@ -2,14 +2,14 @@ import {summarizeCoins,renderCoinAnalysis,renderCoinBreakdown,coinBreakdown} fro
 import {ranchObjective,ranchGoal,ranchGoalOptions,ranchGoalWithin} from './ranch-objective.js';
 import {estimateRanchCoinWork} from './ranch-quantity.js';
 import {ranchOrderAdmission} from './ranch-actual-orders.js';
-import {ranchWorkRules,ranchWorkRangeText} from './ranch-work-rules.js';
+import {ranchCoinRules,ranchCoinRangeText,RANCH_SHARE_METRIC} from './ranch-coin-rules.js';
 import {DEFAULT_CROP_QUANTITY,readRanchSettings} from './order-quantity-rules.js';
 import {writeSharedChainSource} from './shared-chain-source.js';
 import {createRanchLevelCatalog} from './ranch-level-catalog.js';
 import {ranchSettingsKey,ranchImportCacheKey} from './ranch-import.js';
 import {ranchBrowserScope,ranchSchemeStep} from './ranch-browser.js';
 import {ranchChainData,renderRanchChain,setupRanchChains} from './ranch-chain.js';
-import {quantityGroup,quantityOptions,estimateRanchWorkRatio,hasEqualProductQuantities,linkedProductQuantities,orderWorkBalance} from './ranch-quantity.js';
+import {quantityGroup,quantityOptions,estimateRanchWorkRatio,hasEqualProductQuantities,linkedProductQuantities,orderCoinBalance} from './ranch-quantity.js';
 import {renderOrderItems,setupItemInfo} from './item-info.js';
 import {readChainExcel} from './excel-import.js';
 import {prepareRanch,ranchCapacities,groupMetrics} from './ranch-engine.js';
@@ -45,7 +45,7 @@ function persist(){
   if(!model)return;
   (savedSettings.quantityEdits??={})[level]=structuredClone(quantityEdits);(savedSettings.quantityTargetsByLevel??={})[level]=Object.fromEntries(['targetHours','targetTolerance','targetCoins','coinTolerance','targetWork','fitCropMax','fitProductMax','quantityBudget'].map(id=>[id,$(id).value]));
   savedSettings={...savedSettings,browser:{type,buildingId:browserBuildingId,familyId:$('family').value,groupId:current?.id},level,cropQuantity:Number($('cropQuantity').value),productQuantity:Number($('productQuantity').value),allowRepeated:$('allowRepeated').checked,searchLimit:$('searchLimit').value,quantityTargets:Object.fromEntries(['targetHours','targetTolerance','targetCoins','coinTolerance','targetWork','fitCropMax','fitProductMax','quantityBudget'].map(id=>[id,$(id).value]))};
-  try{savedSettings=mergeRanchSettings(persistedSettings,savedSettings,readRanchSettings(localStorage,storageKey));localStorage.setItem(storageKey,JSON.stringify(savedSettings));persistedSettings=structuredClone(savedSettings);model.orderWorkRules=ranchWorkRules(savedSettings);quantityEdits=structuredClone(savedSettings.quantityEdits?.[level]??{});restoreQuantityTargets();$('cropQuantity').value=savedSettings.cropQuantity??DEFAULT_CROP_QUANTITY;$('productQuantity').value=savedSettings.productQuantity??1;$('allowRepeated').checked=savedSettings.allowRepeated??false;$('searchLimit').value=savedSettings.searchLimit??'2000';notifyRanchChange(storageKey,'settings');}catch{message('本页设置未能保存，请导出备份。');}
+  try{savedSettings=mergeRanchSettings(persistedSettings,savedSettings,readRanchSettings(localStorage,storageKey));localStorage.setItem(storageKey,JSON.stringify(savedSettings));persistedSettings=structuredClone(savedSettings);model.orderCoinRules=ranchCoinRules(savedSettings);quantityEdits=structuredClone(savedSettings.quantityEdits?.[level]??{});restoreQuantityTargets();$('cropQuantity').value=savedSettings.cropQuantity??DEFAULT_CROP_QUANTITY;$('productQuantity').value=savedSettings.productQuantity??1;$('allowRepeated').checked=savedSettings.allowRepeated??false;$('searchLimit').value=savedSettings.searchLimit??'2000';notifyRanchChange(storageKey,'settings');}catch{message('本页设置未能保存，请导出备份。');}
 }
 function saveCache(){clearTimeout(saveTimer);if(!cacheKey)return;const key=cacheKey,sourceKey=storageKey,changedFits=[...quantityFits].filter(([id,fit])=>JSON.stringify(fit)!==fitCacheSnapshot.get(id)),value={version:2,results:[...results],failures:[...failures],quantityFits:changedFits};cacheQueue=cacheQueue.catch(()=>{}).then(()=>mergeRanchCache(key,value)).then(()=>{cacheSaveError=null;if(cacheKey===key)for(const [id,fit] of changedFits)fitCacheSnapshot.set(id,JSON.stringify(fit));notifyRanchChange(sourceKey,'results');}).catch(error=>{cacheSaveError=error;message('计算结果暂时无法缓存；本页结果仍可查看和导出。');});}
 function scheduleSave(){clearTimeout(saveTimer);saveTimer=setTimeout(saveCache,800);}
@@ -53,7 +53,7 @@ function stop(){clearTimeout(manualTimer);worker?.terminate();worker=null;busy=f
 function install(newBase,name,rules){
   stop();prepareRanch(newBase);base=structuredClone(newBase);model=prepareRanch(base);filename=name||base.filename||'加工链路';if(!itemInfo)itemInfo=setupItemInfo(base,document.querySelector('main'));else{itemInfo.hide();itemInfo.products.clear();base.products.forEach(p=>itemInfo.products.set(p.id,p));}storageKey='ranch-settings-v1:'+fingerprint({products:base.products,sources:base.sources,lands:base.landsByLevel});
   savedSettings={};try{savedSettings=readRanchSettings(localStorage,storageKey);}catch{}
-  persistedSettings=structuredClone(savedSettings);model.orderWorkRules=ranchWorkRules(savedSettings);
+  persistedSettings=structuredClone(savedSettings);model.orderCoinRules=ranchCoinRules(savedSettings);
   type=savedSettings.browser?.type==='chain'?'chain':'building';browserBuildingId=savedSettings.browser?.buildingId??null;graphSignature='';slotSignature='';schemeSignature='';level=Math.min(base.maxLevel||20,Math.max(1,savedSettings.level??level));restoreQuantityTargets();$('cropQuantity').value=savedSettings.cropQuantity??rules?.cropQuantity??DEFAULT_CROP_QUANTITY;$('productQuantity').value=savedSettings.productQuantity??rules?.productQuantity??1;$('allowRepeated').checked=savedSettings.allowRepeated??false;$('searchLimit').value=savedSettings.searchLimit??'2000';
   if(!navigationApplied&&navigationRequest){const requested=Number(navigationRequest.get('level'));if(requested>=1&&requested<=base.maxLevel){level=requested;restoreQuantityTargets();}if(['building','chain'].includes(navigationRequest.get('type')))type=navigationRequest.get('type');navigationApplied=true;}
   $('projectName').textContent=filename;$('sourceMeta').textContent=`${base.products.length} 商品 · ${base.products.filter(v=>v.coinValue!=null).length} 个已定价`;$('level').innerHTML=Array.from({length:base.maxLevel||20},(_,i)=>`<option value="${i+1}">Lv ${i+1}</option>`).join('');$('level').value=level;
@@ -90,7 +90,7 @@ async function rebuild(autoRun=false,readOnly=false){
   if(!groups.length)return;
   cacheKey=ranchImportCacheKey(base,level,{cropQuantity:Number($('cropQuantity').value),productQuantity:Number($('productQuantity').value),allowRepeated:$('allowRepeated').checked},capacities);
   $('candidateSummary').textContent='读取已有计算结果…';
-  try{const cached=await loadRanchCache(cacheKey);if(token!==buildToken)return;if(cached?.version===1||cached?.version===2){const valid=new Set(groups.map(g=>g.key));results=new Map((cached.results||[]).filter(([key])=>valid.has(key)));failures=new Map((cached.failures||[]).filter(([key])=>valid.has(key)));quantityFits=new Map((cached.quantityFits||[]).filter(([id])=>groups.some(g=>g.id===id)));}}catch{}
+  try{const cached=await loadRanchCache(cacheKey);if(token!==buildToken)return;if(cached?.version===1||cached?.version===2){const valid=new Set(groups.map(g=>g.key));results=new Map((cached.results||[]).filter(([key])=>valid.has(key)));failures=new Map((cached.failures||[]).filter(([key])=>valid.has(key)));quantityFits=new Map((cached.quantityFits||[]).filter(([id,fit])=>{const group=groups.find(g=>g.id===id);return group&&fit?.options?.orderShareMetric===RANCH_SHARE_METRIC&&JSON.stringify(fit.coinPrices)===JSON.stringify(group.slots.map(v=>model.by.get(v.id).coinValue))&&Object.keys(ranchCoinRules(savedSettings)).every(k=>ranchCoinRules(fit.options)[k]===ranchCoinRules(savedSettings)[k]);}));}}catch{}
   if(token!==buildToken)return;
   for(const group of groups)if(!hasEqualProductQuantities(group)){results.delete(group.key);quantityFits.delete(group.id);failures.set(group.key,'相同商品数量不一致，请按目标重新配量。');}
   fitCacheSnapshot=new Map([...quantityFits].map(([id,fit])=>[id,JSON.stringify(fit)]));
@@ -111,9 +111,9 @@ function renderSelected(){
   $('fitOne').disabled=!current||busy;$('groupTitle').textContent=current?'R'+String(viewRows.findIndex(v=>v.id===current.id)+1).padStart(5,'0')+' · 四单详情':'四单详情';$('groupMeta').textContent=current?`Lv ${level} · ${current.types.map(t=>t==='building'?'同建筑':'高级加工链').join(' / ')} · 动物位固定分配`:'本级暂无符合规则的需求组';
   if($('ranchSelectedCoins')){const box=$('ranchSelectedCoins');box.hidden=!current;if(current){const gold=metrics(current).coinValue,timing=resultFor(current);box.innerHTML='<h4>当前四单 · 金币明细</h4>'+renderCoinBreakdown(current.slots,itemInfo.products,{slots:true})+`<p class="coin-note">单位累计工时金币 ${gold!==null&&metrics(current).totalMinutes>0?fmt(gold/metrics(current).totalMinutes*60,0):'—'} / 小时 · 按真实联合优化时间 ${gold!==null&&timing?.proven&&timing.optimalMinutes>0?fmt(gold/timing.optimalMinutes*60,0):'—'} / 小时${admission(current).accepted?'':' · 当前为预设或未达标组合，不计入下方统计'}</p>`;}}
   if(!current){$('slots').innerHTML='';slotSignature='';graphSignature='';for(const id of ['optimal','totalMinutes','complexity','coins'])$(id).textContent='—';renderSchedule(null);$('chainGraph').innerHTML='';$('chainMeta').textContent='';$('quantityRecommendations').hidden=true;$('solveState').textContent=orderPool==='actual'?'暂无达标订单':'无候选';$('groupTitle').textContent=orderPool==='actual'?'本级暂无达标实际订单':'暂无预设组合';$('groupMeta').textContent=orderPool==='actual'?'切换“预设组合”查看未入库原因，或到全部等级配置按目标计算。':'';renderSchemeNavigator();return;}
-  if(signature!==slotSignature){$('slots').innerHTML=current.slots.map((v,i)=>{const p=model.by.get(v.id);return `<article class="slot"><div class="slot-top"><b>动物 ${letters[i]}</b><span>${animals[i]}</span></div><strong class="slot-product">${renderOrderItems({items:[v]},itemInfo.products)}</strong><label class="slot-quantity">交付数量<input type="number" min="1" max="1000" step="1" data-quantity="${i}" aria-label="动物${letters[i]}交付数量" value="${v.quantity}" ${busy?'disabled':''}></label><div class="slot-info"><span>${esc(p.buildingName)} · Lv ${p.level}</span><span>累计 ${fmt(orderWorkBalance(model,current).minutes[i])} 分 · 占组 ${(orderWorkBalance(model,current).shares[i]*100).toFixed(1)}%</span><span class="slot-coin">单价 ${fmt(coinBreakdown([v],model.by).lines[0].price,2)} · 本单 ${fmt(coinBreakdown([v],model.by).total,0)} 金币</span><span>单步 ${fmt(p.stepMinutes)}分 · 复杂度 ${model.chains.get(p.id).size}</span></div></article>`;}).join('');slotSignature=signature;}
+  if(signature!==slotSignature){$('slots').innerHTML=current.slots.map((v,i)=>{const p=model.by.get(v.id);return `<article class="slot"><div class="slot-top"><b>动物 ${letters[i]}</b><span>${animals[i]}</span></div><strong class="slot-product">${renderOrderItems({items:[v]},itemInfo.products)}</strong><label class="slot-quantity">交付数量<input type="number" min="1" max="1000" step="1" data-quantity="${i}" aria-label="动物${letters[i]}交付数量" value="${v.quantity}" ${busy?'disabled':''}></label><div class="slot-info"><span>${esc(p.buildingName)} · Lv ${p.level}</span><span>累计工时 ${fmt(groupMetrics(model,{slots:[v,v,v,v]},level).totalMinutes/4)} 分</span><span class="slot-coin">单价 ${fmt(coinBreakdown([v],model.by).lines[0].price,2)} · 本单 ${fmt(coinBreakdown([v],model.by).total,0)} 金币 · 占组 ${orderCoinBalance(model,current).shares.length?fmt(orderCoinBalance(model,current).shares[i]*100,1)+'%':'—'}</span><span>单步 ${fmt(p.stepMinutes)}分 · 复杂度 ${model.chains.get(p.id).size}</span></div></article>`;}).join('');slotSignature=signature;}
   const m=metrics(current),r=resultFor(current,true),error=failures.get(groupKey(current));$('totalMinutes').textContent=fmt(m.totalMinutes);$('complexity').textContent=fmt(m.complexity,0);$('coins').textContent=fmt(m.coinValue,0);$('coinNote').textContent=m.coinValue==null?'存在未导入金币单价的商品':'数量 × 导入金币单价 · 非Token奖励';
-  $('solveState').title=admission(current).reason;$('optimalLabel').textContent=r&&!r.proven?'四单可行完工时间':'四单联合优化时间';$('optimal').textContent=r?fmt(r.proven?r.optimalMinutes:r.feasibleMinutes):'—';$('optimalNote').textContent=r?(r.proven?'已证明最优 · 四单全部备齐':`最优时间范围 ${fmt(r.lowerMinutes)}～${fmt(r.feasibleMinutes)}分`):'空仓 · 尚未排产';if(r?.solverNotice)$('optimalNote').textContent+=' · '+r.solverNotice;$('solveState').textContent=!orderWorkBalance(model,current).valid?'工时占比不符':!hasEqualProductQuantities(current)?'待重新配量':admission(current).accepted?'达标实际订单':error?'计算失败':r?(r.proven?admission(current).reason:'待证明最优'):busy?'计算中':'待计算';$('solveState').className='badge'+(error||!orderWorkBalance(model,current).valid||r&&!r.proven?' warn':'');renderSchedule(r);const graph=ranchChainData(model,current,level),nextGraphSignature=JSON.stringify([graphOverview,graph.nodes,graph.edges]);if(nextGraphSignature!==graphSignature){$('chainGraph').innerHTML=renderRanchChain(graph,{overview:graphOverview});setupRanchChains($('chainGraph'));graphSignature=nextGraphSignature;}$('chainMeta').textContent=`${graph.nodes.length} 种商品 · ${graph.edges.length} 条配方关系`;renderRecommendations();renderQuantityControls();renderSchemeNavigator();
+  $('solveState').title=admission(current).reason;$('optimalLabel').textContent=r&&!r.proven?'四单可行完工时间':'四单联合优化时间';$('optimal').textContent=r?fmt(r.proven?r.optimalMinutes:r.feasibleMinutes):'—';$('optimalNote').textContent=r?(r.proven?'已证明最优 · 四单全部备齐':`最优时间范围 ${fmt(r.lowerMinutes)}～${fmt(r.feasibleMinutes)}分`):'空仓 · 尚未排产';if(r?.solverNotice)$('optimalNote').textContent+=' · '+r.solverNotice;$('solveState').textContent=!orderCoinBalance(model,current).valid?'金币占比不符':!hasEqualProductQuantities(current)?'待重新配量':admission(current).accepted?'达标实际订单':error?'计算失败':r?(r.proven?admission(current).reason:'待证明最优'):busy?'计算中':'待计算';$('solveState').className='badge'+(error||!orderCoinBalance(model,current).valid||r&&!r.proven?' warn':'');renderSchedule(r);const graph=ranchChainData(model,current,level),nextGraphSignature=JSON.stringify([graphOverview,graph.nodes,graph.edges]);if(nextGraphSignature!==graphSignature){$('chainGraph').innerHTML=renderRanchChain(graph,{overview:graphOverview});setupRanchChains($('chainGraph'));graphSignature=nextGraphSignature;}$('chainMeta').textContent=`${graph.nodes.length} 种商品 · ${graph.edges.length} 条配方关系`;renderRecommendations();renderQuantityControls();renderSchemeNavigator();
 }
 function renderSchedule(result){
   if(!result){$('schedule').innerHTML='<div class="placeholder">计算本组后查看建筑时间轴</div>';$('completion').hidden=true;$('scheduleMeta').textContent='A / B / C / D 标识对应动物位的生产任务';return;}
@@ -184,7 +184,7 @@ function renderQuantityControls(){
 function readQuantityTargets(){
   const work=$('targetWork').value.trim()===''?autoWorkReference():Number($('targetWork').value);
   if(!(work>0))throw Error('无法估算共同累计工时，请填写累计工时目标。');
-  const target={...readRanchTarget(savedSettings,level),...Object.fromEntries(['targetHours','targetTolerance','targetCoins','coinTolerance','fitCropMax','fitProductMax','quantityBudget'].map(id=>[id,$(id).value]))};return quantityOptions({...ranchWorkRules(savedSettings),...ranchGoalOptions(target,work)});
+  const target={...readRanchTarget(savedSettings,level),...Object.fromEntries(['targetHours','targetTolerance','targetCoins','coinTolerance','fitCropMax','fitProductMax','quantityBudget'].map(id=>[id,$(id).value]))};return quantityOptions({...ranchCoinRules(savedSettings),...ranchGoalOptions(target,work)});
 }
 function quantityComparison(g,r,m){
   const goal=ranchGoal(readRanchTarget(savedSettings,level)),value=goal.metric==='coins'?m.coinValue:r?.proven?r.optimalMinutes:null,delta=value==null||goal.target==null?null:value-goal.target,hit=delta!=null&&Math.abs(delta)<=goal.tolerance+1e-8;
@@ -193,14 +193,14 @@ function quantityComparison(g,r,m){
 
 function setGroupQuantities(id,quantities,result=null){
   const index=groups.findIndex(g=>g.id===id);if(index<0)throw Error('当前等级中找不到该商品组合。');
-  const old=groups[index],updated=quantityGroup(old,quantities);if(result&&!orderWorkBalance(model,updated).valid)throw Error(`每单累计工时必须占整组的${ranchWorkRangeText(savedSettings)}。`);if(result&&!hasEqualProductQuantities(updated))throw Error('同一组合内相同商品必须使用相同数量。');groups[index]=updated;quantityEdits[id]=[...quantities];
+  const old=groups[index],updated=quantityGroup(old,quantities);if(result&&!orderCoinBalance(model,updated).valid)throw Error(`每单金币必须占整组的${ranchCoinRangeText(savedSettings)}。`);if(result&&!hasEqualProductQuantities(updated))throw Error('同一组合内相同商品必须使用相同数量。');groups[index]=updated;quantityEdits[id]=[...quantities];
   failures.delete(old.key);if(!hasEqualProductQuantities(updated))failures.set(updated.key,'相同商品数量不一致，请按目标重新配量。');
   if(result){results.set(updated.key,result);failures.delete(updated.key);}
   if(current&&(current.id===id||groupKey(current)===old.key))current=updated;
   return updated;
 }
 function renderRecommendations(){
-  const g=current&&representative(current),saved=g&&quantityFits.get(g.id),fit=saved?.recommendations?.some(v=>!hasEqualProductQuantities(v.group)||!orderWorkBalance(model,v.group).valid)?null:saved;$('quantityRecommendations').hidden=!fit;
+  const g=current&&representative(current),saved=g&&quantityFits.get(g.id),fit=saved?.recommendations?.some(v=>!hasEqualProductQuantities(v.group)||!orderCoinBalance(model,v.group).valid)?null:saved;$('quantityRecommendations').hidden=!fit;
   if(!fit)return;
   $('quantitySearchMeta').textContent=fit.error?'本轮配量失败':`对照 ${fit.evaluatedCount??fit.tried} 个数量配置 · ${fit.provenCount} 个排程已证明最优`;
   $('quantityReason').textContent=fit.error??`${fit.reason} 数量采用候选搜索，未证明为全范围最优配量。`;
@@ -221,7 +221,7 @@ function fitQuantities(items){
       if(performance.now()-lastPaint>250||data.index===data.total){updateView();lastPaint=performance.now();}
       $('quantityStatus').textContent=`已配量 ${data.index} / ${data.total} · ${completed.filter(f=>f.within).length} 个组合进入当前目标范围`;
     }
-    if(data.type==='groupError'){quantityFits.set(data.id,{error:data.message});$('quantityStatus').textContent=`组合配量失败：${data.message}`;}
+    if(data.type==='groupError'){quantityFits.set(data.id,{error:data.message,options,coinPrices:data.coinPrices});$('quantityStatus').textContent=`组合配量失败：${data.message}`;}
     if(data.type==='error'){stop();message(data.message);persist();saveCache();updateView();}
     if(data.type==='done'){
       stop();persist();saveCache();updateView();const values=completed.map(f=>f.recommendations[0].result.totalMinutes);
@@ -252,7 +252,7 @@ $('slots').addEventListener('change',applyManualQuantity);
 $('slots').addEventListener('input',event=>{if(event.target.dataset.quantity==null)return;clearTimeout(manualTimer);const token=buildToken,index=Number(event.target.dataset.quantity);$('solveState').textContent='数量待计算';$('optimal').textContent='—';manualTimer=setTimeout(()=>{if(token===buildToken)commitSlotInputs(false,index);},450);});
 $('resetOneQuantity').onclick=()=>current&&resetQuantityGroups([representative(current)]);
 $('resetLevelQuantities').onclick=()=>resetQuantityGroups([...groups]);
-$('recommendationCards').onclick=event=>{const button=event.target.closest('[data-recommendation]');if(!button||!current)return;const g=representative(current),candidate=quantityFits.get(g.id)?.recommendations[Number(button.dataset.recommendation)];if(!candidate||!hasEqualProductQuantities(candidate.group)||!orderWorkBalance(model,candidate.group).valid)return;stop();setGroupQuantities(g.id,candidate.group.slots.map(v=>v.quantity),candidate.result);persist();saveCache();updateView();};
+$('recommendationCards').onclick=event=>{const button=event.target.closest('[data-recommendation]');if(!button||!current)return;const g=representative(current),candidate=quantityFits.get(g.id)?.recommendations[Number(button.dataset.recommendation)];if(!candidate||!hasEqualProductQuantities(candidate.group)||!orderCoinBalance(model,candidate.group).valid)return;stop();setGroupQuantities(g.id,candidate.group.slots.map(v=>v.quantity),candidate.result);persist();saveCache();updateView();};
 $('targetObjective').onchange=()=>{savedSettings.objective=$('targetObjective').value;persist();updateView();};
 for(const id of ['targetHours','targetTolerance','targetCoins','coinTolerance','targetWork','fitCropMax','fitProductMax','quantityBudget'])$(id).onchange=()=>{persist();updateFilters();updateView();renderRecommendations();};
 $('importButton').onclick=$('importEmpty').onclick=()=>$('importFile').click();
@@ -293,7 +293,7 @@ async function syncRanchView(){
     await cacheQueue;const source=ranchSource();if(!source?.base)return;
     if(!model||ranchSettingsKey(source.base)!==storageKey){install(source.base,source.filename,source.rules);return;}
     const latest=readRanchSettings(localStorage,storageKey);
-    savedSettings=latest;model.orderWorkRules=ranchWorkRules(latest);persistedSettings=structuredClone(latest);restoreQuantityTargets();
+    savedSettings=latest;model.orderCoinRules=ranchCoinRules(latest);persistedSettings=structuredClone(latest);restoreQuantityTargets();
     $('cropQuantity').value=latest.cropQuantity??DEFAULT_CROP_QUANTITY;$('productQuantity').value=latest.productQuantity??1;$('allowRepeated').checked=latest.allowRepeated??false;$('searchLimit').value=latest.searchLimit??'2000';
     capacities={...ranchCapacities(model,level),...(latest.capacities?.[level]??{})};renderCapacities();await rebuild(false,true);
   }catch(error){message(error.message);}finally{syncing=false;}

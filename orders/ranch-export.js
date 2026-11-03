@@ -1,29 +1,31 @@
 import {ranchGoal} from './ranch-objective.js';
-import {ranchWorkRangeText} from './ranch-work-rules.js';
+import {ranchCoinRangeText,ranchCoinRules} from './ranch-coin-rules.js';
 import {ranchTypes,ranchDashboardRows} from './ranch-distribution.js';
 import {ranchPlanAdmission} from './ranch-actual-orders.js';
 import {readRanchTarget,loadRanchWorkspace} from './ranch-workspace.js';
 import {exportProjectWorkbook} from './project-export.js';
-import {hasEqualProductQuantities} from './ranch-quantity.js';
+import {hasEqualProductQuantities,orderCoinBalance} from './ranch-quantity.js';
+import {prepareRanch} from './ranch-engine.js';
 
 const valid=value=>Number.isFinite(value)&&value>=0?value:null;
 export function ranchExportSheets(ws){
   if(!ws?.plans)throw Error('请先导入加工链路 Excel。');
-  const summary=[['等级','订单类型','预设组合数','预设已证明最优','预设待证明','预设未计算','预设排产失败','实际订单平均联合优化时间（分钟）','实际订单平均累计工时（分钟）','优化时间目标（分钟，金币模式为空）','时间允许偏差（分钟，金币模式为空）','累计工时目标（分钟）','数据文件','达标实际订单组数','实际订单平均金币总值','配量目标','金币目标','金币允许偏差']];
+  const model=ws.model??prepareRanch(ws.base,ws.settings);
+  const summary=[['等级','订单类型','预设组合数','预设已证明最优','预设待证明','预设未计算','预设排产失败','实际订单平均联合优化时间（分钟）','实际订单平均累计工时（分钟）','优化时间目标（分钟，金币模式为空）','时间允许偏差（分钟，金币模式为空）','累计工时目标（分钟）','数据文件','达标实际订单组数','实际订单平均金币总值','配量目标','金币目标','金币允许偏差','每单金币占比下限（%）','每单金币占比上限（%）']];
   const targets=Object.fromEntries(ws.plans.map(p=>[p.level,readRanchTarget(ws.settings,p.level)]));
   for(const row of ranchDashboardRows(ws.plans,targets)){
     const target=readRanchTarget(ws.settings,row.level);
-    summary.push([row.level,row.name,row.total,row.proven,row.bounded,row.pending,row.failed,row.optimized.mean,row.work.mean,target.objective==='coins'?null:Number(target.targetHours)*60,target.objective==='coins'?null:Number(target.targetTolerance),String(target.targetWork).trim()===''?null:Number(target.targetWork),ws.filename,row.accepted,row.missingCoins?null:row.coins.mean,ranchGoal(target).label,target.objective==='coins'?Number(target.targetCoins):null,target.objective==='coins'?Number(target.coinTolerance):null]);
+    summary.push([row.level,row.name,row.total,row.proven,row.bounded,row.pending,row.failed,row.optimized.mean,row.work.mean,target.objective==='coins'?null:Number(target.targetHours)*60,target.objective==='coins'?null:Number(target.targetTolerance),String(target.targetWork).trim()===''?null:Number(target.targetWork),ws.filename,row.accepted,row.missingCoins?null:row.coins.mean,ranchGoal(target).label,target.objective==='coins'?Number(target.targetCoins):null,target.objective==='coins'?Number(target.coinTolerance):null,ranchCoinRules(ws.settings).orderCoinMinPercent,ranchCoinRules(ws.settings).orderCoinMaxPercent]);
   }
-  const sources=ws.base.sources??[],header=['等级','组合编号','订单内容',...['A','B','C','D'].flatMap(label=>[label+'商品 ID',label+'商品',label+'数量']),'联合优化时间（分钟，已证明）','可行排程时间（分钟）','时间下界（分钟）','排产状态','累计工时（分钟）','累计复杂度','金币总值',...sources.map(s=>s.name+'工时（分钟）')];
+  const sources=ws.base.sources??[],header=['等级','组合编号','订单内容',...['A','B','C','D'].flatMap(label=>[label+'商品 ID',label+'商品',label+'数量']),'联合优化时间（分钟，已证明）','可行排程时间（分钟）','时间下界（分钟）','排产状态','累计工时（分钟）','累计复杂度','金币总值',...sources.map(s=>s.name+'工时（分钟）'),...['A','B','C','D'].map(v=>v+'金币'),...['A','B','C','D'].map(v=>v+'金币占比（%）')];
   const sheets=[{name:'等级汇总',rows:summary,widths:[10,18,12,14,12,12,12,27,24,24,22,24,42],integerColumns:[9]}];
   for(const type of ranchTypes){
     const rows=[header];
     for(const plan of ws.plans)for(const group of plan.groups.filter(g=>g.types.includes(type.id))){
-      const balanceValid=plan.orderWorkBalance?.get(group.key)?.valid!==false,quantitiesValid=hasEqualProductQuantities(group),metric=plan.metrics.get(group.key),result=quantitiesValid?plan.results.get(group.key):null,failure=quantitiesValid?plan.failures.get(group.key):null;
+      const balanceValid=plan.orderCoinBalance?.get(group.key)?.valid!==false,quantitiesValid=hasEqualProductQuantities(group),metric=plan.metrics.get(group.key),result=quantitiesValid?plan.results.get(group.key):null,failure=quantitiesValid?plan.failures.get(group.key):null;
       const optimal=result?.proven?valid(result.optimalMinutes):null;
       const status=!quantitiesValid?'相同商品数量不一致，待重新配量':optimal!=null?'已证明最优':valid(result?.feasibleMinutes)!=null?'待证明最优':failure?'排产失败':'未计算';
-      rows.push([plan.level,group.id,metric.slots.map(v=>`${v.name} × ${v.quantity}`).join(' + '),...metric.slots.flatMap(v=>[v.id,v.name,v.quantity]),optimal,valid(result?.feasibleMinutes),valid(result?.lowerMinutes),failure?status+'：'+String(failure.message??failure):!balanceValid&&quantitiesValid?status+`；单个订单工时占比不在${ranchWorkRangeText(ws.settings)}，待重新配量`:status,metric.totalMinutes,metric.complexity,metric.coinValue,...sources.map(s=>metric.sourceMinutes[s.id]??0)]);
+      rows.push([plan.level,group.id,metric.slots.map(v=>`${v.name} × ${v.quantity}`).join(' + '),...metric.slots.flatMap(v=>[v.id,v.name,v.quantity]),optimal,valid(result?.feasibleMinutes),valid(result?.lowerMinutes),failure?status+'：'+String(failure.message??failure):!balanceValid&&quantitiesValid?status+`；单个订单金币占比不在${ranchCoinRangeText(ws.settings)}，待重新配量`:status,metric.totalMinutes,metric.complexity,metric.coinValue,...sources.map(s=>metric.sourceMinutes[s.id]??0),...orderCoinBalance(plan.model??model,group).values,...group.slots.map((_,i)=>{const v=orderCoinBalance(plan.model??model,group).shares[i];return Number.isFinite(v)?v*100:null;})]);
     }
     const actualRows=[header],presets=[header.concat('实际订单入库状态')];let index=1;
     for(const plan of ws.plans)for(const group of plan.groups.filter(g=>g.types.includes(type.id))){

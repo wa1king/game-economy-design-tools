@@ -20,8 +20,8 @@ test('old optima and fit.within flags cannot override current quantity constrain
   const group=g('repeated');group.slots[1]={id:1,quantity:2};assert.equal(accept(group).accepted,false);
 });
 test('all outcome statistics use the same admitted population, deduplicate overlapping types and preserve presets',()=>{
-  const groups=['ok','outside','bounded','pending','badshare','fiterror'].map(g),plan={level:1,groups,results:new Map(),failures:new Map(),quantityErrors:new Map([['fiterror','配量失败']]),orderWorkBalance:new Map(),metrics:new Map(),work:new Map()};
-  for(const group of groups){plan.results.set(group.key,{...result});plan.orderWorkBalance.set(group.key,{valid:group.id!=='badshare'});plan.metrics.set(group.key,{complexity:group.id==='ok'?4:999,coinValue:group.id==='ok'?80:9999});plan.work.set(group.key,group.id==='ok'?1000:9999);}
+  const groups=['ok','outside','bounded','pending','badshare','fiterror'].map(g),plan={level:1,groups,results:new Map(),failures:new Map(),quantityErrors:new Map([['fiterror','配量失败']]),orderCoinBalance:new Map(),metrics:new Map(),work:new Map()};
+  for(const group of groups){plan.results.set(group.key,{...result});plan.orderCoinBalance.set(group.key,{valid:group.id!=='badshare'});plan.metrics.set(group.key,{complexity:group.id==='ok'?4:999,coinValue:group.id==='ok'?80:9999});plan.work.set(group.key,group.id==='ok'?1000:9999);}
   plan.results.set('outside',{...result,optimalMinutes:400});plan.results.set('bounded',{proven:false,lowerMinutes:300,feasibleMinutes:360});plan.results.delete('pending');
   const before=structuredClone(plan),rows=ranchDashboardRows([plan],{1:target}),summary=ranchDashboardSummary([plan],{1:target});
   assert.deepEqual(ranchActualGroups(plan,target).map(g=>g.id),['ok']);

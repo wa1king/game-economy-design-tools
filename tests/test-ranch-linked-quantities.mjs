@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {prepareRanch,solveRanchGroup} from '../orders/ranch-engine.js';
 import {quantityCandidates,quantityOptions,quantityGroup,fitRanchQuantities,hasEqualProductQuantities,linkedProductQuantities,QUANTITY_SEARCH_VERSION,ranchQuantityFitKey,reuseRanchQuantityFit} from '../orders/ranch-quantity.js';
-const products=[1,2,3,4].map(id=>({id,name:'P'+id,buildingId:id,buildingName:'B'+id,level:1,isCrop:false,stepMinutes:10,analysisBatchYield:1,inputs:[]}));
+const products=[1,2,3,4].map(id=>({id,name:'P'+id,buildingId:id,buildingName:'B'+id,level:1,isCrop:false,coinValue:10,stepMinutes:10,analysisBatchYield:1,inputs:[]}));
 const base={maxLevel:1,sources:products.map(p=>({id:p.buildingId,name:p.buildingName})),products},caps={1:1,2:1,3:1,4:1};
 const group=(ids,qs=ids.map(()=>1))=>({id:'test',slots:ids.map((id,i)=>({id,quantity:qs[i]}))});
 const model=prepareRanch(base);
@@ -32,7 +32,7 @@ test('a formerly perfect unequal schedule cannot become a new recommendation',()
  const g=group([1,1,1,1],[1,2,3,4]),before=structuredClone(g),baseline=solveRanchGroup(model,g,1,caps);
  assert.equal(baseline.optimalMinutes,100);
  const fit=fitRanchQuantities(model,g,1,caps,{targetMinutes:100,toleranceMinutes:0,targetWorkMinutes:100,productMax:4,cropMax:4,timeLimitMs:4000,maxEvaluations:100},baseline);
- assert.equal(fit.within,false);assert(fit.recommendations.every(v=>hasEqualProductQuantities(v.group)));assert(fit.recommendations.every(v=>v.result.optimalMinutes!==100));assert.deepEqual(g,before);assert.equal(fit.searchVersion,6);
+ assert.equal(fit.within,false);assert(fit.recommendations.every(v=>hasEqualProductQuantities(v.group)));assert(fit.recommendations.every(v=>v.result.optimalMinutes!==100));assert.deepEqual(g,before);assert.equal(fit.searchVersion,7);
 });
 for(const ids of [[1,1,1,1],[1,2,1,2],[1,2,3,1]])test('fit recommendations preserve equal quantities: '+ids.join(','),()=>{
  const g=group(ids,[1,2,3,4]),before=structuredClone(g),fit=fitRanchQuantities(model,g,1,caps,{targetMinutes:80,toleranceMinutes:10,targetWorkMinutes:160,productMax:4,cropMax:4,timeLimitMs:4000,maxEvaluations:100});
@@ -51,6 +51,6 @@ test('one-step refinement adjusts every same-product slot together',()=>{
 });
 
 test('fit reuse keys identify the equal-quantity rule and invalid donors are rejected',()=>{
- assert.equal(QUANTITY_SEARCH_VERSION,6);const g=group([1,1,1,1]),options=quantityOptions();assert.equal(JSON.parse(ranchQuantityFitKey(model,g,caps,options))[0],6);
- const old=group([1,1,1,1],[1,2,3,4]);assert.throws(()=>reuseRanchQuantityFit({recommendations:[{group:old,result:{}}]},g,caps),/数量不一致/);
+ assert.equal(QUANTITY_SEARCH_VERSION,7);const g=group([1,1,1,1]),options=quantityOptions();assert.equal(JSON.parse(ranchQuantityFitKey(model,g,caps,options))[0],7);
+ const old=group([1,1,1,1],[1,2,3,4]);assert.throws(()=>reuseRanchQuantityFit({options,recommendations:[{group:old,result:{}}]},g,caps),/数量不一致/);
 });

@@ -1,7 +1,7 @@
 import {DEFAULT_CROP_QUANTITY} from './order-quantity-rules.js';
 import {prepareRanch,ranchCapacities,groupMetrics} from './ranch-engine.js';
 import {generateRanchLevelGroups,remapRanchResult} from './ranch-catalog.js';
-import {quantityGroup,hasEqualProductQuantities,orderWorkBalance} from './ranch-quantity.js';
+import {quantityGroup,hasEqualProductQuantities,orderCoinBalance} from './ranch-quantity.js';
 import {ranchImportCacheKey} from './ranch-import.js';
 import {ranchActualGroups,ranchPlanAdmission} from './ranch-actual-orders.js';
 import {ranchObjective,ranchGoal} from './ranch-objective.js';
@@ -33,7 +33,7 @@ export function buildRanchDistributionPlans(base,settings={}){
     const actual=groups.map(g=>Object.hasOwn(edits,g.id)?quantityGroup(g,edits[g.id]):g);
     const missing=base.sources.filter(s=>s.level<=level&&(!Number.isSafeInteger(Number(capacities[s.id]))||Number(capacities[s.id])<1));
     const metrics=new Map(actual.map(g=>[g.key,groupMetrics(model,g,level)]));
-    return {level,model,capacities,groups:actual,orderWorkBalance:new Map(actual.map(g=>[g.key,orderWorkBalance(model,g)])),metrics,work:new Map(actual.map(g=>[g.key,metrics.get(g.key).totalMinutes])),results:new Map(),failures:new Map(),quantityFits:[],capacityError:missing.length?'缺少有效产能：'+missing.map(s=>s.name).join('、'):null,cacheKey:ranchImportCacheKey(base,level,rules,capacities)};
+    return {level,model,capacities,groups:actual,orderCoinBalance:new Map(actual.map(g=>[g.key,orderCoinBalance(model,g)])),metrics,work:new Map(actual.map(g=>[g.key,metrics.get(g.key).totalMinutes])),results:new Map(),failures:new Map(),quantityFits:[],capacityError:missing.length?'缺少有效产能：'+missing.map(s=>s.name).join('、'):null,cacheKey:ranchImportCacheKey(base,level,rules,capacities)};
   });
 }
 

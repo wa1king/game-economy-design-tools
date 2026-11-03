@@ -1,4 +1,4 @@
-import {hasEqualProductQuantities,orderWorkBalance} from './ranch-quantity.js';
+import {hasEqualProductQuantities,orderCoinBalance} from './ranch-quantity.js';
 import {ranchGoal} from './ranch-objective.js';
 
 // A fixed-quantity optimum is a scheduling result, not an admitted order.
@@ -10,8 +10,9 @@ export function ranchOrderAdmission(group,{result,target={},balance,model,error,
   if(error)return reject('failed',String(error.message??error));
   if(!result)return reject('pending','尚未计算');
   if(!result.proven||!Number.isFinite(result.optimalMinutes)||result.optimalMinutes<0)return reject('bounded','尚未证明最优');
-  const checked=model?orderWorkBalance(model,group):balance;
-  if(checked?.valid!==true)return reject('invalid','单单累计工时占比不符合当前约束');
+  const checked=model?orderCoinBalance(model,group):balance;
+  if(checked?.priced===false)return reject('invalid','金币单价未完整导入');
+  if(checked?.valid!==true)return reject('invalid','单单金币占比不符合当前约束');
   const prices=model?group.slots.map(v=>model.by.get(v.id).coinValue):null;
   const goal=ranchGoal(target),coinValue=model?(prices.every(v=>Number.isFinite(v)&&v>=0)?group.slots.reduce((s,v,i)=>s+prices[i]*v.quantity,0):null):result.coinValue;
   if(goal.target==null)return reject('invalid','当前优化目标未配置');
@@ -23,7 +24,7 @@ export function ranchOrderAdmission(group,{result,target={},balance,model,error,
 }
 
 export function ranchPlanAdmission(plan,group,target){
-  return ranchOrderAdmission(group,{result:plan.results.get(group.key),target,balance:plan.orderWorkBalance?.get(group.key),model:plan.model,error:plan.quantityErrors?.get(group.id)??plan.quantityFits?.get?.(group.id)?.error??plan.failures.get(group.key),capacityError:plan.capacityError});
+  return ranchOrderAdmission(group,{result:plan.results.get(group.key),target,balance:plan.orderCoinBalance?.get(group.key),model:plan.model,error:plan.quantityErrors?.get(group.id)??plan.quantityFits?.get?.(group.id)?.error??plan.failures.get(group.key),capacityError:plan.capacityError});
 }
 
 export function ranchActualGroups(plan,target){return plan.groups.filter(g=>ranchPlanAdmission(plan,g,target).accepted);}
