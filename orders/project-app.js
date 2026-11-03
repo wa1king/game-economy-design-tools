@@ -363,6 +363,7 @@ function renderCustomOrders(){
 function setView(view){
   for(const [id,key] of [['levelWorkspace','levels'],['overviewPanel','overview'],['dashboardPanel','dashboard'],['customPanel','custom']])$(id).hidden=view!==key;
   for(const [id,key] of [['viewLevels','levels'],['viewOverview','overview'],['viewDashboard','dashboard'],['viewCustom','custom']])$(id).classList.toggle('active',view===key);
+  const batch=$('ordinaryBatchActions');if(view==='dashboard'||view==='overview'){const host=$(view==='dashboard'?'dashboardActions':'overviewActions');if(batch.parentNode!==host)host.append(batch);batch.hidden=false;}else batch.hidden=true;
   if(view==='custom')renderCustomOrders();
   if(view==='dashboard')renderDashboard();
 }

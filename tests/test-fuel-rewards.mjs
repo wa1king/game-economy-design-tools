@@ -93,7 +93,8 @@ test('fuel rule dialog saves one global rule and emits only a presentation refre
   const storage=memory(),previousStorage=globalThis.localStorage,previousDocument=globalThis.document,previousWindow=globalThis.window;
   const elements=new Map(),events=[],element=id=>{if(!elements.has(id))elements.set(id,{value:'',hidden:false,showModal(){this.open=true;},close(){this.open=false;}});return elements.get(id);};
   globalThis.localStorage=storage;
-  globalThis.document={getElementById:id=>elements.get(id),createElement:()=>({}),head:{append(){}},body:{insertAdjacentHTML:()=>{for(const id of ['fuelRulesDialog','fuelCoinsPerUnit','fuelRulesError','openFuelRules','fuelRuleExample','closeFuelRules','fuelRulesForm'])element(id);}},querySelector:()=>({insertAdjacentHTML(){}})};
+  const actions={insertAdjacentHTML(){}},root={querySelector:selector=>{assert.equal(selector,'.workspace-actionbar .workspace-actions');return actions;},insertAdjacentHTML:()=>{for(const id of ['fuelRulesDialog','fuelCoinsPerUnit','fuelRulesError','openFuelRules','fuelRuleExample','closeFuelRules','fuelRulesForm'])element(id);}};
+  globalThis.document={getElementById:id=>elements.get(id),createElement:()=>({}),head:{append(){}},querySelector:selector=>{assert.equal(selector,'main');return root;}};
   globalThis.window={dispatchEvent:e=>events.push(e.type),addEventListener(){}};
   try{setupFuelRules();element('openFuelRules').onclick();assert.equal(element('fuelCoinsPerUnit').value,10);element('fuelCoinsPerUnit').value='8';element('fuelRulesForm').onsubmit({preventDefault(){}});assert.equal(readFuelRules(storage).coinsPerFuel,8);assert.deepEqual(events,['orders:fuel-changed']);assert.equal(element('fuelRulesDialog').open,false);}
   finally{for(const [key,value] of [['localStorage',previousStorage],['document',previousDocument],['window',previousWindow]])if(value===undefined)delete globalThis[key];else globalThis[key]=value;}

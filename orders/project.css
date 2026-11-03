@@ -11,3 +11,5 @@
 .uniform-baseline{display:flex;justify-content:space-between;gap:8px;margin:-2px 0 13px;color:var(--muted);font-size:10px;line-height:1.5}.uniform-baseline output{font-variant-numeric:tabular-nums;white-space:nowrap;color:#527762}
 
 .project-names-notice{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px}.project-names-notice button{font-size:12px;white-space:nowrap;padding:6px 12px}
+
+.ordinary-tab-actions{display:flex;justify-content:flex-end;margin-bottom:12px}.ordinary-tab-actions:empty{display:none}#ordinaryBatchActions{display:inline-flex;align-items:center;gap:8px}#ordinaryBatchActions button{white-space:nowrap;font-size:12px;padding:7px 12px}

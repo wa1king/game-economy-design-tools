@@ -2,7 +2,7 @@ import {createSessionSnapshot,validateSessionSnapshot,fetchSharedSession} from '
 
 export function createSessionBackupView(api){
   const button=document.createElement('button');button.id='sessionBackup';button.className='quiet';button.textContent='备份 / 恢复';
-  document.querySelector('#exportProject').after(button);
+  document.querySelector('main .workspace-actionbar .workspace-actions').append(button);
   const dialog=document.createElement('dialog');dialog.className='session-dialog';dialog.setAttribute('aria-labelledby','sessionBackupTitle');
   dialog.innerHTML=`<div class="session-heading"><h2 id="sessionBackupTitle">项目备份</h2><button type="button" id="closeSessionBackup" aria-label="关闭项目备份">×</button></div><p id="sessionBackupSummary"></p><p id="sessionBackupError" role="alert" hidden></p><div class="session-actions"><button id="saveSessionBackup" class="primary" type="button">下载备份</button><button id="importSessionBackup" class="quiet" type="button">恢复文件</button><button id="loadSharedSession" class="quiet" type="button">使用已同步配置</button></div><input id="sessionBackupFile" type="file" accept=".json,application/json" hidden><div id="sessionRestoreConfirm" hidden><p id="sessionRestoreSummary"></p><button id="applySessionRestore" class="primary" type="button">确认恢复</button><button id="cancelSessionRestore" class="quiet" type="button">取消</button></div><details><summary>查看备份内容</summary><textarea id="sessionBackupText" aria-label="项目与经营存档备份内容" readonly spellcheck="false"></textarea></details>`;
   document.querySelector('main').append(dialog);

@@ -10,7 +10,6 @@ const types=`<nav class="order-system-switch" aria-label="订单系统"><a href=
 if(header&&!header.children.length)header.innerHTML=`<div class="brand"><span class="brand-icon">牧</span><div><strong>牧场订单</strong><small id="shellProjectName">尚未导入项目</small></div></div>${types}`;
 else if(header&&!header.querySelector('.order-system-switch'))header.querySelector('.brand')?.insertAdjacentHTML('afterend',types);
 if(header&&!document.getElementById('importButton'))header.insertAdjacentHTML('beforeend',`<div class="shared-data-actions"><button id="importButton" class="shell-action" type="button">导入 Excel</button><input id="importFile" type="file" accept=".xlsx" hidden><button id="exportRanchExcel" class="shell-action" type="button">导出 Excel</button></div>`);
-setupFuelRules();
 const globalActions=header?.querySelector('.shared-data-actions');
 globalActions?.insertAdjacentHTML('afterbegin','<span id="sharedActionStatus" class="shared-action-status" role="status"></span>');
 const actionMessage=text=>{const status=document.getElementById('sharedActionStatus');if(status){status.textContent=text;status.title=text;}};
@@ -36,6 +35,7 @@ if(main&&!document.getElementById('ranchNavigation')){
   const actions=main.querySelector('.workspace-actionbar')?'':`<section class="workspace-actionbar" aria-label="牧场订单操作"><span id="shellSourceMeta" class="workspace-meta"></span><div class="workspace-actions"><button id="openSettings" class="shell-action" type="button" aria-haspopup="dialog" aria-controls="ranchRulesDialog">订单规则</button></div></section>`;
   main.insertAdjacentHTML('afterbegin',`<nav id="ranchNavigation" class="ranch-navigation" aria-label="牧场工作区">${tabs.map(([id,label,path])=>`<a href="${path}" ${id===view?'aria-current="page"':''}>${label}</a>`).join('')}</nav>${actions}`);
 }
+setupFuelRules();
 const rulesDialog=setupRanchRulesDialog();
 if(new URLSearchParams(window.location.search??'').get('settings')==='1')window.addEventListener('DOMContentLoaded',()=>rulesDialog.open(),{once:true});
 window.addEventListener('ranch:rules-applied',()=>{if(view!=='analysis')window.location.reload();});
