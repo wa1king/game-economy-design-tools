@@ -11,6 +11,7 @@ import {quantityGroup,quantityOptions,QUANTITY_SEARCH_VERSION,estimateRanchWorkR
 import {estimateRanchCoinWork} from './ranch-quantity.js';
 import {ranchObjective,ranchGoal,ranchGoalOptions,ranchGoalWithin} from './ranch-objective.js';
 import {ranchUnlockLevel,ranchUnlockedPlans} from './ranch-unlock.js';
+import {ensureSharedSession} from './shared-session-bootstrap.js';
 
 export const RANCH_TARGET_DEFAULTS={targetHours:'6',targetTolerance:'30',targetCoins:'300',coinTolerance:'30',targetWork:'',fitCropMax:'42',fitProductMax:'12',quantityBudget:'2500'};
 const targetKeys=Object.keys(RANCH_TARGET_DEFAULTS);
@@ -33,6 +34,7 @@ export function ranchSource(storage=globalThis.localStorage){
   return readSharedChainSource(storage);
 }
 export async function loadRanchWorkspace(deps={}){
+  if(!deps.storage)await ensureSharedSession();
   const storage=deps.storage??globalThis.localStorage,source=ranchSource(storage);
   if(!source?.base)return null;
   const base=structuredClone(source.base),storageKey=ranchSettingsKey(base),settings=readRanchSettings(storage,storageKey),model=prepareRanch(base,settings),plans=buildRanchDistributionPlans(base,settings);

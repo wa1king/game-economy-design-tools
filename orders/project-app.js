@@ -30,6 +30,8 @@ import {projectExportSheets,exportProjectWorkbook} from './project-export.js';
 import {isPlaceholderProductName,productNameUpdates,applyProductNameUpdates} from './project-names.js';
 import {createOrderTimingService} from './order-time.js';
 import {createFitCache} from './fit-cache.js';
+import {ensureSharedSession} from './shared-session-bootstrap.js';
+import {restoreComputeCache} from './session-compute-cache.js';
 import {metadataSourceIssue,supplementProjectMetadata} from './project-metadata.js';
 const $=id=>document.getElementById(id),fmt=(v,d=1)=>Number(v).toLocaleString('zh-CN',{maximumFractionDigits:d,minimumFractionDigits:d}),pct=(v,d=2)=>fmt(v*100,d)+'%';
 const escape=value=>String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -453,7 +455,7 @@ $('exportWorkbook').onclick=async()=>{
   finally{$('exportWorkbook').disabled=$('exportProjectJSON').disabled=false;}
 };
 async function init(){
-  try{projectStore=createProjectStore(localStorage);let saved=projectStore.load();
+  try{await ensureSharedSession();projectStore=createProjectStore(localStorage);let saved=projectStore.load();
     if(!saved){
       const shared=await fetchSharedSession();
       if(shared){restoreSessionSnapshot(localStorage,shared);projectStore=createProjectStore(localStorage);saved=projectStore.load();}
@@ -491,7 +493,7 @@ createSessionBackupView({
   getProject:()=>project?{...project,activeLevel}:null,download,
   restore:async snapshot=>{
     if(busy)throw Error('请先等待拟合结束。');
-    gameMode.releaseSession();restoreSessionSnapshot(localStorage,snapshot,{overwrite:true});writeSharedChainSource(snapshot.project.base,snapshot.project.filename);
+    await restoreComputeCache(snapshot);gameMode.releaseSession();restoreSessionSnapshot(localStorage,snapshot,{overwrite:true});writeSharedChainSource(snapshot.project.base,snapshot.project.filename);
     projectStore=createProjectStore(localStorage);const saved=projectStore.load();installBase(saved.base,saved.filename,saved);setView('dashboard');await restoreFitResults();
   }
 });

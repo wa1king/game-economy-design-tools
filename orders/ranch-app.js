@@ -1,4 +1,5 @@
 import {ranchUnlockLevel,ranchLevelUnlocked} from './ranch-unlock.js';
+import {ensureSharedSession} from './shared-session-bootstrap.js';
 import {ranchFuelReward,fuelReward} from './fuel-rewards.js';
 import {summarizeCoins,renderCoinAnalysis,renderCoinBreakdown,coinBreakdown} from './coin-analysis.js';
 import {ranchObjective,ranchGoal,ranchGoalOptions,ranchGoalWithin} from './ranch-objective.js';
@@ -308,5 +309,5 @@ if(typeof document.addEventListener==='function'){
   document.addEventListener('focusout',()=>{if(syncQueued)setTimeout(syncRanchView,0);});
 }
 window.addEventListener('ranch:rules-applied',()=>{void syncRanchView();});
-try{const source=ranchSource();if(source?.base)install(source.base,source.filename);else message('请导入加工链路 Excel，普通订单和牧场将共用此数据。');}catch(e){message(e.message);}
+try{await ensureSharedSession();const source=ranchSource();if(source?.base)install(source.base,source.filename);else message('请导入加工链路 Excel，普通订单和牧场将共用此数据。');}catch(e){message(e.message);}
 if(navigationRequest?.get('import')==='1'){$('empty').hidden=false;$('empty').scrollIntoView({block:'start'});}

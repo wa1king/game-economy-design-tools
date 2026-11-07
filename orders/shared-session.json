@@ -1,6 +1,6 @@
 {
   "schemaVersion": "order-session-snapshot-v1",
-  "createdAt": "2026-10-20T08:11:44.612Z",
+  "createdAt": "2026-11-07T01:46:37.466Z",
   "project": {
     "schemaVersion": "order-project-v3",
     "origin": "excel-import",
@@ -940,7 +940,7 @@
       ]
     },
     "rules": {
-      "cropQuantity": 7,
+      "cropQuantity": 6,
       "productQuantity": 1,
       "maxKinds": 3,
       "singleWindow": 10
@@ -952,82 +952,82 @@
           0,
           0
         ],
-        "mean": 14,
+        "mean": 12,
         "variance": 0,
         "weights": {
-          "0": 6,
+          "0": 3,
           "501": 1,
           "502": 1,
           "503": 1,
           "504": 1,
           "505": 1
         },
-        "sourceEnabled": true,
+        "sourceEnabled": false,
         "minimumOrderWeight": true,
-        "revision": 0,
+        "revision": 7,
         "spreadPercent": 0
       },
       "2": {
         "mix": [
-          33,
-          67,
+          1,
+          1,
           0
         ],
-        "mean": 35.86,
-        "variance": 176.4,
+        "mean": 30,
+        "variance": 123.45836460748237,
         "weights": {
-          "0": 6,
+          "0": 3,
           "501": 1,
           "502": 1,
           "503": 1,
           "504": 1,
           "505": 1
         },
-        "sourceEnabled": true,
+        "sourceEnabled": false,
         "minimumOrderWeight": true,
-        "revision": 0,
+        "revision": 16,
         "spreadPercent": 37.03727320888788
       },
       "3": {
         "mix": [
-          33,
-          67,
+          1,
+          1,
           0
         ],
-        "mean": 35.67,
-        "variance": 172.71,
+        "mean": 30,
+        "variance": 122.16696222239041,
         "weights": {
-          "0": 6,
+          "0": 3,
           "501": 1,
           "502": 1,
           "503": 1,
           "504": 1,
           "505": 1
         },
-        "sourceEnabled": true,
+        "sourceEnabled": false,
         "minimumOrderWeight": true,
-        "revision": 0,
+        "revision": 14,
         "spreadPercent": 36.84305485922541
       },
       "4": {
         "mix": [
           20,
           40,
-          40
+          0
         ],
-        "mean": 58.58,
-        "variance": 477.23,
+        "mean": 36,
+        "variance": 180.2328721823337,
         "weights": {
-          "0": 12,
+          "0": 6,
           "501": 1,
           "502": 1,
           "503": 1,
           "504": 1,
           "505": 1
         },
-        "sourceEnabled": true,
+        "sourceEnabled": false,
         "minimumOrderWeight": true,
-        "revision": 0,
+        "revision": 14,
         "spreadPercent": 37.29189914911329
       },
       "5": {
@@ -1036,19 +1036,19 @@
           40,
           40
         ],
-        "mean": 64.76,
-        "variance": 591.14,
+        "mean": 60,
+        "variance": 507.43353803905967,
         "weights": {
-          "0": 12,
+          "0": 6,
           "501": 1,
           "502": 1,
           "503": 1,
           "504": 1,
           "505": 1
         },
-        "sourceEnabled": true,
+        "sourceEnabled": false,
         "minimumOrderWeight": true,
-        "revision": 0,
+        "revision": 4,
         "spreadPercent": 37.5438091522964
       },
       "6": {
@@ -1057,8 +1057,50 @@
           40,
           40
         ],
-        "mean": 87.42,
-        "variance": 1885.88,
+        "mean": 90,
+        "variance": 1998.8374114221024,
+        "weights": {
+          "0": 9,
+          "501": 1,
+          "502": 1,
+          "503": 1,
+          "504": 1,
+          "505": 1
+        },
+        "sourceEnabled": true,
+        "minimumOrderWeight": true,
+        "revision": 4,
+        "spreadPercent": 49.67595502784543
+      },
+      "7": {
+        "mix": [
+          20,
+          40,
+          40
+        ],
+        "mean": 120,
+        "variance": 3444.4227100135913,
+        "weights": {
+          "0": 9,
+          "501": 1,
+          "502": 1,
+          "503": 1,
+          "504": 1,
+          "505": 1
+        },
+        "sourceEnabled": true,
+        "minimumOrderWeight": true,
+        "revision": 3,
+        "spreadPercent": 48.907670311385885
+      },
+      "8": {
+        "mix": [
+          20,
+          40,
+          40
+        ],
+        "mean": 150,
+        "variance": 5409.90934121561,
         "weights": {
           "0": 12,
           "501": 1,
@@ -1069,49 +1111,7 @@
         },
         "sourceEnabled": true,
         "minimumOrderWeight": true,
-        "revision": 0,
-        "spreadPercent": 49.67595502784543
-      },
-      "7": {
-        "mix": [
-          20,
-          40,
-          40
-        ],
-        "mean": 103.65,
-        "variance": 2569.76,
-        "weights": {
-          "0": 18,
-          "501": 1,
-          "502": 1,
-          "503": 1,
-          "504": 1,
-          "505": 1
-        },
-        "sourceEnabled": true,
-        "minimumOrderWeight": true,
-        "revision": 0,
-        "spreadPercent": 48.907670311385885
-      },
-      "8": {
-        "mix": [
-          20,
-          40,
-          40
-        ],
-        "mean": 117.63,
-        "variance": 3326.93,
-        "weights": {
-          "0": 18,
-          "501": 1,
-          "502": 1,
-          "503": 1,
-          "504": 1,
-          "505": 1
-        },
-        "sourceEnabled": true,
-        "minimumOrderWeight": true,
-        "revision": 0,
+        "revision": 7,
         "spreadPercent": 49.03472393775029
       },
       "9": {
@@ -1120,19 +1120,19 @@
           40,
           40
         ],
-        "mean": 124.52,
-        "variance": 3678.84,
+        "mean": 180,
+        "variance": 7687.368257359146,
         "weights": {
-          "0": 18,
+          "0": 12,
           "501": 1,
           "502": 1,
           "503": 1,
           "504": 1,
           "505": 1
         },
-        "sourceEnabled": true,
+        "sourceEnabled": false,
         "minimumOrderWeight": true,
-        "revision": 0,
+        "revision": 10,
         "spreadPercent": 48.70979905395093
       },
       "10": {
@@ -1141,10 +1141,10 @@
           40,
           40
         ],
-        "mean": 172.54,
-        "variance": 8720.54,
+        "mean": 210,
+        "variance": 12918.211199875785,
         "weights": {
-          "0": 24,
+          "0": 15,
           "501": 1,
           "502": 1,
           "503": 1,
@@ -1153,7 +1153,7 @@
         },
         "sourceEnabled": true,
         "minimumOrderWeight": true,
-        "revision": 0,
+        "revision": 11,
         "spreadPercent": 54.12300427552565
       },
       "11": {
@@ -1162,10 +1162,10 @@
           40,
           40
         ],
-        "mean": 186.04,
-        "variance": 9875.33,
+        "mean": 240,
+        "variance": 16434.687060961776,
         "weights": {
-          "0": 24,
+          "0": 15,
           "501": 1,
           "502": 1,
           "503": 1,
@@ -1174,7 +1174,7 @@
         },
         "sourceEnabled": true,
         "minimumOrderWeight": true,
-        "revision": 0,
+        "revision": 6,
         "spreadPercent": 53.415768097229254
       },
       "12": {
@@ -1183,10 +1183,10 @@
           40,
           40
         ],
-        "mean": 198.59,
-        "variance": 10444.47,
+        "mean": 270,
+        "variance": 19306.30591675643,
         "weights": {
-          "0": 24,
+          "0": 15,
           "501": 1,
           "502": 1,
           "503": 1,
@@ -1195,7 +1195,7 @@
         },
         "sourceEnabled": true,
         "minimumOrderWeight": true,
-        "revision": 0,
+        "revision": 6,
         "spreadPercent": 51.46190130814414
       },
       "13": {
@@ -1204,10 +1204,10 @@
           40,
           40
         ],
-        "mean": 245.85,
-        "variance": 20895.28,
+        "mean": 300,
+        "variance": 31113.601092348967,
         "weights": {
-          "0": 24,
+          "0": 15,
           "501": 1,
           "502": 1,
           "503": 1,
@@ -1216,7 +1216,7 @@
         },
         "sourceEnabled": true,
         "minimumOrderWeight": true,
-        "revision": 0,
+        "revision": 5,
         "spreadPercent": 58.79682634325406
       },
       "14": {
@@ -1225,10 +1225,10 @@
           40,
           40
         ],
-        "mean": 265.32,
-        "variance": 23627.49,
+        "mean": 360,
+        "variance": 43499.33446128185,
         "weights": {
-          "0": 24,
+          "0": 15,
           "501": 1,
           "502": 1,
           "503": 1,
@@ -1237,7 +1237,7 @@
         },
         "sourceEnabled": true,
         "minimumOrderWeight": true,
-        "revision": 0,
+        "revision": 5,
         "spreadPercent": 57.934705731412215
       },
       "15": {
@@ -1246,10 +1246,10 @@
           40,
           40
         ],
-        "mean": 276.92,
-        "variance": 24067.81,
+        "mean": 420,
+        "variance": 55363.878804360604,
         "weights": {
-          "0": 30,
+          "0": 15,
           "501": 1,
           "502": 1,
           "503": 1,
@@ -1258,7 +1258,7 @@
         },
         "sourceEnabled": true,
         "minimumOrderWeight": true,
-        "revision": 0,
+        "revision": 3,
         "spreadPercent": 56.02269078090919
       },
       "16": {
@@ -1267,10 +1267,10 @@
           40,
           40
         ],
-        "mean": 361.56,
-        "variance": 52018.96,
+        "mean": 450,
+        "variance": 80579.75402308551,
         "weights": {
-          "0": 30,
+          "0": 15,
           "501": 1,
           "502": 1,
           "503": 1,
@@ -1279,7 +1279,7 @@
         },
         "sourceEnabled": true,
         "minimumOrderWeight": true,
-        "revision": 0,
+        "revision": 3,
         "spreadPercent": 63.081273863573294
       },
       "17": {
@@ -1288,10 +1288,10 @@
           40,
           40
         ],
-        "mean": 370.38,
-        "variance": 51558.12,
+        "mean": 480,
+        "variance": 86593.34036968368,
         "weights": {
-          "0": 30,
+          "0": 15,
           "501": 1,
           "502": 1,
           "503": 1,
@@ -1300,7 +1300,7 @@
         },
         "sourceEnabled": true,
         "minimumOrderWeight": true,
-        "revision": 0,
+        "revision": 3,
         "spreadPercent": 61.30572166691176
       },
       "18": {
@@ -1309,10 +1309,10 @@
           40,
           40
         ],
-        "mean": 384.96,
-        "variance": 50583.02,
+        "mean": 510,
+        "variance": 88779.74549579139,
         "weights": {
-          "0": 30,
+          "0": 15,
           "501": 1,
           "502": 1,
           "503": 1,
@@ -1321,7 +1321,7 @@
         },
         "sourceEnabled": true,
         "minimumOrderWeight": true,
-        "revision": 0,
+        "revision": 3,
         "spreadPercent": 58.4233924988299
       },
       "19": {
@@ -1330,10 +1330,10 @@
           40,
           40
         ],
-        "mean": 465.96,
-        "variance": 85615.98,
+        "mean": 540,
+        "variance": 114986.02968929788,
         "weights": {
-          "0": 30,
+          "0": 15,
           "501": 1,
           "502": 1,
           "503": 1,
@@ -1342,7 +1342,7 @@
         },
         "sourceEnabled": true,
         "minimumOrderWeight": true,
-        "revision": 0,
+        "revision": 3,
         "spreadPercent": 62.79553711690296
       },
       "20": {
@@ -1351,10 +1351,10 @@
           40,
           40
         ],
-        "mean": 499.27,
-        "variance": 96134.94,
+        "mean": 600,
+        "variance": 138839.4287819168,
         "weights": {
-          "0": 30,
+          "0": 15,
           "501": 1,
           "502": 1,
           "503": 1,
@@ -1363,137 +1363,231 @@
         },
         "sourceEnabled": true,
         "minimumOrderWeight": true,
-        "revision": 0,
+        "revision": 3,
         "spreadPercent": 62.10193877406477
       }
     },
+    "customOrders": {
+      "version": 1,
+      "levels": {
+        "2": [
+          "S1-2"
+        ],
+        "3": [
+          "S1-3",
+          "S2-1-2"
+        ],
+        "4": [
+          "S1-4",
+          "S2-2-5"
+        ],
+        "5": [
+          "S1-6",
+          "S3-2-5-3",
+          "S2-1-7"
+        ],
+        "6": [
+          "S2-2-14",
+          "S3-2-5-3",
+          "S3-2-3-6"
+        ],
+        "7": [
+          "S2-1-10",
+          "S2-5-12",
+          "S3-2-7-14"
+        ],
+        "8": [
+          "S2-1-15",
+          "S1-13",
+          "S3-15-12-14"
+        ],
+        "9": [
+          "S1-16",
+          "S3-5-10-15",
+          "S3-15-4-7"
+        ],
+        "10": [
+          "S1-18",
+          "S2-2-19",
+          "S2-17-3"
+        ],
+        "11": [
+          "S3-2-12-13",
+          "S3-1-10-21",
+          "S3-17-20-13"
+        ],
+        "12": [
+          "S3-5-3-13",
+          "S3-1-17-14",
+          "S3-17-20-23"
+        ],
+        "13": [
+          "S2-24-19",
+          "S3-1-22-14",
+          "S1-25"
+        ],
+        "14": [
+          "S3-15-4-20",
+          "S3-10-4-26",
+          "S3-24-6-16"
+        ],
+        "15": [
+          "S3-2-3-28",
+          "S3-15-24-23",
+          "S3-17-27-13"
+        ],
+        "16": [
+          "S1-30",
+          "S1-31",
+          "S1-29"
+        ],
+        "17": [
+          "S3-1-2-7",
+          "S3-15-25-19",
+          "S3-30-22-32"
+        ],
+        "18": [
+          "S3-17-14-25",
+          "S2-24-34",
+          "S3-15-33-20"
+        ],
+        "19": [
+          "S2-35-4",
+          "S2-4-37",
+          "S1-36"
+        ],
+        "20": [
+          "S2-2-3",
+          "S2-5-12",
+          "S3-35-25-38"
+        ]
+      }
+    },
     "probabilityScale": 10000,
-    "activeLevel": 20
+    "activeLevel": 17
   },
   "gameSaves": [
     {
-      "key": "order-game-v1:game-v2-156-955b4c08-61ef6840",
+      "key": "order-game-v1:game-v1-306129-4de30a5f-e738e6e7",
       "state": {
-        "version": 2,
-        "signature": "game-v2-156-955b4c08-61ef6840",
-        "level": 1,
-        "lastWallTime": 1792467248776,
-        "elapsedMs": 27913,
-        "money": 1600,
-        "inventory": {
-          "1": 0
-        },
+        "version": 1,
+        "signature": "game-v1-306129-4de30a5f-e738e6e7",
+        "level": 20,
+        "lastWallTime": 1792468299120,
+        "elapsedMs": 3225984,
+        "money": 1000,
+        "inventory": {},
         "settings": {
           "warehouseCapacity": 200,
-          "landCapacity": 6,
-          "queueLimit": 3,
+          "landCapacity": 30,
+          "queueLimit": 12,
           "orderSlots": 6,
+          "refreshCost": 10,
           "refreshMinutes": 5,
-          "initialStockMultiplier": 2,
-          "channels": {}
+          "coinPerMinute": 1,
+          "seedCost": 0,
+          "channels": {
+            "501": 1,
+            "502": 1,
+            "503": 1,
+            "504": 1,
+            "505": 1
+          }
         },
         "jobs": [],
         "board": [
           {
-            "orderId": "S1-1",
+            "orderId": "S2-17-36",
             "status": "ready"
           },
           {
-            "orderId": "S1-1",
+            "orderId": "S3-35-33-23",
             "status": "ready"
           },
           {
-            "orderId": "S1-1",
+            "orderId": "S3-15-3-28",
             "status": "ready"
           },
           {
-            "orderId": "S1-1",
+            "orderId": "S3-35-37-29",
             "status": "ready"
           },
           {
-            "orderId": "S1-1",
+            "orderId": "S1-28",
             "status": "ready"
           },
           {
-            "orderId": "S1-1",
+            "orderId": "S3-22-37-13",
             "status": "ready"
           }
         ],
         "counters": {
-          "delivered": 2,
-          "earned": 600,
+          "delivered": 0,
+          "earned": 0,
           "refreshed": 0,
           "produced": 0,
-          "draws": 8
+          "draws": 6
         },
         "log": [
           {
             "at": 0,
-            "text": "开始 Lv 1 经营，获得 1000 金币、2 倍单次订单需求的全部商品。"
-          },
-          {
-            "at": 262,
-            "text": "交付订单 1，获得 300 金币。"
-          },
-          {
-            "at": 545,
-            "text": "交付订单 1，获得 300 金币。"
+            "text": "开始 Lv 20 经营，获得 1000 金币。"
           }
         ],
-        "rngState": 807377249,
+        "rngState": 2761842217,
         "nextJobId": 1,
         "warehouseUpgrades": 0,
         "buildingUpgrades": {}
       }
     },
     {
-      "key": "order-game-v1:game-v2-306388-316799bc-980de67c",
+      "key": "order-game-v1:game-v2-306374-607ccf61-31d94ea9",
       "state": {
         "version": 2,
-        "signature": "game-v2-306388-316799bc-980de67c",
+        "signature": "game-v2-306374-607ccf61-31d94ea9",
         "level": 20,
-        "lastWallTime": 1792483547910,
-        "elapsedMs": 38899552,
+        "lastWallTime": 1792476556566,
+        "elapsedMs": 8254359,
         "money": 1000,
         "inventory": {
-          "1": 23,
-          "2": 30,
-          "3": 9,
+          "1": 12,
+          "2": 12,
+          "3": 2,
           "4": 2,
-          "5": 9,
-          "6": 4,
+          "5": 12,
+          "6": 2,
           "7": 2,
-          "10": 6,
+          "10": 12,
           "12": 2,
           "13": 2,
           "14": 2,
-          "15": 14,
+          "15": 12,
           "16": 2,
-          "17": 14,
+          "17": 12,
           "18": 2,
           "19": 2,
           "20": 2,
           "21": 2,
-          "22": 6,
+          "22": 2,
           "23": 2,
-          "24": 10,
+          "24": 12,
           "25": 2,
           "26": 2,
           "27": 2,
           "28": 2,
           "29": 2,
-          "30": 14,
+          "30": 12,
           "31": 2,
           "32": 2,
-          "33": 4,
+          "33": 2,
           "34": 2,
           "35": 12,
-          "36": 3,
+          "36": 2,
           "37": 2,
           "38": 2
         },
         "settings": {
-          "warehouseCapacity": 267,
+          "warehouseCapacity": 200,
           "landCapacity": 30,
           "queueLimit": 3,
           "orderSlots": 6,
@@ -1509,396 +1603,283 @@
         },
         "jobs": [
           {
-            "id": 69,
+            "id": 1,
+            "productId": 1,
+            "sourceId": "__farm__",
+            "plotIndex": 23,
+            "status": "ready",
+            "enqueuedAt": 33572,
+            "startedAt": 33572,
+            "endAt": 153572
+          },
+          {
+            "id": 2,
+            "productId": 1,
+            "sourceId": "__farm__",
+            "plotIndex": 12,
+            "status": "ready",
+            "enqueuedAt": 33621,
+            "startedAt": 33621,
+            "endAt": 153621
+          },
+          {
+            "id": 3,
+            "productId": 1,
+            "sourceId": "__farm__",
+            "plotIndex": 11,
+            "status": "ready",
+            "enqueuedAt": 33638,
+            "startedAt": 33638,
+            "endAt": 153638
+          },
+          {
+            "id": 4,
+            "productId": 1,
+            "sourceId": "__farm__",
+            "plotIndex": 0,
+            "status": "ready",
+            "enqueuedAt": 33788,
+            "startedAt": 33788,
+            "endAt": 153788
+          },
+          {
+            "id": 5,
+            "productId": 1,
+            "sourceId": "__farm__",
+            "plotIndex": 1,
+            "status": "ready",
+            "enqueuedAt": 34121,
+            "startedAt": 34121,
+            "endAt": 154121
+          },
+          {
+            "id": 6,
+            "productId": 1,
+            "sourceId": "__farm__",
+            "plotIndex": 2,
+            "status": "ready",
+            "enqueuedAt": 34271,
+            "startedAt": 34271,
+            "endAt": 154271
+          },
+          {
+            "id": 7,
             "productId": 1,
             "sourceId": "__farm__",
             "plotIndex": 3,
             "status": "ready",
-            "enqueuedAt": 33962611,
-            "startedAt": 33962611,
-            "endAt": 34082611
+            "enqueuedAt": 34538,
+            "startedAt": 34538,
+            "endAt": 154538
           },
           {
-            "id": 70,
+            "id": 8,
             "productId": 1,
             "sourceId": "__farm__",
             "plotIndex": 4,
             "status": "ready",
-            "enqueuedAt": 33962661,
-            "startedAt": 33962661,
-            "endAt": 34082661
+            "enqueuedAt": 35496,
+            "startedAt": 35496,
+            "endAt": 155496
           },
           {
-            "id": 71,
+            "id": 9,
             "productId": 1,
             "sourceId": "__farm__",
             "plotIndex": 5,
             "status": "ready",
-            "enqueuedAt": 33962711,
-            "startedAt": 33962711,
-            "endAt": 34082711
+            "enqueuedAt": 38533,
+            "startedAt": 38533,
+            "endAt": 158533
           },
           {
-            "id": 72,
-            "productId": 1,
+            "id": 10,
+            "productId": 5,
             "sourceId": "__farm__",
             "plotIndex": 6,
-            "status": "ready",
-            "enqueuedAt": 33962761,
-            "startedAt": 33962761,
-            "endAt": 34082761
+            "status": "running",
+            "enqueuedAt": 8180308,
+            "startedAt": 8180308,
+            "endAt": 8780308
           },
           {
-            "id": 73,
-            "productId": 1,
+            "id": 11,
+            "productId": 5,
             "sourceId": "__farm__",
             "plotIndex": 7,
-            "status": "ready",
-            "enqueuedAt": 33963096,
-            "startedAt": 33963096,
-            "endAt": 34083096
+            "status": "running",
+            "enqueuedAt": 8180708,
+            "startedAt": 8180708,
+            "endAt": 8780708
           },
           {
-            "id": 74,
-            "productId": 1,
+            "id": 12,
+            "productId": 5,
             "sourceId": "__farm__",
             "plotIndex": 8,
-            "status": "ready",
-            "enqueuedAt": 33963163,
-            "startedAt": 33963163,
-            "endAt": 34083163
+            "status": "running",
+            "enqueuedAt": 8180924,
+            "startedAt": 8180924,
+            "endAt": 8780924
           },
           {
-            "id": 75,
-            "productId": 1,
+            "id": 13,
+            "productId": 5,
             "sourceId": "__farm__",
             "plotIndex": 9,
-            "status": "ready",
-            "enqueuedAt": 33963264,
-            "startedAt": 33963264,
-            "endAt": 34083264
+            "status": "running",
+            "enqueuedAt": 8181125,
+            "startedAt": 8181125,
+            "endAt": 8781125
           },
           {
-            "id": 76,
-            "productId": 15,
+            "id": 14,
+            "productId": 5,
             "sourceId": "__farm__",
             "plotIndex": 19,
-            "status": "ready",
-            "enqueuedAt": 33964695,
-            "startedAt": 33964695,
-            "endAt": 35164695
+            "status": "running",
+            "enqueuedAt": 8181358,
+            "startedAt": 8181358,
+            "endAt": 8781358
           },
           {
-            "id": 77,
-            "productId": 15,
+            "id": 15,
+            "productId": 5,
             "sourceId": "__farm__",
             "plotIndex": 18,
-            "status": "ready",
-            "enqueuedAt": 33964945,
-            "startedAt": 33964945,
-            "endAt": 35164945
+            "status": "running",
+            "enqueuedAt": 8181541,
+            "startedAt": 8181541,
+            "endAt": 8781541
           },
           {
-            "id": 78,
-            "productId": 15,
+            "id": 16,
+            "productId": 5,
+            "sourceId": "__farm__",
+            "plotIndex": 17,
+            "status": "running",
+            "enqueuedAt": 8181708,
+            "startedAt": 8181708,
+            "endAt": 8781708
+          },
+          {
+            "id": 17,
+            "productId": 5,
+            "sourceId": "__farm__",
+            "plotIndex": 16,
+            "status": "running",
+            "enqueuedAt": 8181841,
+            "startedAt": 8181841,
+            "endAt": 8781841
+          },
+          {
+            "id": 18,
+            "productId": 5,
+            "sourceId": "__farm__",
+            "plotIndex": 15,
+            "status": "running",
+            "enqueuedAt": 8182075,
+            "startedAt": 8182075,
+            "endAt": 8782075
+          },
+          {
+            "id": 19,
+            "productId": 5,
+            "sourceId": "__farm__",
+            "plotIndex": 25,
+            "status": "running",
+            "enqueuedAt": 8182291,
+            "startedAt": 8182291,
+            "endAt": 8782291
+          },
+          {
+            "id": 20,
+            "productId": 5,
+            "sourceId": "__farm__",
+            "plotIndex": 26,
+            "status": "running",
+            "enqueuedAt": 8182508,
+            "startedAt": 8182508,
+            "endAt": 8782508
+          },
+          {
+            "id": 21,
+            "productId": 5,
+            "sourceId": "__farm__",
+            "plotIndex": 27,
+            "status": "running",
+            "enqueuedAt": 8182541,
+            "startedAt": 8182541,
+            "endAt": 8782541
+          },
+          {
+            "id": 22,
+            "productId": 5,
             "sourceId": "__farm__",
             "plotIndex": 28,
-            "status": "ready",
-            "enqueuedAt": 33965078,
-            "startedAt": 33965078,
-            "endAt": 35165078
+            "status": "running",
+            "enqueuedAt": 8182675,
+            "startedAt": 8182675,
+            "endAt": 8782675
           },
           {
-            "id": 79,
-            "productId": 15,
+            "id": 23,
+            "productId": 5,
             "sourceId": "__farm__",
             "plotIndex": 29,
-            "status": "ready",
-            "enqueuedAt": 33965311,
-            "startedAt": 33965311,
-            "endAt": 35165311
+            "status": "running",
+            "enqueuedAt": 8182791,
+            "startedAt": 8182791,
+            "endAt": 8782791
           }
         ],
         "board": [
-          {
-            "orderId": "S1-24",
-            "status": "ready"
-          },
-          {
-            "orderId": "S1-30",
-            "status": "ready"
-          },
           {
             "orderId": "S1-35",
             "status": "ready"
           },
           {
-            "orderId": "S2-20-29",
+            "orderId": "S2-24-36",
             "status": "ready"
           },
           {
-            "orderId": "S1-24",
+            "orderId": "S2-12-18",
             "status": "ready"
           },
           {
-            "orderId": "S1-30",
+            "orderId": "S2-14-19",
+            "status": "ready"
+          },
+          {
+            "orderId": "S3-35-12-31",
+            "status": "ready"
+          },
+          {
+            "orderId": "S2-33-20",
             "status": "ready"
           }
         ],
         "counters": {
           "delivered": 0,
           "earned": 0,
-          "refreshed": 1,
-          "produced": 68,
-          "draws": 7
+          "refreshed": 0,
+          "produced": 0,
+          "draws": 6
         },
         "log": [
           {
-            "at": 12929640,
-            "text": "芦苇丝生产完成，入库 1 件。"
-          },
-          {
-            "at": 13172963,
-            "text": "收获 棉花 × 1。"
-          },
-          {
-            "at": 13172990,
-            "text": "收获 棉花 × 1。"
-          },
-          {
-            "at": 13173007,
-            "text": "收获 棉花 × 1。"
-          },
-          {
-            "at": 13173023,
-            "text": "收获 棉花 × 1。"
-          },
-          {
-            "at": 13584489,
-            "text": "收获 棉花 × 1。"
-          },
-          {
-            "at": 13601245,
-            "text": "珍珠衣帽架加入生产，共 1 次。"
-          },
-          {
-            "at": 13603602,
-            "text": "云朵香粉加入生产，共 1 次。"
-          },
-          {
-            "at": 13605278,
-            "text": "云朵香粉加入生产，共 1 次。"
-          },
-          {
-            "at": 13606026,
-            "text": "云朵香粉加入生产，共 1 次。"
-          },
-          {
-            "at": 13606621,
-            "text": "云朵香粉加入生产，共 1 次。"
-          },
-          {
-            "at": 15403602,
-            "text": "云朵香粉生产完成，入库 1 件。"
-          },
-          {
-            "at": 17201245,
-            "text": "珍珠衣帽架生产完成，入库 1 件。"
-          },
-          {
-            "at": 17203602,
-            "text": "云朵香粉生产完成，入库 1 件。"
-          },
-          {
-            "at": 21494272,
-            "text": "收获 云朵香粉 × 1。"
-          },
-          {
-            "at": 21494272,
-            "text": "收获 云朵香粉 × 1。"
-          },
-          {
-            "at": 21526385,
-            "text": "收获 芦苇草 × 1。"
-          },
-          {
-            "at": 21526435,
-            "text": "收获 棉花 × 1。"
-          },
-          {
-            "at": 21526468,
-            "text": "收获 棉花 × 1。"
-          },
-          {
-            "at": 21605055,
-            "text": "芦苇丝加入生产，共 1 次。"
-          },
-          {
-            "at": 21627871,
-            "text": "乌云绒团加入生产，共 1 次。"
-          },
-          {
-            "at": 21627955,
-            "text": "乌云绒团加入生产，共 1 次。"
-          },
-          {
-            "at": 32873363,
-            "text": "芦苇丝加入生产，共 1 次。"
-          },
-          {
-            "at": 33954278,
-            "text": "收获 芦苇草 × 1。"
-          },
-          {
-            "at": 33954611,
-            "text": "收获 芦苇草 × 1。"
-          },
-          {
-            "at": 33954794,
-            "text": "收获 芦苇草 × 1。"
-          },
-          {
-            "at": 33954861,
-            "text": "收获 芦苇草 × 1。"
-          },
-          {
-            "at": 33954911,
-            "text": "收获 棉花 × 1。"
-          },
-          {
-            "at": 33955045,
-            "text": "收获 棉花 × 1。"
-          },
-          {
-            "at": 33955113,
-            "text": "收获 棉花 × 1。"
-          },
-          {
-            "at": 33955165,
-            "text": "收获 棉花 × 1。"
-          },
-          {
-            "at": 33955198,
-            "text": "收获 芦苇草 × 1。"
-          },
-          {
-            "at": 33955228,
-            "text": "收获 棉花 × 1。"
-          },
-          {
-            "at": 33955262,
-            "text": "收获 棉花 × 1。"
-          },
-          {
-            "at": 33955295,
-            "text": "收获 棉花 × 1。"
-          },
-          {
-            "at": 33955346,
-            "text": "收获 芦苇草 × 1。"
-          },
-          {
-            "at": 33955562,
-            "text": "收获 棉花 × 1。"
-          },
-          {
-            "at": 33955629,
-            "text": "收获 棉花 × 1。"
-          },
-          {
-            "at": 33955679,
-            "text": "收获 棉花 × 1。"
-          },
-          {
-            "at": 33955712,
-            "text": "收获 棉花 × 1。"
-          },
-          {
-            "at": 33955745,
-            "text": "收获 芦苇草 × 1。"
-          },
-          {
-            "at": 33955780,
-            "text": "收获 芦苇草 × 1。"
-          },
-          {
-            "at": 33955828,
-            "text": "收获 芦苇草 × 1。"
-          },
-          {
-            "at": 33955895,
-            "text": "收获 芦苇草 × 1。"
-          },
-          {
-            "at": 33956195,
-            "text": "收获 棉花 × 1。"
-          },
-          {
-            "at": 33956211,
-            "text": "收获 棉花 × 1。"
-          },
-          {
-            "at": 33956261,
-            "text": "收获 芦苇草 × 1。"
-          },
-          {
-            "at": 33956294,
-            "text": "收获 芦苇草 × 1。"
-          },
-          {
-            "at": 33956328,
-            "text": "收获 芦苇草 × 1。"
-          },
-          {
-            "at": 33956361,
-            "text": "收获 棉花 × 1。"
-          },
-          {
-            "at": 33956962,
-            "text": "收获 棉花 × 1。"
-          },
-          {
-            "at": 33969861,
-            "text": "收获 芦苇丝 × 1。"
-          },
-          {
-            "at": 33969861,
-            "text": "收获 乌云绒团 × 1。"
-          },
-          {
-            "at": 33969861,
-            "text": "收获 乌云绒团 × 1。"
-          },
-          {
-            "at": 33969861,
-            "text": "收获 芦苇丝 × 1。"
-          },
-          {
-            "at": 34446517,
-            "text": "收获 芦苇草 × 1。"
-          },
-          {
-            "at": 34446567,
-            "text": "收获 芦苇草 × 1。"
-          },
-          {
-            "at": 34543172,
-            "text": "收获 芦苇草 × 1。"
-          },
-          {
-            "at": 38281373,
-            "text": "刷新订单 1，免费换单。"
-          },
-          {
-            "at": 38581373,
-            "text": "订单 1 刷新完成。"
+            "at": 0,
+            "text": "开始 Lv 20 经营，获得 1000 金币、2 倍单次订单需求的全部商品。"
           }
         ],
-        "rngState": 1933817953,
-        "nextJobId": 80,
+        "rngState": 3036506730,
+        "nextJobId": 24,
         "warehouseUpgrades": 0,
         "buildingUpgrades": {}
       }
     }
-  ]
+  ],
+  "fuelRules": {
+    "coinsPerFuel": 10
+  }
 }

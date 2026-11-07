@@ -1,10 +1,12 @@
 import {setupFuelRules} from './fuel-rules-view.js';
+import {ensureSharedSession} from './shared-session-bootstrap.js';
 import {readChainExcel} from './excel-import.js';
 import {prepareRanch} from './ranch-engine.js';
 import {writeSharedChainSource} from './shared-chain-source.js';
 import {downloadRanchWorkbook} from './ranch-export.js';
 import {setupRanchRulesDialog} from './ranch-rules-dialog.js';
 import {ranchSource} from './ranch-workspace.js';
+await ensureSharedSession();
 const view=document.body.dataset.ranchView,header=document.getElementById('ranchShell'),main=document.querySelector('main');
 const types=`<nav class="order-system-switch" aria-label="订单系统"><a href="./">普通订单</a><a href="ranch-distribution.html" aria-current="page">牧场订单</a></nav>`;
 if(header&&!header.children.length)header.innerHTML=`<div class="brand"><span class="brand-icon">牧</span><div><strong>牧场订单</strong><small id="shellProjectName">尚未导入项目</small></div></div>${types}`;

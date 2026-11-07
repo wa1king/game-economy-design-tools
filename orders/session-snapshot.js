@@ -2,6 +2,7 @@ import {isImportedProject,PROJECT_STORAGE_KEY} from './project-storage.js';
 import {buildCatalog} from './order-engine.js';
 import {normalizeCustomOrders} from './custom-orders.js';
 import {fuelRules,readFuelRules,FUEL_RULES_KEY} from './fuel-rewards.js';
+import {validateComputeCache} from './session-compute-cache.js';
 
 export const SESSION_SCHEMA='order-session-snapshot-v1';
 const gameKey=/^order-game-v1:(game-v([12])-\d+-[a-f0-9]+-[a-f0-9]+)$/;
@@ -10,6 +11,7 @@ const clone=value=>JSON.parse(JSON.stringify(value));
 export function validateSessionSnapshot(value){
   if(!value||value.schemaVersion!==SESSION_SCHEMA||!isImportedProject(value.project))throw Error('不是有效的订单项目备份。');
   const snapshot=clone(value),p=snapshot.project,c=buildCatalog(p.base,p.rules);
+  validateComputeCache(snapshot.computeCache,p);
   if(snapshot.fuelRules!=null)snapshot.fuelRules=fuelRules(snapshot.fuelRules);
   if(p.customOrders!=null)normalizeCustomOrders(p.customOrders,c.maxLevel);
   if(!Number.isInteger(p.activeLevel)||p.activeLevel<1||p.activeLevel>c.maxLevel)throw Error('备份中的当前等级无效。');
@@ -45,6 +47,10 @@ export function restoreSessionSnapshot(storage,input,{overwrite=false,now=Date.n
   if(current!==null&&!overwrite)return {restored:false,reason:'existing-project'};
   const entries=[{key:PROJECT_STORAGE_KEY,value:JSON.stringify(snapshot.project)},...snapshot.gameSaves.map(g=>({key:g.key,value:JSON.stringify(g.state)})).filter(e=>overwrite||storage.getItem(e.key)===null)];
   if(snapshot.fuelRules&&(overwrite||storage.getItem(FUEL_RULES_KEY)===null))entries.push({key:FUEL_RULES_KEY,value:JSON.stringify(snapshot.fuelRules)});
+  if(snapshot.computeCache){
+    entries.push(...snapshot.computeCache.settings.filter(e=>overwrite||storage.getItem(e.key)===null).map(e=>({key:e.key,value:JSON.stringify(e.value)})));
+    const key='order-shared-chain-v1';if(overwrite||storage.getItem(key)===null)entries.push({key,value:JSON.stringify({version:1,base:snapshot.project.base,filename:snapshot.project.filename})});
+  }
   const previous=entries.map(e=>({key:e.key,value:storage.getItem(e.key)}));
   let backupKey=null;
   if(overwrite&&previous.some(e=>e.value!==null)){
@@ -66,6 +72,11 @@ export function restoreSessionSnapshot(storage,input,{overwrite=false,now=Date.n
 }
 
 export async function fetchSharedSession(fetcher=fetch){
+  const compressed=await fetcher('./shared-session.json.gz',{cache:'no-store'});
+  if(compressed.status!==404){
+    if(!compressed.ok)throw Error('读取已同步配置失败。');
+    return validateSessionSnapshot(await new Response(compressed.body.pipeThrough(new DecompressionStream('gzip'))).json());
+  }
   const response=await fetcher('./shared-session.json',{cache:'no-store'});
   if(response.status===404)return null;
   if(!response.ok)throw Error('读取已同步配置失败。');
